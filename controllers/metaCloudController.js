@@ -115,16 +115,22 @@ export const handleWebhook = async (req, res) => {
 
         if (!value) return;
 
-        // Handle message status updates (sent, delivered, read)
+        // Handle message status updates (sent, delivered, read, failed)
         if (value.statuses && value.statuses.length > 0) {
             const status = value.statuses[0];
             console.log(`📊 [META_STATUS] Message ${status.id} -> ${status.status}`);
+
+            try {
+                await Message.update(
+                    { status: status.status },
+                    { where: { messageId: status.id } }
+                );
+            } catch (err) {
+                console.error('Error updating message status in DB:', err.message);
+            }
+
             if (io) {
-                io.to('user_3').emit('message_status', {
-                    messageId: status.id,
-                    status: status.status
-                });
-                io.to('user_1').emit('message_status', {
+                io.emit('message_status', {
                     messageId: status.id,
                     status: status.status
                 });

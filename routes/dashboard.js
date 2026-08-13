@@ -1101,27 +1101,66 @@ router.get('/livechat/:remoteJid/messages', async (req, res) => {
 
         const { remoteJid } = req.params;
         const decodedJid = decodeURIComponent(remoteJid);
+        const phone = decodedJid.split('@')[0].replace(/[^0-9]/g, '');
+        const phoneJid = `${phone}@s.whatsapp.net`;
 
-        const viewOwnOnly = await getSetting('sales_view_own_chats_only', targetUserId);
-        if (req.user.role === 'sales' && viewOwnOnly) {
-            const customer = await Customer.findOne({
-                where: { UserId: targetUserId, remoteJid: decodedJid, assignedToUserId: req.user.id }
-            });
-            if (!customer) {
-                return res.status(403).json({ error: 'غير مسموح لك بالوصول لهذه المحادثة.' });
+        const customer = await Customer.findOne({
+            where: {
+                [Op.or]: [
+                    { remoteJid: decodedJid },
+                    { remoteJid: phoneJid },
+                    { phoneNumber: phone }
+                ]
+            }
+        });
+
+        const userIds = [targetUserId];
+        if (customer && customer.UserId) userIds.push(customer.UserId);
+
+        const messages = await Message.findAll({
+            where: {
+                UserId: { [Op.in]: userIds },
+                [Op.or]: [
+                    { remoteJid: decodedJid },
+                    { remoteJid: phoneJid },
+                    { remoteJid: phone }
+                ]
+            },
+            order: [['createdAt', 'ASC']],
+            limit: 100
+        });
+
+        // Reset unread count
+        if (customer) {
+            await Conversation.update(
+                { unreadCount: 0 },
+                { where: { id: customer.id } }
+            );
+        }
+
+        // Calculate 24h Meta Customer Service Window
+        let windowActive = false;
+        let remainingHours = 0;
+        let lastUserMsgTime = null;
+
+        const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+        if (lastUserMsg) {
+            lastUserMsgTime = lastUserMsg.createdAt;
+            const diffMs = Date.now() - new Date(lastUserMsgTime).getTime();
+            const diffHours = diffMs / (1000 * 60 * 60);
+            if (diffHours < 24) {
+                windowActive = true;
+                remainingHours = Math.max(1, Math.round(24 - diffHours));
             }
         }
-        const messages = await Message.findAll({
-            where: { UserId: targetUserId, remoteJid: decodedJid },
-            order: [['createdAt', 'ASC']],
-            limit: 50
+
+        res.json({
+            success: true,
+            messages,
+            windowActive,
+            remainingHours,
+            lastUserMsgTime
         });
-        // Reset unread count
-        await Conversation.update(
-            { unreadCount: 0 },
-            { where: { UserId: targetUserId, remoteJid: decodedJid } }
-        );
-        res.json({ success: true, messages });
     } catch (err) {
         console.error('GetMessages error:', err);
         res.status(500).json({ error: 'Failed to load messages' });
