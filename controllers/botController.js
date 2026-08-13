@@ -3669,8 +3669,52 @@ export async function teachBot(userId, userText) {
 // 🛡️ Live Chat & Human Handoff Method
 // ============================================================
 export async function sendManualMessage(userId, remoteJid, text, senderName = null, io = null) {
+    const user = await User.findByPk(userId);
+    const isMetaUser = user && (user.connection_status === 'meta_online' || user.connection_status === 'meta' || (process.env.META_ACCESS_TOKEN && process.env.META_PHONE_NUMBER_ID));
+
     let sock = sessions.get(parseInt(userId, 10)) || sessions.get(String(userId)) || sessions.get(userId);
-    
+
+    // If user is connected via Meta Cloud API or Baileys session missing while Meta API configured
+    if ((isMetaUser && (!sock || !sock.user)) || (user && (user.connection_status === 'meta_online' || user.connection_status === 'meta'))) {
+        console.log(`[sendManualMessage] Sending via Meta WhatsApp Cloud API for User ${userId} to ${remoteJid}...`);
+        try {
+            const { sendMetaMessage } = await import('./metaCloudController.js');
+            const targetPhone = remoteJid.replace(/[^0-9]/g, '');
+            const metaRes = await sendMetaMessage(targetPhone, text);
+
+            if (!metaRes || !metaRes.success) {
+                const errMsg = typeof metaRes?.error === 'object' ? JSON.stringify(metaRes.error) : (metaRes?.error || 'فشل الاتصال بـ Meta API');
+                throw new Error(`خطأ في إرسال واتساب API: ${errMsg}`);
+            }
+
+            const messageId = metaRes?.data?.messages?.[0]?.id || `meta_${Date.now()}`;
+
+            const savedMsg = await Message.create({
+                UserId: userId,
+                remoteJid,
+                role: 'model',
+                content: text,
+                senderName: senderName,
+                messageId,
+                status: 'sent'
+            });
+
+            await Conversation.update(
+                { lastMessageText: text, lastMessageAt: new Date() },
+                { where: { UserId: userId, remoteJid } }
+            );
+
+            if (io) {
+                io.to(`user_${userId}`).emit('new_message', savedMsg);
+            }
+
+            return savedMsg;
+        } catch (metaErr) {
+            console.error(`[sendManualMessage] Meta API send error for User ${userId}:`, metaErr);
+            throw metaErr;
+        }
+    }
+
     if (!sock || !sock.user) {
         console.log(`[sendManualMessage] Socket dead or missing for User ${userId}. Reviving connection...`);
         sessions.delete(parseInt(userId, 10));
