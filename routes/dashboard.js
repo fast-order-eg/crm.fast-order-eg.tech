@@ -1015,12 +1015,15 @@ router.get('/livechat/api/conversations', async (req, res) => {
         const limit = parseInt(req.query.limit) || 10;
         const offset = (page - 1) * limit;
         const search = req.query.search ? req.query.search.trim() : '';
-        const handoffOnly = req.query.handoffOnly === 'true';
+        const filter = req.query.filter || (req.query.handoffOnly === 'true' ? 'handoff' : 'all');
 
         const viewOwnOnly = await getSetting('sales_view_own_chats_only', targetUserId);
 
         const whereClause = { UserId: targetUserId };
-        if (handoffOnly) {
+        
+        if (filter === 'unread') {
+            whereClause.unreadCount = { [Op.gt]: 0 };
+        } else if (filter === 'handoff') {
             whereClause.is_handoff = true;
         }
 
@@ -1034,10 +1037,25 @@ router.get('/livechat/api/conversations', async (req, res) => {
         }
 
         const customerWhere = {};
+        let customerRequired = req.user.role === 'sales' && viewOwnOnly;
+
         if (req.user.role === 'sales' && viewOwnOnly) {
             customerWhere.assignedToUserId = req.user.id;
+        } else if (filter === 'rahma' || filter === 'ola') {
+            const targetName = filter === 'rahma' ? 'رحمة' : 'علا';
+            const salesUsers = await User.findAll({
+                where: {
+                    [Op.or]: [
+                        { fullName: { [Op.like]: `%${targetName}%` } },
+                        { username: { [Op.like]: `%${targetName}%` } }
+                    ]
+                },
+                attributes: ['id']
+            });
+            const userIds = salesUsers.map(u => u.id);
+            customerWhere.assignedToUserId = { [Op.in]: userIds.length ? userIds : [-1] };
+            customerRequired = true;
         }
-        const customerRequired = req.user.role === 'sales' && viewOwnOnly;
 
         const { count, rows: conversations } = await Conversation.findAndCountAll({
             where: whereClause,

@@ -46,12 +46,12 @@
             min-height: 0;
         }
         .lc-contacts {
-            width: 340px;
+            width: 350px;
             min-width: 320px;
             border-left: 1px solid #e2e8f0;
             display: flex;
             flex-direction: column;
-            background: #f8fafc;
+            background: #ffffff;
             height: 100%;
             min-height: 0;
         }
@@ -66,7 +66,7 @@
         }
         .lc-search {
             padding: 10px 14px;
-            border-bottom: 1px solid #e2e8f0;
+            border-bottom: 1px solid #f1f5f9;
             background: #ffffff;
             flex-shrink: 0;
         }
@@ -80,6 +80,34 @@
             width: 100%;
         }
         .lc-search input::placeholder { color: #94a3b8; }
+        
+        .lc-filter-pills {
+            flex-shrink: 0;
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .pill-btn {
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 4px 11px;
+            background: #ffffff;
+            color: #475569;
+            border: 1px solid #cbd5e1;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+        }
+        .pill-btn:hover {
+            background: #edf2f7;
+            color: #1e293b;
+        }
+        .pill-btn.active {
+            background: #25d366;
+            color: #ffffff;
+            border-color: #25d366;
+            box-shadow: 0 2px 6px rgba(37, 211, 102, 0.3);
+        }
+
         .lc-contacts-list {
             flex: 1;
             overflow-y: auto;
@@ -96,17 +124,17 @@
             position: relative;
         }
         .lc-item:hover {
-            background: #edf2f7;
+            background: #f8fafc;
         }
         .lc-item.active {
-            background: #e0e7ff;
-            border-right: 4px solid #6366f1;
+            background: #f0fdf4;
+            border-right: 4px solid #25d366;
         }
         .lc-av {
             width: 42px;
             height: 42px;
             border-radius: 50%;
-            background: #6366f1;
+            background: #25d366;
             color: #ffffff;
             display: flex;
             align-items: center;
@@ -167,7 +195,7 @@
             color: #94a3b8;
         }
         .unread-pill {
-            background: #6366f1;
+            background: #25d366;
             color: #ffffff;
             font-size: 10px;
             font-weight: bold;
@@ -191,6 +219,10 @@
             align-items: center;
             justify-content: center;
             color: #94a3b8;
+            background-color: #efeae2;
+            background-image: url('/whatsapp_bg.jpg');
+            background-repeat: repeat;
+            background-size: 350px 350px;
         }
         .lc-chat-head {
             padding: 12px 20px;
@@ -198,8 +230,10 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            background: #f8fafc;
+            background: #ffffff;
             flex-shrink: 0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+            z-index: 5;
         }
         .lc-msgs {
             flex: 1;
@@ -208,8 +242,11 @@
             overflow-y: auto;
             display: flex;
             flex-direction: column;
-            gap: 12px;
-            background: #f8fafc;
+            gap: 10px;
+            background-color: #efeae2;
+            background-image: url('/whatsapp_bg.jpg');
+            background-repeat: repeat;
+            background-size: 350px 350px;
         }
         .lc-send-bar {
             padding: 12px 16px;
@@ -217,59 +254,83 @@
             display: flex;
             align-items: center;
             gap: 10px;
-            background: #ffffff;
+            background: #f0f2f5;
             flex-shrink: 0;
         }
         .lc-send-bar textarea {
             flex: 1;
             border: 1px solid #cbd5e1;
-            border-radius: 10px;
-            padding: 8px 12px;
-            font-size: 13px;
+            border-radius: 12px;
+            padding: 10px 14px;
+            font-size: 13.5px;
             resize: none;
             outline: none;
             max-height: 100px;
+            background: #ffffff;
         }
         .btn-ls {
-            background: #6366f1;
+            background: #25d366;
             color: #ffffff;
             border: none;
-            border-radius: 10px;
+            border-radius: 50%;
             width: 42px;
             height: 42px;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
+            box-shadow: 0 2px 8px rgba(37, 211, 102, 0.3);
+            transition: all 0.2s ease;
         }
-        .btn-ls:hover { background: #4f46e5; }
+        .btn-ls:hover { background: #1eb956; transform: scale(1.05); }
+
+        /* WhatsApp Bubble Styles */
         .bbl {
-            max-width: 70%;
-            padding: 10px 14px;
-            border-radius: 12px;
-            font-size: 13px;
-            line-height: 1.5;
+            max-width: 65%;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 13.5px;
+            line-height: 1.45;
             word-wrap: break-word;
             position: relative;
+            box-shadow: 0 1px 0.5px rgba(11,20,26,0.13);
         }
         .bbl.usr {
             align-self: flex-start;
-            background: #ffffff;
-            color: #1e293b;
-            border: 1px solid #e2e8f0;
-            border-bottom-right-radius: 2px;
+            background-color: #ffffff;
+            color: #111b21;
+            border-top-left-radius: 0px;
         }
         .bbl.bot {
             align-self: flex-end;
-            background: #6366f1;
-            color: #ffffff;
-            border-bottom-left-radius: 2px;
+            background-color: #d9fdd3;
+            color: #111b21;
+            border-top-right-radius: 0px;
         }
         .bbl-t {
-            font-size: 9px;
-            opacity: 0.7;
+            font-size: 10px;
+            color: #667781;
             margin-top: 4px;
-            text-align: left;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 2px;
+            direction: ltr;
+        }
+        .tick-read {
+            color: #53bdeb !important;
+            font-weight: bold;
+        }
+        .tick-delivered {
+            color: #8696a0 !important;
+            font-weight: bold;
+        }
+        .tick-sent {
+            color: #8696a0 !important;
+            font-weight: bold;
+        }
+        .tick-pending {
+            color: #8696a0 !important;
         }
 
         @media (max-width: 768px) {
@@ -286,7 +347,7 @@
 
     <div class="main-content px-3 pb-3">
         <div class="d-flex align-items-center justify-content-between mb-3">
-            <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-chat-dots-fill me-2 text-primary"></i>اللايف شات</h5>
+            <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-whatsapp me-2 text-success"></i>اللايف شات</h5>
             <div class="d-flex gap-2">
                 <span class="badge-handoff" id="badgeHandoffCount"><i class="bi bi-person-fill me-1"></i><%= handoffCount %> تحويل نشط</span>
                 <span class="badge-bot" id="badgeTotalCount"><i class="bi bi-chat-fill me-1"></i><%= totalConversationsCount %> محادثة</span>
@@ -299,13 +360,20 @@
                 <div class="lc-contacts">
                     <div class="lc-contacts-head">
                         <span class="fw-bold text-dark" style="font-size:13px;">المحادثات</span>
-                        <span class="badge bg-primary rounded-pill" id="badgeConvCount" style="font-size:11px;"><%= conversations.length %> من <%= totalConversationsCount %></span>
+                        <span class="badge bg-success rounded-pill" id="badgeConvCount" style="font-size:11px;"><%= conversations.length %> من <%= totalConversationsCount %></span>
                     </div>
+                    
+                    <!-- WhatsApp Filter Pills Bar -->
+                    <div class="lc-filter-pills px-2 py-2 border-bottom bg-white d-flex gap-1 overflow-auto align-items-center" style="white-space: nowrap; scrollbar-width: none;">
+                        <button class="btn btn-sm pill-btn active" data-filter="all" onclick="setFilter('all')">الكل</button>
+                        <button class="btn btn-sm pill-btn" data-filter="unread" onclick="setFilter('unread')">غير مقروء 📩</button>
+                        <button class="btn btn-sm pill-btn" data-filter="rahma" onclick="setFilter('rahma')">رحمة سيلز 👩‍💼</button>
+                        <button class="btn btn-sm pill-btn" data-filter="ola" onclick="setFilter('ola')">علا سيلز 👩‍💼</button>
+                        <button class="btn btn-sm pill-btn" data-filter="handoff" onclick="setFilter('handoff')">التحويلات ⚠️</button>
+                    </div>
+
                     <div class="lc-search d-flex gap-2">
                         <input type="text" id="lcSearch" placeholder="🔍 ابحث بالاسم أو الرقم...">
-                        <button class="btn btn-sm btn-outline-warning d-flex align-items-center justify-content-center" id="lcFilterHandoff" title="عرض المحادثات المتوقفة فقط" style="border-radius:8px; width:36px; padding:0;">
-                            <i class="bi bi-funnel-fill"></i>
-                        </button>
                     </div>
                     <div class="lc-contacts-list">
                         <% if (!conversations.length) { %>
@@ -364,8 +432,8 @@
                 <!-- main chat area -->
                 <div class="lc-chat">
                     <div class="lc-empty" id="lcEmpty">
-                        <i class="bi bi-chat-left-text" style="font-size:3rem;margin-bottom:12px;opacity:.3;"></i>
-                        <span>اختر محادثة من القائمة الجانبية لعرض الرسائل</span>
+                        <i class="bi bi-whatsapp text-success" style="font-size:3.5rem;margin-bottom:12px;opacity:.6;"></i>
+                        <span class="fw-bold text-secondary">اختر محادثة من القائمة الجانبية لبدء الشات</span>
                     </div>
                     <div id="lcActive" style="display:none; flex-direction:column; height:100%; min-height:0; overflow:hidden;">
                         <div class="lc-chat-head">
@@ -376,7 +444,7 @@
                                 <div class="lc-av" id="lcAv" style="width:36px;height:36px;font-size:14px;">?</div>
                                  <div>
                                      <div class="fw-bold text-dark" style="font-size:14px;" id="lcNm">-</div>
-                                     <div class="d-flex align-items-center gap-2" style="font-size:11px;color:#6366f1;direction:ltr;">
+                                     <div class="d-flex align-items-center gap-2" style="font-size:11px;color:#25d366;direction:ltr;">
                                          <span id="lcPhone">-</span>
                                          <span id="lcPhoneActions" class="align-items-center gap-2" style="display: none;">
                                              <button class="btn btn-link text-muted p-0 border-0" onclick="copyPhone()" title="نسخ الرقم" style="box-shadow: none; font-size: 12px;">
@@ -430,19 +498,19 @@
     });
 
     function getStatusIcon(status) {
-        if (status === 'pending') return '<i class="bi bi-clock tick-pending"></i>';
-        if (status === 'sent') return '<i class="bi bi-check2 tick-sent"></i>';
-        if (status === 'delivered') return '<i class="bi bi-check2-all tick-delivered"></i>';
-        if (status === 'read') return '<i class="bi bi-check2-all tick-read"></i>';
-        return '';
+        if (status === 'pending') return '<i class="bi bi-clock tick-pending me-1"></i>';
+        if (status === 'sent') return '<i class="bi bi-check tick-sent me-1"></i>';
+        if (status === 'delivered') return '<i class="bi bi-check2-all tick-delivered me-1"></i>';
+        if (status === 'read') return '<i class="bi bi-check2-all tick-read me-1"></i>';
+        return '<i class="bi bi-check2-all tick-read me-1"></i>';
     }
 
-    // --- Infinite Scroll & Pagination Logic ---
+    // --- Infinite Scroll, Filter Pills & Pagination Logic ---
     let convPage = 1;
     let convLoading = false;
     let convHasMore = <%= (conversations.length < totalConversationsCount) ? 'true' : 'false' %>;
     let searchQuery = '';
-    let showOnlyHandoff = false;
+    let currentFilter = 'all';
 
     const contactsListEl = document.querySelector('.lc-contacts-list');
     if (contactsListEl) {
@@ -451,6 +519,18 @@
                 loadMoreConversations();
             }
         });
+    }
+
+    function setFilter(filterType) {
+        currentFilter = filterType;
+        document.querySelectorAll('.pill-btn').forEach(btn => {
+            if (btn.dataset.filter === filterType) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+        fetchFilteredConversations();
     }
 
     function createConvItemHtml(c) {
@@ -516,7 +596,7 @@
 
         try {
             const nextPage = convPage + 1;
-            const res = await fetch(`/dashboard/livechat/api/conversations?page=${nextPage}&limit=10&search=${encodeURIComponent(searchQuery)}&handoffOnly=${showOnlyHandoff}`);
+            const res = await fetch(`/dashboard/livechat/api/conversations?page=${nextPage}&limit=10&search=${encodeURIComponent(searchQuery)}&filter=${currentFilter}`);
             const data = await res.json();
             
             const loaderEl = document.getElementById(loaderId);
@@ -554,20 +634,12 @@
         }, 300);
     });
 
-    document.getElementById('lcFilterHandoff').addEventListener('click', function() {
-        showOnlyHandoff = !showOnlyHandoff;
-        this.classList.toggle('btn-warning');
-        this.classList.toggle('text-dark');
-        this.classList.toggle('btn-outline-warning');
-        fetchFilteredConversations();
-    });
-
     async function fetchFilteredConversations() {
         convPage = 1;
         convHasMore = true;
-        contactsListEl.innerHTML = '<div class="text-center p-3 text-muted" style="font-size:12px;"><i class="bi bi-arrow-repeat spin me-1"></i>جاري البحث...</div>';
+        contactsListEl.innerHTML = '<div class="text-center p-3 text-muted" style="font-size:12px;"><i class="bi bi-arrow-repeat spin me-1"></i>جاري التحميل...</div>';
         try {
-            const res = await fetch(`/dashboard/livechat/api/conversations?page=1&limit=10&search=${encodeURIComponent(searchQuery)}&handoffOnly=${showOnlyHandoff}`);
+            const res = await fetch(`/dashboard/livechat/api/conversations?page=1&limit=10&search=${encodeURIComponent(searchQuery)}&filter=${currentFilter}`);
             const data = await res.json();
             contactsListEl.innerHTML = '';
             if (data.success && Array.isArray(data.conversations) && data.conversations.length > 0) {
@@ -670,13 +742,13 @@
         if (mediaUrl) {
             const ext = mediaUrl.split('.').pop().toLowerCase();
             if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
-                contentHtml += `<div class="media-bubble"><a href="${mediaUrl}" target="_blank"><img src="${mediaUrl}" alt="صورة"></a></div>`;
+                contentHtml += `<div class="media-bubble mb-1"><a href="${mediaUrl}" target="_blank"><img src="${mediaUrl}" alt="صورة" style="max-width:100%; border-radius:6px;"></a></div>`;
             } else if (['mp4', 'webm', 'ogg'].includes(ext)) {
-                contentHtml += `<div class="media-bubble"><video src="${mediaUrl}" controls></video></div>`;
+                contentHtml += `<div class="media-bubble mb-1"><video src="${mediaUrl}" controls style="max-width:100%; border-radius:6px;"></video></div>`;
             } else if (['mp3', 'ogg', 'wav', 'm4a', 'opus'].includes(ext)) {
-                contentHtml += `<div class="media-bubble"><audio src="${mediaUrl}" controls></audio></div>`;
+                contentHtml += `<div class="media-bubble mb-1"><audio src="${mediaUrl}" controls style="max-width:100%;"></audio></div>`;
             } else {
-                contentHtml += `<div class="media-bubble"><a href="${mediaUrl}" target="_blank" class="btn btn-sm btn-light border"><i class="bi bi-file-earmark-arrow-down me-1"></i>تحميل الملف</a></div>`;
+                contentHtml += `<div class="media-bubble mb-1"><a href="${mediaUrl}" target="_blank" class="btn btn-sm btn-light border"><i class="bi bi-file-earmark-arrow-down me-1"></i>تحميل الملف</a></div>`;
             }
         }
 
@@ -685,11 +757,11 @@
         }
 
         let statusHtml = '';
-        if (!isUser && messageId) {
-            statusHtml = `<span id="status-${messageId}" class="ms-1">${getStatusIcon(status || 'sent')}</span>`;
+        if (!isUser) {
+            statusHtml = `<span id="status-${messageId || ''}">${getStatusIcon(status || 'read')}</span>`;
         }
 
-        div.innerHTML = `${contentHtml}<div class="bbl-t">${ts} ${statusHtml}</div>`;
+        div.innerHTML = `${contentHtml}<div class="bbl-t"><span>${ts}</span>${statusHtml}</div>`;
         msgsEl.appendChild(div);
         msgsEl.scrollTop = msgsEl.scrollHeight;
     }
@@ -742,7 +814,7 @@
         if(!txt || !curJid) return;
         document.getElementById('lcIn').value='';
         
-        addBbl(txt, false, new Date(), null, null, 'pending');
+        addBbl(txt, false, new Date(), null, null, 'sent');
 
         try {
             await fetch('/dashboard/livechat/' + encodeURIComponent(curJid) + '/send', {
