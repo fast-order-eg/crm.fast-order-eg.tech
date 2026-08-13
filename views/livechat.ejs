@@ -503,7 +503,7 @@
         if (status === 'sent') return '<i class="bi bi-check tick-sent me-1"></i>';
         if (status === 'delivered') return '<i class="bi bi-check2-all tick-delivered me-1"></i>';
         if (status === 'read') return '<i class="bi bi-check2-all tick-read me-1"></i>';
-        return '<i class="bi bi-check2-all tick-read me-1"></i>';
+        return '<i class="bi bi-check tick-sent me-1"></i>';
     }
 
     // --- Infinite Scroll, Filter Pills & Pagination Logic ---
@@ -759,7 +759,7 @@
 
         let statusHtml = '';
         if (!isUser) {
-            statusHtml = `<span id="status-${messageId || ''}" class="d-inline-flex align-items-center">${getStatusIcon(status || 'read')}</span>`;
+            statusHtml = `<span id="status-${messageId || ''}" class="d-inline-flex align-items-center">${getStatusIcon(status || 'sent')}</span>`;
         }
 
         div.innerHTML = `${contentHtml}<div class="bbl-t">${statusHtml}<span>${ts}</span></div>`;
