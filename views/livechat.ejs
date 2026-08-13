@@ -29,7 +29,8 @@
             border-radius: 20px;
         }
         .lc-wrapper {
-            height: calc(100vh - 120px);
+            height: calc(100vh - 170px);
+            min-height: 520px;
             display: flex;
             flex-direction: column;
         }
@@ -41,6 +42,8 @@
             overflow: hidden;
             border: 1px solid #e2e8f0;
             box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+            height: 100%;
+            min-height: 0;
         }
         .lc-contacts {
             width: 340px;
@@ -49,6 +52,8 @@
             display: flex;
             flex-direction: column;
             background: #f8fafc;
+            height: 100%;
+            min-height: 0;
         }
         .lc-contacts-head {
             padding: 14px 16px;
@@ -57,11 +62,13 @@
             align-items: center;
             justify-content: space-between;
             background: #ffffff;
+            flex-shrink: 0;
         }
         .lc-search {
             padding: 10px 14px;
             border-bottom: 1px solid #e2e8f0;
             background: #ffffff;
+            flex-shrink: 0;
         }
         .lc-search input {
             background: #f1f5f9;
@@ -76,6 +83,7 @@
         .lc-contacts-list {
             flex: 1;
             overflow-y: auto;
+            min-height: 0;
         }
         .lc-item {
             padding: 12px 14px;
@@ -172,6 +180,9 @@
             flex-direction: column;
             background: #ffffff;
             position: relative;
+            height: 100%;
+            min-height: 0;
+            overflow: hidden;
         }
         .lc-empty {
             flex: 1;
@@ -188,9 +199,11 @@
             align-items: center;
             justify-content: space-between;
             background: #f8fafc;
+            flex-shrink: 0;
         }
         .lc-msgs {
             flex: 1;
+            min-height: 0;
             padding: 20px;
             overflow-y: auto;
             display: flex;
@@ -205,6 +218,7 @@
             align-items: center;
             gap: 10px;
             background: #ffffff;
+            flex-shrink: 0;
         }
         .lc-send-bar textarea {
             flex: 1;
@@ -259,7 +273,7 @@
         }
 
         @media (max-width: 768px) {
-            .lc-wrapper { height: 100vh; padding-bottom: 10px !important; }
+            .lc-wrapper { height: calc(100vh - 140px); }
             .lc-contacts { width: 100% !important; border-left: none !important; }
             .lc-outer:not(.lc-show-chat) .lc-chat { display: none !important; }
             .lc-outer.lc-show-chat .lc-contacts { display: none !important; }
@@ -270,121 +284,123 @@
     <%- include('partials/navbar') %>
     <%- include('partials/sidebar') %>
 
-    <div class="main-content p-3">
+    <div class="main-content px-3 pb-3">
         <div class="d-flex align-items-center justify-content-between mb-3">
             <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-chat-dots-fill me-2 text-primary"></i>اللايف شات</h5>
             <div class="d-flex gap-2">
-                <span class="badge-handoff"><i class="bi bi-person-fill me-1"></i><%= conversations.filter(c=>c.is_handoff).length %> تحويل نشط</span>
-                <span class="badge-bot"><i class="bi bi-chat-fill me-1"></i><%= conversations.length %> محادثة</span>
+                <span class="badge-handoff" id="badgeHandoffCount"><i class="bi bi-person-fill me-1"></i><%= handoffCount %> تحويل نشط</span>
+                <span class="badge-bot" id="badgeTotalCount"><i class="bi bi-chat-fill me-1"></i><%= totalConversationsCount %> محادثة</span>
             </div>
         </div>
 
-        <div class="lc-outer">
-            <!-- contacts sidebar -->
-            <div class="lc-contacts">
-                <div class="lc-contacts-head">
-                    <span class="fw-bold text-dark" style="font-size:13px;">المحادثات</span>
-                    <span class="badge bg-primary rounded-pill" style="font-size:11px;"><%= conversations.length %></span>
-                </div>
-                <div class="lc-search d-flex gap-2">
-                    <input type="text" id="lcSearch" placeholder="🔍 ابحث بالاسم أو الرقم...">
-                    <button class="btn btn-sm btn-outline-warning d-flex align-items-center justify-content-center" id="lcFilterHandoff" title="عرض المحادثات المتوقفة فقط" style="border-radius:8px; width:36px; padding:0;">
-                        <i class="bi bi-funnel-fill"></i>
-                    </button>
-                </div>
-                <div class="lc-contacts-list">
-                    <% if (!conversations.length) { %>
-                    <div class="text-center p-4 text-muted" style="font-size:12px;">
-                        <i class="bi bi-chat-square-dots" style="font-size:1.8rem;display:block;margin-bottom:8px;opacity:.4;"></i>
-                        لا توجد محادثات بعد.
+        <div class="lc-wrapper">
+            <div class="lc-outer">
+                <!-- contacts sidebar -->
+                <div class="lc-contacts">
+                    <div class="lc-contacts-head">
+                        <span class="fw-bold text-dark" style="font-size:13px;">المحادثات</span>
+                        <span class="badge bg-primary rounded-pill" id="badgeConvCount" style="font-size:11px;"><%= conversations.length %> من <%= totalConversationsCount %></span>
                     </div>
-                    <% } %>
-
-                    <% conversations.forEach(c => {
-                        const isLid = c.remoteJid.endsWith('@lid');
-                        const phoneFromJid = (!isLid && c.remoteJid.endsWith('@s.whatsapp.net')) ? c.remoteJid.split('@')[0] : '';
-                        const phone = c.phoneNumber || phoneFromJid;
-                        const nm = c.customerName || phone || (isLid ? 'عميل' : c.remoteJid.split('@')[0]);
-                        const ts = new Date(c.lastMessageAt).toLocaleTimeString('en-US',{timeZone: 'Africa/Cairo', hour:'2-digit',minute:'2-digit',hour12:true});
-
-                        let badgeBg = 'background-color: #f1f5f9; color: #475569 !important; border: 1px solid #cbd5e1;';
-                        const assignedSales = c.Customer && c.Customer.assignedTo ? (c.Customer.assignedTo.fullName || c.Customer.assignedTo.username) : 'غير مخصص';
-                        if (assignedSales.includes('رحمة')) {
-                            badgeBg = 'background-color: #f3e8ff; color: #6b21a8 !important; border: 1px solid #d8b4fe;';
-                        } else if (assignedSales.includes('علا')) {
-                            badgeBg = 'background-color: #e0f2fe; color: #0369a1 !important; border: 1px solid #7dd3fc;';
-                        } else if (assignedSales !== 'غير مخصص') {
-                            badgeBg = 'background-color: #e0e7ff; color: #3730a3 !important; border: 1px solid #a5b4fc;';
-                        }
-                    %>
-                    <div class="lc-item"
-                         data-jid="<%= c.remoteJid %>"
-                         data-handoff="<%= c.is_handoff %>"
-                         data-name="<%= nm.replace(/"/g,'') %>"
-                         data-phone="<%= phone %>"
-                         onclick="loadChat('<%= c.remoteJid %>','<%= nm.replace(/'/g,'') %>',<%= c.is_handoff %>,'<%= phone %>')">
-                        <div class="lc-av <%= c.is_handoff ? 'handoff-av' : '' %>">
-                            <%= nm[0].toUpperCase() %>
-                            <% if (c.is_handoff) { %><div class="h-dot"></div><% } %>
+                    <div class="lc-search d-flex gap-2">
+                        <input type="text" id="lcSearch" placeholder="🔍 ابحث بالاسم أو الرقم...">
+                        <button class="btn btn-sm btn-outline-warning d-flex align-items-center justify-content-center" id="lcFilterHandoff" title="عرض المحادثات المتوقفة فقط" style="border-radius:8px; width:36px; padding:0;">
+                            <i class="bi bi-funnel-fill"></i>
+                        </button>
+                    </div>
+                    <div class="lc-contacts-list">
+                        <% if (!conversations.length) { %>
+                        <div class="text-center p-4 text-muted" style="font-size:12px;">
+                            <i class="bi bi-chat-square-dots" style="font-size:1.8rem;display:block;margin-bottom:8px;opacity:.4;"></i>
+                            لا توجد محادثات بعد.
                         </div>
-                        <div class="lc-info">
-                            <div class="lc-name"><%= nm %></div>
-                            <div class="lc-assigned-sales" style="margin-top:2px; margin-bottom:2px;">
-                                <span class="badge shadow-sm" style="<%= badgeBg %> font-size: 10.5px; padding: 2px 7px; border-radius: 6px; font-weight: 600;">
-                                    <i class="bi bi-person-badge me-1"></i>المسؤول: <%= assignedSales %>
-                                </span>
+                        <% } %>
+
+                        <% conversations.forEach(c => {
+                            const isLid = c.remoteJid.endsWith('@lid');
+                            const phoneFromJid = (!isLid && c.remoteJid.endsWith('@s.whatsapp.net')) ? c.remoteJid.split('@')[0] : '';
+                            const phone = c.phoneNumber || phoneFromJid;
+                            const nm = c.customerName || phone || (isLid ? 'عميل' : c.remoteJid.split('@')[0]);
+                            const ts = new Date(c.lastMessageAt).toLocaleTimeString('en-US',{timeZone: 'Africa/Cairo', hour:'2-digit',minute:'2-digit',hour12:true});
+
+                            let badgeBg = 'background-color: #f1f5f9; color: #475569 !important; border: 1px solid #cbd5e1;';
+                            const assignedSales = c.Customer && c.Customer.assignedTo ? (c.Customer.assignedTo.fullName || c.Customer.assignedTo.username) : 'غير مخصص';
+                            if (assignedSales.includes('رحمة')) {
+                                badgeBg = 'background-color: #f3e8ff; color: #6b21a8 !important; border: 1px solid #d8b4fe;';
+                            } else if (assignedSales.includes('علا')) {
+                                badgeBg = 'background-color: #e0f2fe; color: #0369a1 !important; border: 1px solid #7dd3fc;';
+                            } else if (assignedSales !== 'غير مخصص') {
+                                badgeBg = 'background-color: #e0e7ff; color: #3730a3 !important; border: 1px solid #a5b4fc;';
+                            }
+                        %>
+                        <div class="lc-item"
+                             data-jid="<%= c.remoteJid %>"
+                             data-handoff="<%= c.is_handoff %>"
+                             data-name="<%= nm.replace(/"/g,'') %>"
+                             data-phone="<%= phone %>"
+                             onclick="loadChat('<%= c.remoteJid %>','<%= nm.replace(/'/g,'') %>',<%= c.is_handoff %>,'<%= phone %>')">
+                            <div class="lc-av <%= c.is_handoff ? 'handoff-av' : '' %>">
+                                <%= nm[0].toUpperCase() %>
+                                <% if (c.is_handoff) { %><div class="h-dot"></div><% } %>
                             </div>
-                            <% if (phone) { %><div class="lc-phone"><span class="d-none d-md-inline">📞 </span>+<%= phone %></div><% } %>
-                            <div class="lc-prev"><%= c.lastMessageText ? c.lastMessageText.replace(/[M:d+]/g, '').trim() : '...' %></div>
+                            <div class="lc-info">
+                                <div class="lc-name"><%= nm %></div>
+                                <div class="lc-assigned-sales" style="margin-top:2px; margin-bottom:2px;">
+                                    <span class="badge shadow-sm" style="<%= badgeBg %> font-size: 10.5px; padding: 2px 7px; border-radius: 6px; font-weight: 600;">
+                                        <i class="bi bi-person-badge me-1"></i>المسؤول: <%= assignedSales %>
+                                    </span>
+                                </div>
+                                <% if (phone) { %><div class="lc-phone"><span class="d-none d-md-inline">📞 </span>+<%= phone %></div><% } %>
+                                <div class="lc-prev"><%= c.lastMessageText ? c.lastMessageText.replace(/[M:d+]/g, '').trim() : '...' %></div>
+                            </div>
+                            <div class="lc-meta">
+                                <div class="lc-t"><%= ts %></div>
+                                <% if (c.unreadCount > 0) { %><span class="unread-pill"><%= c.unreadCount %></span><% } %>
+                            </div>
                         </div>
-                        <div class="lc-meta">
-                            <div class="lc-t"><%= ts %></div>
-                            <% if (c.unreadCount > 0) { %><span class="unread-pill"><%= c.unreadCount %></span><% } %>
-                        </div>
+                        <% }) %>
                     </div>
-                    <% }) %>
                 </div>
-            </div>
 
-            <!-- main chat area -->
-            <div class="lc-chat">
-                <div class="lc-empty" id="lcEmpty">
-                    <i class="bi bi-chat-left-text" style="font-size:3rem;margin-bottom:12px;opacity:.3;"></i>
-                    <span>اختر محادثة من القائمة الجانبية لعرض الرسائل</span>
-                </div>
-                <div id="lcActive" style="display:none; flex-direction:column; height:100%;">
-                    <div class="lc-chat-head">
-                         <div class="d-flex align-items-center gap-3">
-                            <button class="btn btn-sm btn-light d-md-none" onclick="goBackToList()">
-                                <i class="bi bi-arrow-right"></i>
-                            </button>
-                            <div class="lc-av" id="lcAv" style="width:36px;height:36px;font-size:14px;">?</div>
-                             <div>
-                                 <div class="fw-bold text-dark" style="font-size:14px;" id="lcNm">-</div>
-                                 <div class="d-flex align-items-center gap-2" style="font-size:11px;color:#6366f1;direction:ltr;">
-                                     <span id="lcPhone">-</span>
-                                     <span id="lcPhoneActions" class="align-items-center gap-2" style="display: none;">
-                                         <button class="btn btn-link text-muted p-0 border-0" onclick="copyPhone()" title="نسخ الرقم" style="box-shadow: none; font-size: 12px;">
-                                             <i class="bi bi-copy"></i>
-                                         </button>
-                                         <a id="lcWaLink" href="#" target="_blank" class="text-success p-0" title="فتح في واتساب" style="font-size: 14px;">
-                                             <i class="bi bi-whatsapp"></i>
-                                         </a>
-                                     </span>
+                <!-- main chat area -->
+                <div class="lc-chat">
+                    <div class="lc-empty" id="lcEmpty">
+                        <i class="bi bi-chat-left-text" style="font-size:3rem;margin-bottom:12px;opacity:.3;"></i>
+                        <span>اختر محادثة من القائمة الجانبية لعرض الرسائل</span>
+                    </div>
+                    <div id="lcActive" style="display:none; flex-direction:column; height:100%; min-height:0; overflow:hidden;">
+                        <div class="lc-chat-head">
+                             <div class="d-flex align-items-center gap-3">
+                                <button class="btn btn-sm btn-light d-md-none" onclick="goBackToList()">
+                                    <i class="bi bi-arrow-right"></i>
+                                </button>
+                                <div class="lc-av" id="lcAv" style="width:36px;height:36px;font-size:14px;">?</div>
+                                 <div>
+                                     <div class="fw-bold text-dark" style="font-size:14px;" id="lcNm">-</div>
+                                     <div class="d-flex align-items-center gap-2" style="font-size:11px;color:#6366f1;direction:ltr;">
+                                         <span id="lcPhone">-</span>
+                                         <span id="lcPhoneActions" class="align-items-center gap-2" style="display: none;">
+                                             <button class="btn btn-link text-muted p-0 border-0" onclick="copyPhone()" title="نسخ الرقم" style="box-shadow: none; font-size: 12px;">
+                                                 <i class="bi bi-copy"></i>
+                                             </button>
+                                             <a id="lcWaLink" href="#" target="_blank" class="text-success p-0" title="فتح في واتساب" style="font-size: 14px;">
+                                                 <i class="bi bi-whatsapp"></i>
+                                             </a>
+                                         </span>
+                                     </div>
                                  </div>
                              </div>
-                         </div>
-                         <div class="d-flex flex-column align-items-end gap-1">
-                             <span class="text-muted" style="font-size:10px; font-weight: 500;">المتحكم الحالي</span>
-                             <button class="btn btn-sm fw-semibold" id="lcBtn" onclick="doHandoff()" style="font-size:11px; border-radius: 8px; min-width: 90px; padding: 4px 10px;">
-                                 -
-                             </button>
-                         </div>
-                    </div>
-                    <div class="lc-msgs" id="lcMsgs"></div>
-                    <div class="lc-send-bar">
-                        <textarea id="lcIn" placeholder="اكتب ردك... (Enter=إرسال، Shift+Enter=سطر جديد)" rows="1"></textarea>
-                        <button class="btn-ls" onclick="sendMsg()"><i class="bi bi-send-fill"></i></button>
+                             <div class="d-flex flex-column align-items-end gap-1">
+                                 <span class="text-muted" style="font-size:10px; font-weight: 500;">المتحكم الحالي</span>
+                                 <button class="btn btn-sm fw-semibold" id="lcBtn" onclick="doHandoff()" style="font-size:11px; border-radius: 8px; min-width: 90px; padding: 4px 10px;">
+                                     -
+                                 </button>
+                             </div>
+                        </div>
+                        <div class="lc-msgs" id="lcMsgs"></div>
+                        <div class="lc-send-bar">
+                            <textarea id="lcIn" placeholder="اكتب ردك... (Enter=إرسال، Shift+Enter=سطر جديد)" rows="1"></textarea>
+                            <button class="btn-ls" onclick="sendMsg()"><i class="bi bi-send-fill"></i></button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -421,27 +437,158 @@
         return '';
     }
 
+    // --- Infinite Scroll & Pagination Logic ---
+    let convPage = 1;
+    let convLoading = false;
+    let convHasMore = <%= (conversations.length < totalConversationsCount) ? 'true' : 'false' %>;
+    let searchQuery = '';
     let showOnlyHandoff = false;
 
-    function applyFilters() {
-        const q = document.getElementById('lcSearch').value.toLowerCase();
-        document.querySelectorAll('.lc-item').forEach(el => {
-            const isHandoff = el.dataset.handoff === 'true';
-            const matchesName = el.dataset.name.toLowerCase().includes(q);
-            const matchesHandoff = showOnlyHandoff ? isHandoff : true;
-            el.style.display = (matchesName && matchesHandoff) ? '' : 'none';
+    const contactsListEl = document.querySelector('.lc-contacts-list');
+    if (contactsListEl) {
+        contactsListEl.addEventListener('scroll', () => {
+            if (contactsListEl.scrollTop + contactsListEl.clientHeight >= contactsListEl.scrollHeight - 40) {
+                loadMoreConversations();
+            }
         });
     }
 
-    document.getElementById('lcSearch').addEventListener('input', applyFilters);
+    function createConvItemHtml(c) {
+        const isLid = c.remoteJid.endsWith('@lid');
+        const phoneFromJid = (!isLid && c.remoteJid.endsWith('@s.whatsapp.net')) ? c.remoteJid.split('@')[0] : '';
+        const phone = c.phoneNumber || phoneFromJid;
+        const nm = c.customerName || phone || (isLid ? 'عميل' : c.remoteJid.split('@')[0]);
+        const ts = c.lastMessageAt ? new Date(c.lastMessageAt).toLocaleTimeString('en-US',{timeZone: 'Africa/Cairo', hour:'2-digit',minute:'2-digit',hour12:true}) : '';
+
+        let badgeBg = 'background-color: #f1f5f9; color: #475569 !important; border: 1px solid #cbd5e1;';
+        const assignedSales = c.Customer && c.Customer.assignedTo ? (c.Customer.assignedTo.fullName || c.Customer.assignedTo.username) : 'غير مخصص';
+        if (assignedSales.includes('رحمة')) {
+            badgeBg = 'background-color: #f3e8ff; color: #6b21a8 !important; border: 1px solid #d8b4fe;';
+        } else if (assignedSales.includes('علا')) {
+            badgeBg = 'background-color: #e0f2fe; color: #0369a1 !important; border: 1px solid #7dd3fc;';
+        } else if (assignedSales !== 'غير مخصص') {
+            badgeBg = 'background-color: #e0e7ff; color: #3730a3 !important; border: 1px solid #a5b4fc;';
+        }
+
+        const safeNm = (nm || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        const prevText = c.lastMessageText ? c.lastMessageText.replace(/[M:d+]/g, '').trim() : '...';
+        const unreadHtml = c.unreadCount > 0 ? `<span class="unread-pill">${c.unreadCount}</span>` : '';
+        const phoneHtml = phone ? `<div class="lc-phone"><span class="d-none d-md-inline">📞 </span>+${phone}</div>` : '';
+        const activeClass = (c.remoteJid === curJid) ? 'active' : '';
+
+        return `
+        <div class="lc-item ${activeClass}"
+             data-jid="${c.remoteJid}"
+             data-handoff="${c.is_handoff}"
+             data-name="${safeNm}"
+             data-phone="${phone}"
+             onclick="loadChat('${c.remoteJid}','${safeNm}',${c.is_handoff},'${phone}')">
+            <div class="lc-av ${c.is_handoff ? 'handoff-av' : ''}">
+                ${(nm || '?')[0].toUpperCase()}
+                ${c.is_handoff ? '<div class="h-dot"></div>' : ''}
+            </div>
+            <div class="lc-info">
+                <div class="lc-name">${nm}</div>
+                <div class="lc-assigned-sales" style="margin-top:2px; margin-bottom:2px;">
+                    <span class="badge shadow-sm" style="${badgeBg} font-size: 10.5px; padding: 2px 7px; border-radius: 6px; font-weight: 600;">
+                        <i class="bi bi-person-badge me-1"></i>المسؤول: ${assignedSales}
+                    </span>
+                </div>
+                ${phoneHtml}
+                <div class="lc-prev">${prevText}</div>
+            </div>
+            <div class="lc-meta">
+                <div class="lc-t">${ts}</div>
+                ${unreadHtml}
+            </div>
+        </div>
+        `;
+    }
+
+    async function loadMoreConversations() {
+        if (convLoading || !convHasMore) return;
+        convLoading = true;
+        
+        const loaderId = 'convListLoader';
+        if (!document.getElementById(loaderId)) {
+            contactsListEl.insertAdjacentHTML('beforeend', `<div id="${loaderId}" class="text-center p-2 text-muted" style="font-size:11px;"><i class="bi bi-arrow-repeat spin me-1"></i>جاري تحميل المزيد...</div>`);
+        }
+
+        try {
+            const nextPage = convPage + 1;
+            const res = await fetch(`/dashboard/livechat/api/conversations?page=${nextPage}&limit=10&search=${encodeURIComponent(searchQuery)}&handoffOnly=${showOnlyHandoff}`);
+            const data = await res.json();
+            
+            const loaderEl = document.getElementById(loaderId);
+            if (loaderEl) loaderEl.remove();
+
+            if (data.success && Array.isArray(data.conversations)) {
+                convPage = nextPage;
+                convHasMore = data.hasMore;
+                data.conversations.forEach(c => {
+                    if (!document.querySelector(`.lc-item[data-jid="${c.remoteJid}"]`)) {
+                        contactsListEl.insertAdjacentHTML('beforeend', createConvItemHtml(c));
+                    }
+                });
+                const countBadge = document.getElementById('badgeConvCount');
+                if (countBadge) {
+                    const loadedCount = document.querySelectorAll('.lc-item').length;
+                    countBadge.textContent = `${loadedCount} من ${data.totalCount || loadedCount}`;
+                }
+            }
+        } catch(e) {
+            console.error('Error loading more conversations:', e);
+            const loaderEl = document.getElementById(loaderId);
+            if (loaderEl) loaderEl.remove();
+        } finally {
+            convLoading = false;
+        }
+    }
+
+    let searchDebounce = null;
+    document.getElementById('lcSearch').addEventListener('input', function() {
+        searchQuery = this.value.trim();
+        clearTimeout(searchDebounce);
+        searchDebounce = setTimeout(() => {
+            fetchFilteredConversations();
+        }, 300);
+    });
 
     document.getElementById('lcFilterHandoff').addEventListener('click', function() {
         showOnlyHandoff = !showOnlyHandoff;
         this.classList.toggle('btn-warning');
         this.classList.toggle('text-dark');
         this.classList.toggle('btn-outline-warning');
-        applyFilters();
+        fetchFilteredConversations();
     });
+
+    async function fetchFilteredConversations() {
+        convPage = 1;
+        convHasMore = true;
+        contactsListEl.innerHTML = '<div class="text-center p-3 text-muted" style="font-size:12px;"><i class="bi bi-arrow-repeat spin me-1"></i>جاري البحث...</div>';
+        try {
+            const res = await fetch(`/dashboard/livechat/api/conversations?page=1&limit=10&search=${encodeURIComponent(searchQuery)}&handoffOnly=${showOnlyHandoff}`);
+            const data = await res.json();
+            contactsListEl.innerHTML = '';
+            if (data.success && Array.isArray(data.conversations) && data.conversations.length > 0) {
+                convHasMore = data.hasMore;
+                data.conversations.forEach(c => {
+                    contactsListEl.insertAdjacentHTML('beforeend', createConvItemHtml(c));
+                });
+                const countBadge = document.getElementById('badgeConvCount');
+                if (countBadge) {
+                    countBadge.textContent = `${data.conversations.length} من ${data.totalCount}`;
+                }
+            } else {
+                contactsListEl.innerHTML = '<div class="text-center p-4 text-muted" style="font-size:12px;"><i class="bi bi-search" style="font-size:1.5rem;display:block;margin-bottom:6px;opacity:.4;"></i>لا توجد محادثات متطابقة</div>';
+                const countBadge = document.getElementById('badgeConvCount');
+                if (countBadge) countBadge.textContent = `0`;
+            }
+        } catch(e) {
+            console.error('Error fetching filtered conversations:', e);
+            contactsListEl.innerHTML = '<div class="text-center p-3 text-danger" style="font-size:12px;">حدث خطأ في تحميل المحادثات</div>';
+        }
+    }
 
     function goBackToList() {
         const outer = document.querySelector('.lc-outer');

@@ -981,21 +981,98 @@ router.get('/livechat', async (req, res) => {
                 }]
             }],
             order: [['lastMessageAt', 'DESC']],
-            limit: 100
+            limit: 10
         };
 
         const conversations = await Conversation.findAll(queryOptions);
-        const handoffCount = conversations.filter(c => c.is_handoff).length;
+        const totalConversationsCount = await Conversation.count({
+            where: { UserId: targetUserId }
+        });
+        const handoffCount = await Conversation.count({
+            where: { UserId: targetUserId, is_handoff: true }
+        });
+
         res.render('livechat', {
             user: req.user,
             targetUserId,
             page: 'livechat',
             conversations: JSON.parse(JSON.stringify(conversations)),
+            totalConversationsCount,
             handoffCount
         });
     } catch (err) {
         console.error('LiveChat error:', err);
         res.status(500).send('Error loading live chat');
+    }
+});
+
+router.get('/livechat/api/conversations', async (req, res) => {
+    try {
+        const owner = await getOwnerUser(req.user);
+        const targetUserId = owner.id;
+
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const offset = (page - 1) * limit;
+        const search = req.query.search ? req.query.search.trim() : '';
+        const handoffOnly = req.query.handoffOnly === 'true';
+
+        const viewOwnOnly = await getSetting('sales_view_own_chats_only', targetUserId);
+
+        const whereClause = { UserId: targetUserId };
+        if (handoffOnly) {
+            whereClause.is_handoff = true;
+        }
+
+        if (search) {
+            const searchPattern = `%${search}%`;
+            whereClause[Op.or] = [
+                { customerName: { [Op.like]: searchPattern } },
+                { phoneNumber: { [Op.like]: searchPattern } },
+                { remoteJid: { [Op.like]: searchPattern } }
+            ];
+        }
+
+        const customerWhere = {};
+        if (req.user.role === 'sales' && viewOwnOnly) {
+            customerWhere.assignedToUserId = req.user.id;
+        }
+        const customerRequired = req.user.role === 'sales' && viewOwnOnly;
+
+        const { count, rows: conversations } = await Conversation.findAndCountAll({
+            where: whereClause,
+            include: [{
+                model: Customer,
+                as: 'Customer',
+                required: customerRequired,
+                where: Object.keys(customerWhere).length ? customerWhere : undefined,
+                include: [{
+                    model: User,
+                    as: 'assignedTo',
+                    attributes: ['id', 'fullName', 'username']
+                }]
+            }],
+            order: [['lastMessageAt', 'DESC']],
+            limit,
+            offset
+        });
+
+        const totalHandoff = await Conversation.count({
+            where: { UserId: targetUserId, is_handoff: true }
+        });
+
+        res.json({
+            success: true,
+            conversations: JSON.parse(JSON.stringify(conversations)),
+            totalCount: count,
+            handoffCount: totalHandoff,
+            page,
+            limit,
+            hasMore: (offset + conversations.length) < count
+        });
+    } catch (err) {
+        console.error('API Conversations Error:', err);
+        res.status(500).json({ error: 'Failed to load conversations' });
     }
 });
 
