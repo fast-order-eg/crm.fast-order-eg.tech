@@ -498,8 +498,11 @@
             const r = await fetch('/dashboard/livechat/' + encodeURIComponent(jid) + '/messages');
             const data = await r.json();
             msgsEl.innerHTML='';
-            if (Array.isArray(data)) {
-                data.forEach(m => addBbl(m.content ? m.content.replace(/\[M:\d+\]/g, '').trim() : '', m.role==='user', new Date(m.createdAt), m.media_url, m.messageId, m.status));
+            const msgsList = Array.isArray(data) ? data : (data.messages || []);
+            if (msgsList.length > 0) {
+                msgsList.forEach(m => addBbl(m.content ? m.content.replace(/\[M:\d+\]/g, '').trim() : '', m.role==='user', new Date(m.createdAt), m.media_url, m.messageId, m.status));
+            } else {
+                msgsEl.innerHTML='<div class="text-center p-4 text-muted" style="font-size:12px;"><i class="bi bi-chat-square" style="font-size:1.5rem;display:block;margin-bottom:6px;opacity:.4;"></i>لا توجد رسائل سابقة في هذه المحادثة</div>';
             }
             msgsEl.scrollTop = msgsEl.scrollHeight;
         } catch(e) {
@@ -562,7 +565,7 @@
             const r = await fetch('/dashboard/livechat/' + encodeURIComponent(curJid) + '/handoff', {
                 method:'POST',
                 headers:{'Content-Type':'application/json'},
-                body: JSON.stringify({ is_handoff: newHO })
+                body: JSON.stringify({ remoteJid: curJid, enable: newHO, is_handoff: newHO })
             });
             const data = await r.json();
             if(data.success){
@@ -598,7 +601,7 @@
             await fetch('/dashboard/livechat/' + encodeURIComponent(curJid) + '/send', {
                 method:'POST',
                 headers:{'Content-Type':'application/json'},
-                body: JSON.stringify({ text: txt })
+                body: JSON.stringify({ remoteJid: curJid, text: txt })
             });
         } catch(e) {
             console.error('Send error:', e);

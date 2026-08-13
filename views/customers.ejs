@@ -553,7 +553,7 @@
     function deleteCustomerFromDetails() {
         const customerId = window.currentDetailCustomerId;
         if (!customerId) {
-            alert('❌ عذراً، لم يتم تحديد العميل الحالية.');
+            alert('❌ عذراً، لم يتم تحديد العميل الحالي.');
             return;
         }
         if (!confirm('⚠️ هل أنت متأكد تماماً من حذف هذا العميل؟\nسيتم حذف العميل وكافة محادثاته ورسائله وسجلاته نهائياً من السيستم لجميع المستخدمين والموظفين!')) {
@@ -572,26 +572,11 @@
                     const modal = bootstrap.Modal.getInstance(modalEl);
                     if (modal) modal.hide();
                 }
-                fetchCustomersData(currentPage);
-            } else {
-                alert('❌ خطأ: ' + (data.error || 'فشل حذف العميل'));
-            }
-        })
-        .catch(err => {
-            console.error(err);
-            alert('❌ حدث خطأ أثناء حذف العميل.');
-        });
-    }
-        .then(r => r.json())
-        .then(data => {
-            if (data.success) {
-                alert('✅ تم حذف العميل وكافة محادثاته ورسائله بنجاح!');
-                const modalEl = document.getElementById('customerDetailsModal');
-                if (modalEl) {
-                    const modal = bootstrap.Modal.getInstance(modalEl);
-                    if (modal) modal.hide();
+                if (typeof fetchCustomersData === 'function') {
+                    fetchCustomersData(typeof currentPage !== 'undefined' ? currentPage : 1);
+                } else {
+                    location.reload();
                 }
-                fetchCustomersData(currentPage);
             } else {
                 alert('❌ خطأ: ' + (data.error || 'فشل حذف العميل'));
             }
@@ -601,7 +586,6 @@
             alert('❌ حدث خطأ أثناء حذف العميل.');
         });
     }
-    
 </script>
     <script>
         let currentPage = 1;

@@ -1033,9 +1033,10 @@ router.get('/livechat/:remoteJid/messages', async (req, res) => {
     }
 });
 
-router.post('/livechat/send', async (req, res) => {
+router.post(['/livechat/send', '/livechat/:remoteJid/send'], async (req, res) => {
     try {
-        const { remoteJid, text } = req.body;
+        const remoteJid = req.params.remoteJid || req.body.remoteJid;
+        const text = req.body.text;
         if (!remoteJid || !text) return res.status(400).json({ error: 'remoteJid and text required' });
         
         // جلب العميل للتأكد من وجوده ومعرفة المالك الفعلي للجلسة
@@ -1064,12 +1065,13 @@ router.post('/livechat/send', async (req, res) => {
     }
 });
 
-router.post('/livechat/handoff', async (req, res) => {
+router.post(['/livechat/handoff', '/livechat/:remoteJid/handoff'], async (req, res) => {
     try {
         const owner = await getOwnerUser(req.user);
         const targetUserId = owner.id;
 
-        const { remoteJid, enable } = req.body;
+        const remoteJid = req.params.remoteJid || req.body.remoteJid;
+        const enable = req.body.enable !== undefined ? req.body.enable : (req.body.is_handoff !== undefined ? req.body.is_handoff : req.body.handoff);
         if (!remoteJid) return res.status(400).json({ error: 'remoteJid required' });
 
         const viewOwnOnly = await getSetting('sales_view_own_chats_only', targetUserId);
@@ -3755,8 +3757,6 @@ router.get('/kpi/export', async (req, res) => {
     }
 });
 
-export default router;
-
 router.post('/customers/:id/delete', async (req, res) => {
     try {
         if (req.user.role !== 'admin' && req.user.role !== 'super_admin') {
@@ -3782,3 +3782,5 @@ router.post('/customers/:id/delete', async (req, res) => {
         res.status(500).json({ success: false, error: 'حدث خطأ أثناء حذف العميل.' });
     }
 });
+
+export default router;
