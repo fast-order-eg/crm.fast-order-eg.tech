@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>النظام المالي - Bird-CRM</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="/style.css?v=<%= Date.now() %>" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    
+    <style>
+        .finance-stat-card {
+            background: #ffffff;
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            border-radius: 12px;
+            padding: 1.5rem;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.01);
+        }
+        .finance-stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 4px;
+            height: 100%;
+        }
+        .finance-stat-card.income::before {
+            background: #198754; /* Green */
+        }
+        .finance-stat-card.expense::before {
+            background: #dc3545; /* Red */
+        }
+        .finance-stat-card.profit::before {
+            background: #0d6efd; /* Blue */
+        }
+        .finance-stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.04);
+        }
+        .finance-icon-box {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }
+        .income .finance-icon-box {
+            background-color: rgba(25, 135, 84, 0.1);
+            color: #198754;
+        }
+        .expense .finance-icon-box {
+            background-color: rgba(220, 53, 69, 0.1);
+            color: #dc3545;
+        }
+        .profit .finance-icon-box {
+            background-color: rgba(13, 110, 253, 0.1);
+            color: #0d6efd;
+        }
+        .chart-container {
+            position: relative;
+            height: 320px;
+            width: 100%;
+        }
+        .badge-income {
+            background-color: rgba(25, 135, 84, 0.1);
+            color: #198754;
+            border: 1px solid rgba(25, 135, 84, 0.2);
+        }
+        .badge-expense {
+            background-color: rgba(220, 53, 69, 0.1);
+            color: #dc3545;
+            border: 1px solid rgba(220, 53, 69, 0.2);
+        }
+        .finance-card-mobile {
+            background: #ffffff;
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin-bottom: 1rem;
+            transition: all 0.3s;
+        }
+        .finance-card-mobile:hover {
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+            border-color: var(--primary-color);
+        }
+        .btn-group .btn-check:checked + .btn {
+            background-color: var(--primary-color, #0d6efd) !important;
+            color: #ffffff !important;
+            font-weight: 700 !important;
+            box-shadow: 0 2px 6px rgba(13, 110, 253, 0.2);
+        }
+        .btn-group .btn {
+            color: #475569;
+            background-color: transparent;
+            transition: all 0.2s ease;
+        }
+        .btn-group .btn:hover {
+            background-color: rgba(0, 0, 0, 0.05);
+            color: #0f172a;
+        }
+        @media (max-width: 576px) {
+            .btn-group .btn {
+                font-size: 11px;
+                padding: 6px 2px !important;
+            }
+            .glass-card h2 {
+                font-size: 1.35rem;
+                flex-direction: column;
+                gap: 0.5rem !important;
+                text-align: center;
+            }
+            #dateRangeDisplay {
+                font-size: 11px;
+                padding: 6px 10px !important;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <%- include('partials/navbar') %>
+    <%- include('partials/sidebar') %>
+
+    <div class="container-fluid main-content px-4 px-lg-5">
+        
+        <!-- Alerts -->
+        <% if (typeof success_msg !== 'undefined' && success_msg && success_msg.length > 0) { %>
+            <div class="alert alert-success alert-dismissible fade show rounded-3 shadow-sm mb-4" role="alert">
+                <i class="bi bi-check-circle-fill me-2"></i> <%= success_msg %>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        <% } %>
+        <% if (typeof error_msg !== 'undefined' && error_msg && error_msg.length > 0) { %>
+            <div class="alert alert-danger alert-dismissible fade show rounded-3 shadow-sm mb-4" role="alert">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i> <%= error_msg %>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        <% } %>
+
+        <div class="glass-card p-4 p-md-5 animate-fade-in mb-4">
+            <!-- Header -->
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+                <h2 class="m-0 fw-bold d-flex align-items-center justify-content-center justify-content-md-start gap-2 text-center text-md-start">
+                    <i class="bi bi-cash-coin text-primary"></i>
+                    النظام المالي وإدارة الميزانية
+                </h2>
+                <div class="d-flex flex-wrap justify-content-center justify-content-md-end gap-2">
+                    <button class="btn btn-success px-4 rounded-pill shadow-sm d-flex align-items-center gap-2 fw-semibold" data-bs-toggle="modal" data-bs-target="#addTransactionModal">
+                        <i class="bi bi-plus-circle-fill fs-5"></i>
+                        تسجيل عملية مالية
+                    </button>
+                    <button class="btn btn-outline-secondary rounded-pill px-3 py-2 btn-sm fw-semibold d-flex align-items-center gap-1" onclick="exportExcel()">
+                        <i class="bi bi-file-earmark-spreadsheet-fill text-success fs-6"></i>
+                        تصدير التقرير (Excel)
+                    </button>
+                </div>
+            </div>
+
+            <!-- Filters Section -->
+            <div class="card border-0 rounded-3 p-3 mb-4" style="background: rgba(0, 0, 0, 0.02);">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-5">
+                        <div class="d-flex flex-column flex-sm-row justify-content-between align-items-center gap-2 mb-2 w-100">
+                            <label class="form-label fw-bold text-secondary small mb-0">الفترة الزمنية</label>
+                            <span id="dateRangeDisplay" class="badge bg-primary bg-opacity-10 text-primary small fw-bold rounded-pill px-3 py-1.5 d-none animate-fade-in"></span>
+                        </div>
+                        <div class="btn-group w-100 rounded-pill overflow-hidden border border-secondary border-opacity-10" role="group">
+                            <input type="radio" class="btn-check" name="financeFilter" id="filterToday" value="today" checked>
+                            <label class="btn fw-semibold border-0 py-2" for="filterToday">اليوم</label>
+                            
+                            <input type="radio" class="btn-check" name="financeFilter" id="filterWeek" value="week">
+                            <label class="btn fw-semibold border-0 py-2" for="filterWeek">هذا الأسبوع</label>
+                            
+                            <input type="radio" class="btn-check" name="financeFilter" id="filterMonth" value="month">
+                            <label class="btn fw-semibold border-0 py-2" for="filterMonth">هذا الشهر</label>
+                            
+                            <input type="radio" class="btn-check" name="financeFilter" id="filterCustom" value="custom">
+                            <label class="btn fw-semibold border-0 py-2" for="filterCustom">مخصصة</label>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-7 custom-dates-row d-none">
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <label class="form-label fw-bold text-secondary small">من تاريخ</label>
+                                <input type="date" id="dateFrom" class="form-control rounded-3 py-2">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label fw-bold text-secondary small">إلى تاريخ</label>
+                                <input type="date" id="dateTo" class="form-control rounded-3 py-2">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats Widgets -->
+            <div class="row g-3 mb-5 animate-fade-in">
+                <!-- Income -->
+                <div class="col-md-4">
+                    <%- include('partials/stat_card', {
+                        title: '💰 إجمالي الإيرادات',
+                        value: '0.00 ج.م',
+                        valueId: 'statIncome',
+                        icon: 'bi bi-wallet2',
+                        themeColor: '#198754',
+                        themeColorLight: 'rgba(25, 135, 84, 0.1)',
+                        isFinance: true
+                    }) %>
+                </div>
+                <!-- Expense -->
+                <div class="col-md-4">
+                    <%- include('partials/stat_card', {
+                        title: '💸 إجمالي المصروفات',
+                        value: '0.00 ج.م',
+                        valueId: 'statExpense',
+                        icon: 'bi bi-credit-card',
+                        themeColor: '#dc3545',
+                        themeColorLight: 'rgba(220, 53, 69, 0.1)',
+                        isFinance: true
+                    }) %>
+                </div>
+                <!-- Net Profit -->
+                <div class="col-md-4">
+                    <%- include('partials/stat_card', {
+                        title: '📈 صافي الأرباح',
+                        value: '0.00 ج.م',
+                        valueId: 'statProfit',
+                        icon: 'bi bi-graph-up-arrow',
+                        themeColor: '#0d6efd',
+                        themeColorLight: 'rgba(13, 110, 253, 0.1)',
+                        isFinance: true
+                    }) %>
+                </div>
+            </div>
+
+            <!-- Chart & Distribution Row -->
+            <div class="row g-4 mb-5">
+                <div class="col-12">
+                    <div class="card border-0 rounded-3 p-4 shadow-sm" style="background: rgba(255, 255, 255, 0.75); border: 1px solid rgba(0, 0, 0, 0.05) !important;">
+                        <h5 class="fw-bold text-dark mb-4"><i class="bi bi-bar-chart-line text-primary me-1"></i> مقارنة الإيرادات والمصروفات خلال آخر 12 شهر</h5>
+                        <div class="chart-container">
+                            <canvas id="financeChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Desktop Table of Transactions -->
+            <h4 class="fw-bold text-dark mb-3"><i class="bi bi-list-task text-primary"></i> سجل العمليات المالية</h4>
+            <div class="d-none d-lg-block table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th>التاريخ</th>
+                            <th>النوع</th>
+                            <th>الفئة</th>
+                            <th>المبلغ</th>
+                            <th>الوصف</th>
+                            <th>العميل المرتبط</th>
+                            <th>المسؤول</th>
+                            <th class="text-center">إجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody id="financeTableBody">
+                        <tr>
+                            <td colspan="9" class="text-center py-4 text-muted">جاري تحميل المعاملات المالية...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Mobile Cards View -->
+            <div class="d-block d-lg-none" id="financeMobileCards">
+                <div class="text-center py-4 text-muted">جاري تحميل المعاملات المالية...</div>
+            </div>
+
+        </div>
+    </div>
+
+
+    <!-- Add Transaction Modal -->
+    <div class="modal fade" id="addTransactionModal" tabindex="-1" aria-labelledby="addTransactionModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow-lg">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold" id="addTransactionModalLabel">إضافة عملية مالية جديدة</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form action="/dashboard/finance/add" method="POST">
+                    <div class="modal-body p-4">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">نوع العملية</label>
+                                <select name="type" id="addType" class="form-select" required onchange="toggleCustomerField('add')">
+                                    <option value="income" selected>إيراد (Income)</option>
+                                    <option value="expense">مصروف (Expense)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">المبلغ (EGP)</label>
+                                <input type="number" step="1" name="amount" class="form-control" placeholder="0" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">الفئة</label>
+                                <select name="category" class="form-select" required>
+                                    <option value="اشتراكات" selected>اشتراكات</option>
+                                    <option value="رواتب">رواتب</option>
+                                    <option value="إعلانات">إعلانات</option>
+                                    <option value="كورس ألماني">كورس ألماني</option>
+                                    <option value="أخرى">أخرى</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">التاريخ</label>
+                                <input type="date" name="transactionDate" id="addTransactionDate" class="form-control" required>
+                            </div>
+                            <div class="col-12" id="addCustomerField">
+                                <label class="form-label fw-bold">العميل المرتبط (اختياري)</label>
+                                <div class="input-group mb-2 shadow-sm">
+                                    <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
+                                    <input type="text" id="addCustomerSearch" class="form-control border-start-0" placeholder="ابحث باسم العميل أو رقم الهاتف..." onkeyup="searchCustomers('add')">
+                                </div>
+                                <select name="CustomerId" id="addCustomerIdSelect" class="form-select">
+                                    <option value="">-- غير مرتبط بعميل --</option>
+                                    <% customers.forEach(cust => { %>
+                                        <option value="<%= cust.id %>"><%= cust.customerName || 'بدون اسم' %> (<%= cust.phoneNumber %>)</option>
+                                    <% }) %>
+                                </select>
+                                <div class="form-text text-muted small">يعرض آخر 10 عملاء تفاعلوا مؤخراً. استخدم خانة البحث أعلاه للوصول لأي عميل آخر.</div>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-bold">الوصف</label>
+                                <textarea name="description" class="form-control" rows="3" placeholder="اكتب تفاصيل المعاملة هنا..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-top">
+                        <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">إلغاء</button>
+                        <button type="submit" class="btn btn-success rounded-pill px-5 fw-bold">تسجيل العملية</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Transaction Modal -->
+    <div class="modal fade" id="editTransactionModal" tabindex="-1" aria-labelledby="editTransactionModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow-lg">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold" id="editTransactionModalLabel">تعديل العملية المالية</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form action="/dashboard/finance/edit" method="POST">
+                    <input type="hidden" name="id" id="editId">
+                    <div class="modal-body p-4">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">نوع العملية</label>
+                                <select name="type" id="editType" class="form-select" required onchange="toggleCustomerField('edit')">
+                                    <option value="income">إيراد (Income)</option>
+                                    <option value="expense">مصروف (Expense)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">المبلغ (EGP)</label>
+                                <input type="number" step="1" name="amount" id="editAmount" class="form-control" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">الفئة</label>
+                                <select name="category" id="editCategory" class="form-select" required>
+                                    <option value="اشتراكات">اشتراكات</option>
+                                    <option value="رواتب">رواتب</option>
+                                    <option value="إعلانات">إعلانات</option>
+                                    <option value="كورس ألماني">كورس ألماني</option>
+                                    <option value="أخرى">أخرى</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">التاريخ</label>
+                                <input type="date" name="transactionDate" id="editTransactionDate" class="form-control" required>
+                            </div>
+                            <div class="col-12" id="editCustomerField">
+                                <label class="form-label fw-bold">العميل المرتبط (اختياري)</label>
+                                <div class="input-group mb-2 shadow-sm">
+                                    <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
+                                    <input type="text" id="editCustomerSearch" class="form-control border-start-0" placeholder="ابحث باسم العميل أو رقم الهاتف..." onkeyup="searchCustomers('edit')">
+                                </div>
+                                <select name="CustomerId" id="editCustomerId" class="form-select">
+                                    <option value="">-- غير مرتبط بعميل --</option>
+                                    <% customers.forEach(cust => { %>
+                                        <option value="<%= cust.id %>"><%= cust.customerName || 'بدون اسم' %> (<%= cust.phoneNumber %>)</option>
+                                    <% }) %>
+                                </select>
+                                <div class="form-text text-muted small">يعرض آخر 10 عملاء تفاعلوا مؤخراً. استخدم خانة البحث أعلاه للوصول لأي عميل آخر.</div>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-bold">الوصف</label>
+                                <textarea name="description" id="editDescription" class="form-control" rows="3"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-top">
+                        <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">إلغاء</button>
+                        <button type="submit" class="btn btn-primary rounded-pill px-5 fw-bold">حفظ التغييرات</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden Delete Form -->
+    <form id="deleteForm" action="/dashboard/finance/delete" method="POST" style="display: none;">
+        <input type="hidden" name="id" id="deleteId">
+    </form>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        let financeChartInstance = null;
+        const currentUserRole = '<%= user.role %>';
+        const initialCustomers = <%- JSON.stringify(customers) %>;
+        let currentEditCustomer = null;
+
+        function toggleCustomerField(mode) {
+            const typeSelect = document.getElementById(mode + 'Type');
+            const customerField = document.getElementById(mode + 'CustomerField');
+            if (typeSelect.value === 'expense') {
+                customerField.style.display = 'none';
+                const custSelect = document.querySelector(`[name="CustomerId"]`, customerField);
+                if (custSelect) custSelect.value = "";
+            } else {
+                customerField.style.display = 'block';
+            }
+        }
+
+        function populateCustomerSelect(selectElId, customerList, selectedId = '', extraCustomer = null) {
+            const selectEl = document.getElementById(selectElId);
+            if (!selectEl) return;
+            
+            selectEl.innerHTML = '<option value="">-- غير مرتبط بعميل --</option>';
+            
+            const uniqueCustomers = [];
+            const idsSeen = new Set();
+            
+            if (extraCustomer && extraCustomer.id) {
+                uniqueCustomers.push(extraCustomer);
+                idsSeen.add(extraCustomer.id);
+            }
+            
+            customerList.forEach(c => {
+                if (!idsSeen.has(c.id)) {
+                    uniqueCustomers.push(c);
+                    idsSeen.add(c.id);
+                }
+            });
+            
+            uniqueCustomers.forEach(cust => {
+                const opt = document.createElement('option');
+                opt.value = cust.id;
+                opt.textContent = `${cust.customerName || 'بدون اسم'} (${cust.phoneNumber})`;
+                if (String(cust.id) === String(selectedId)) {
+                    opt.selected = true;
+                }
+                selectEl.appendChild(opt);
+            });
+        }
+
+        function resetEditCustomerDropdown(extraCustomer) {
+            const selectedId = extraCustomer ? extraCustomer.id : '';
+            populateCustomerSelect('editCustomerId', initialCustomers, selectedId, extraCustomer);
+        }
+
+        let searchTimeout = null;
+        function searchCustomers(mode) {
+            clearTimeout(searchTimeout);
+            const query = document.getElementById(mode + 'CustomerSearch').value.trim();
+            const selectElId = mode === 'add' ? 'addCustomerIdSelect' : 'editCustomerId';
+            
+            searchTimeout = setTimeout(async () => {
+                if (!query) {
+                    if (mode === 'add') {
+                        populateCustomerSelect(selectElId, initialCustomers);
+                    } else {
+                        populateCustomerSelect(selectElId, initialCustomers, currentEditCustomer ? currentEditCustomer.id : '', currentEditCustomer);
+                    }
+                    return;
+                }
+                
+                try {
+                    const response = await fetch(`/dashboard/finance/customers/search?query=${encodeURIComponent(query)}`);
+                    const result = await response.json();
+                    if (result.success) {
+                        if (mode === 'add') {
+                            populateCustomerSelect(selectElId, result.customers);
+                        } else {
+                            populateCustomerSelect(selectElId, result.customers, currentEditCustomer ? currentEditCustomer.id : '', currentEditCustomer);
+                        }
+                    }
+                } catch (err) {
+                    console.error('Error searching customers:', err);
+                }
+            }, 300);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Set today's date as default in Add Modal
+            document.getElementById('addTransactionDate').value = new Date().toISOString().split('T')[0];
+
+            // Listen to filters change
+            document.querySelectorAll('input[name="financeFilter"]').forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    const customDates = document.querySelector('.custom-dates-row');
+                    if (e.target.value === 'custom') {
+                        customDates.classList.remove('d-none');
+                    } else {
+                        customDates.classList.add('d-none');
+                        fetchFinanceData();
+                    }
+                });
+            });
+
+            // Listen to date inputs
+            document.getElementById('dateFrom').addEventListener('change', fetchFinanceData);
+            document.getElementById('dateTo').addEventListener('change', fetchFinanceData);
+
+            // Modal reset listener for add modal
+            const addModalEl = document.getElementById('addTransactionModal');
+            if (addModalEl) {
+                addModalEl.addEventListener('show.bs.modal', () => {
+                    document.getElementById('addCustomerSearch').value = '';
+                    populateCustomerSelect('addCustomerIdSelect', initialCustomers);
+                    toggleCustomerField('add');
+                });
+            }
+
+            toggleCustomerField('add');
+
+            // Initial load
+            fetchFinanceData();
+        });
+
+        // Fetch data via AJAX
+        async function fetchFinanceData() {
+            try {
+                const activeFilter = document.querySelector('input[name="financeFilter"]:checked').value;
+                let url = `/dashboard/finance/data?filterType=${activeFilter}`;
+                
+                let fromDate = null;
+                let toDate = null;
+                const now = new Date();
+                const todayStr = now.toISOString().split('T')[0];
+
+                if (activeFilter === 'today') {
+                    fromDate = todayStr;
+                    toDate = todayStr;
+                } else if (activeFilter === 'week') {
+                    const sevenDaysAgo = new Date();
+                    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+                    fromDate = sevenDaysAgo.toISOString().split('T')[0];
+                    toDate = todayStr;
+                } else if (activeFilter === 'month') {
+                    fromDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+                    toDate = todayStr;
+                } else if (activeFilter === 'custom') {
+                    const dateFrom = document.getElementById('dateFrom').value;
+                    const dateTo = document.getElementById('dateTo').value;
+                    if (dateFrom && dateTo) {
+                        url += `&dateFrom=${dateFrom}&dateTo=${dateTo}`;
+                        fromDate = dateFrom;
+                        toDate = dateTo;
+                    }
+                }
+
+                // Update display label
+                const displayEl = document.getElementById('dateRangeDisplay');
+                if (displayEl) {
+                    if (fromDate && toDate) {
+                        displayEl.textContent = `من ${fromDate} إلى ${toDate}`;
+                        displayEl.classList.remove('d-none');
+                    } else {
+                        displayEl.classList.add('d-none');
+                    }
+                }
+
+                if (activeFilter === 'custom' && (!fromDate || !toDate)) {
+                    return; // Don't fetch if custom dates are incomplete
+                }
+
+                const response = await fetch(url);
+                const result = await response.json();
+                
+                if (result.success) {
+                    updateDashboard(result);
+                } else {
+                    console.error('Failed to load financial data:', result.error);
+                }
+            } catch (err) {
+                console.error('Error fetching financial data:', err);
+            }
+        }
+
+        // Update view with fetched data
+        function updateDashboard(data) {
+            updateWidgets(data.summary);
+            updateTable(data.transactions);
+            updateChart(data.chart);
+        }
+
+        // Update 3 stats widgets (whole numbers only)
+        function updateWidgets(summary) {
+            document.getElementById('statIncome').textContent = `${Math.round(parseFloat(summary.totalIncome)).toLocaleString('en-US', { maximumFractionDigits: 0 })} ج.م`;
+            document.getElementById('statExpense').textContent = `${Math.round(parseFloat(summary.totalExpense)).toLocaleString('en-US', { maximumFractionDigits: 0 })} ج.م`;
+            
+            const profitEl = document.getElementById('statProfit');
+            const roundedProfit = Math.round(parseFloat(summary.netProfit));
+            profitEl.textContent = `${roundedProfit.toLocaleString('en-US', { maximumFractionDigits: 0 })} ج.م`;
+            if (roundedProfit >= 0) {
+                profitEl.className = "fw-bold mb-0 text-success";
+            } else {
+                profitEl.className = "fw-bold mb-0 text-danger";
+            }
+        }
+
+        // Update transactions table (whole numbers only)
+        function updateTable(transactions) {
+            const tbody = document.getElementById('financeTableBody');
+            const mobileContainer = document.getElementById('financeMobileCards');
+            tbody.innerHTML = '';
+            mobileContainer.innerHTML = '';
+
+            if (transactions.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" class="text-center py-4 text-muted">لا توجد عمليات مالية مسجلة خلال هذه الفترة.</td></tr>';
+                mobileContainer.innerHTML = '<div class="text-center py-4 text-muted finance-card-mobile">لا توجد عمليات مالية مسجلة خلال هذه الفترة.</div>';
+                return;
+            }
+
+            transactions.forEach(t => {
+                // Desktop Row
+                const tr = document.createElement('tr');
+                
+                // Format type badge
+                const typeBadge = t.type === 'income' 
+                    ? `<span class="badge badge-income rounded-pill px-3 py-1"><i class="bi bi-arrow-up-left-circle-fill me-1"></i> إيراد</span>`
+                    : `<span class="badge badge-expense rounded-pill px-3 py-1"><i class="bi bi-arrow-down-right-circle-fill me-1"></i> مصروف</span>`;
+                
+                const typeBadgeMobile = t.type === 'income' 
+                    ? `<span class="badge bg-success rounded-pill px-2 py-1"><i class="bi bi-arrow-up-left-circle-fill me-1"></i> إيراد</span>`
+                    : `<span class="badge bg-danger rounded-pill px-2 py-1"><i class="bi bi-arrow-down-right-circle-fill me-1"></i> مصروف</span>`;
+                
+                // Format amount to whole number
+                const amountClass = t.type === 'income' ? 'text-success fw-bold' : 'text-danger fw-bold';
+                const formattedAmount = `${Math.round(parseFloat(t.amount)).toLocaleString('en-US', { maximumFractionDigits: 0 })} ج.م`;
+                
+                // Format customer link
+                const customerLink = t.customer 
+                    ? `<a href="/dashboard/customers?search=${t.customer.phoneNumber}" class="text-decoration-none fw-semibold"><i class="bi bi-person me-1"></i> ${t.customer.customerName || t.customer.phoneNumber}</a>`
+                    : `<span class="text-muted small">—</span>`;
+
+                // Format action buttons
+                const deleteBtn = currentUserRole === 'super_admin'
+                    ? `<button class="btn btn-sm btn-outline-danger px-2" onclick="deleteTransaction(${t.id})" title="حذف"><i class="bi bi-trash3"></i></button>`
+                    : '';
+                const deleteBtnMobile = currentUserRole === 'super_admin'
+                    ? `<button class="btn btn-sm btn-outline-danger px-3 py-1 d-flex align-items-center gap-1" onclick="deleteTransaction(${t.id})" title="حذف"><i class="bi bi-trash3"></i> حذف</button>`
+                    : '';
+
+                tr.innerHTML = `
+                    <td class="fw-semibold text-secondary">${t.transactionDate}</td>
+                    <td>${typeBadge}</td>
+                    <td><span class="badge bg-light text-dark border border-secondary border-opacity-10 py-1 px-2">${t.category}</span></td>
+                    <td><span class="${amountClass}">${formattedAmount}</span></td>
+                    <td class="text-truncate" style="max-width: 200px;" title="${t.description || ''}">${t.description || '—'}</td>
+                    <td>${customerLink}</td>
+                    <td class="text-secondary small">${t.recorder ? (t.recorder.fullName || t.recorder.username) : '—'}</td>
+                    <td class="text-center">
+                        <div class="d-flex justify-content-center align-items-center gap-1">
+                            <button class="btn btn-sm btn-outline-primary px-2" onclick="openEditModal(${JSON.stringify(t).replace(/"/g, '&quot;')})" title="تعديل">
+                                <i class="bi bi-pencil-square"></i>
+                            </button>
+                            ${deleteBtn}
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+
+                // Mobile Card
+                const mobileCard = document.createElement('div');
+                mobileCard.className = 'finance-card-mobile';
+                mobileCard.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-start border-bottom pb-2 mb-2">
+                        <div>
+                            <h6 class="fw-bold text-dark mb-1 d-flex align-items-center gap-2">
+                                <span class="${amountClass} fs-5">${formattedAmount}</span>
+                            </h6>
+                            <span class="text-secondary small fw-semibold"><i class="bi bi-calendar3"></i> ${t.transactionDate}</span>
+                        </div>
+                        <div>
+                            ${typeBadgeMobile}
+                        </div>
+                    </div>
+                    <div class="row g-2 small text-secondary">
+                        <div class="col-6">
+                            <strong>الفئة:</strong> <span class="badge bg-light text-dark border">${t.category}</span>
+                        </div>
+                        <div class="col-6">
+                            <strong>العميل:</strong> ${customerLink}
+                        </div>
+                        <div class="col-6">
+                            <strong>المسؤول:</strong> ${t.recorder ? (t.recorder.fullName || t.recorder.username) : '—'}
+                        </div>
+                        <div class="col-12">
+                            <strong>الوصف:</strong> ${t.description || '—'}
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-end gap-2 mt-3 pt-2 border-top">
+                        <button class="btn btn-sm btn-outline-primary px-3 py-1 d-flex align-items-center gap-1" onclick="openEditModal(${JSON.stringify(t).replace(/"/g, '&quot;')})" title="تعديل">
+                            <i class="bi bi-pencil-square"></i> تعديل
+                        </button>
+                        ${deleteBtnMobile}
+                    </div>
+                `;
+                mobileContainer.appendChild(mobileCard);
+            });
+        }
+
+        // Update Chart.js comparison chart (rounded value ticks)
+        function updateChart(chartData) {
+            const ctx = document.getElementById('financeChart').getContext('2d');
+            
+            if (financeChartInstance) {
+                financeChartInstance.destroy();
+            }
+
+            // Round chart data values
+            const roundedIncome = chartData.income.map(val => Math.round(parseFloat(val) || 0));
+            const roundedExpense = chartData.expense.map(val => Math.round(parseFloat(val) || 0));
+
+            financeChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: chartData.labels,
+                    datasets: [
+                        {
+                            label: 'الإيرادات (ج.م)',
+                            data: roundedIncome,
+                            backgroundColor: 'rgba(25, 135, 84, 0.7)',
+                            borderColor: '#198754',
+                            borderWidth: 1.5,
+                            borderRadius: 6
+                        },
+                        {
+                            label: 'المصروفات (ج.م)',
+                            data: roundedExpense,
+                            backgroundColor: 'rgba(220, 53, 69, 0.7)',
+                            borderColor: '#dc3545',
+                            borderWidth: 1.5,
+                            borderRadius: 6
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                color: '#475569',
+                                font: { family: 'Inter, sans-serif' },
+                                callback: function(value) { return Math.round(value); }
+                            },
+                            grid: { color: 'rgba(0, 0, 0, 0.05)' }
+                        },
+                        x: {
+                            ticks: {
+                                color: '#475569',
+                                font: { family: 'Inter, sans-serif' }
+                            },
+                            grid: { display: false }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                font: { family: 'Inter, sans-serif', size: 12, weight: '600' },
+                                color: '#1e293b'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Open edit transaction modal with populated data
+        function openEditModal(t) {
+            currentEditCustomer = t.customer;
+            document.getElementById('editId').value = t.id;
+            document.getElementById('editType').value = t.type;
+            document.getElementById('editAmount').value = Math.round(parseFloat(t.amount));
+            document.getElementById('editCategory').value = t.category;
+            document.getElementById('editTransactionDate').value = t.transactionDate;
+            
+            // Clear search input in edit modal
+            document.getElementById('editCustomerSearch').value = '';
+            
+            // Reset dropdown
+            resetEditCustomerDropdown(currentEditCustomer);
+
+            toggleCustomerField('edit');
+
+            const editModal = new bootstrap.Modal(document.getElementById('editTransactionModal'));
+            editModal.show();
+        }
+
+        // Delete transaction trigger
+        function deleteTransaction(id) {
+            if (confirm('هل أنت متأكد من حذف هذه المعاملة المالية نهائياً؟')) {
+                document.getElementById('deleteId').value = id;
+                document.getElementById('deleteForm').submit();
+            }
+        }
+
+        // Export report
+        function exportExcel() {
+            const activeFilter = document.querySelector('input[name="financeFilter"]:checked').value;
+            let queryParams = `filterType=${activeFilter}`;
+            
+            if (activeFilter === 'custom') {
+                const dateFrom = document.getElementById('dateFrom').value;
+                const dateTo = document.getElementById('dateTo').value;
+                if (!dateFrom || !dateTo) {
+                    alert('الرجاء اختيار الفترات أولاً للتصدير المخصص.');
+                    return;
+                }
+                queryParams += `&dateFrom=${dateFrom}&dateTo=${dateTo}`;
+            }
+
+            location.href = `/dashboard/finance/export?` + queryParams;
+        }
+    </script>
+</body>
+
+</html>

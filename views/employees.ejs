@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>إدارة الموظفين - Bird-CRM</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="/style.css?v=<%= Date.now() %>" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    
+    <style>
+        .employee-badge {
+            font-size: 11px;
+            padding: 4px 8px;
+            border-radius: 50px;
+            font-weight: 600;
+        }
+        .day-badge {
+            font-size: 11px;
+            padding: 2px 6px;
+            background: rgba(212, 175, 55, 0.1);
+            color: var(--primary-hover);
+            border: 1px solid rgba(212, 175, 55, 0.2);
+            border-radius: 4px;
+            display: inline-block;
+            margin: 2px;
+        }
+        .employee-card-mobile {
+            background: #ffffff;
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin-bottom: 1rem;
+            transition: all 0.3s;
+        }
+        .employee-card-mobile:hover {
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+            border-color: var(--primary-color);
+        }
+        .table-responsive::-webkit-scrollbar {
+            height: 6px;
+        }
+        .table-responsive::-webkit-scrollbar-thumb {
+            background: rgba(212, 175, 55, 0.3);
+            border-radius: 4px;
+        }
+    </style>
+</head>
+
+<body>
+    <%- include('partials/navbar') %>
+    <%- include('partials/sidebar') %>
+
+<%
+function formatTimeAMPM(timeStr) {
+    if (!timeStr) return '—';
+    const parts = timeStr.split(':');
+    if (parts.length < 2) return timeStr;
+    let hours = parseInt(parts[0], 10);
+    const m = parts[1];
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    return `${hours}:${m} ${ampm}`;
+}
+%>
+
+    <div class="container-fluid main-content px-4 px-lg-5">
+        
+        <!-- Alerts -->
+        <% if (typeof success_msg !== 'undefined' && success_msg && success_msg.length > 0) { %>
+            <div class="alert alert-success alert-dismissible fade show rounded-3 shadow-sm mb-4" role="alert">
+                <i class="bi bi-check-circle-fill me-2"></i> <%= success_msg %>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        <% } %>
+        <% if (typeof error_msg !== 'undefined' && error_msg && error_msg.length > 0) { %>
+            <div class="alert alert-danger alert-dismissible fade show rounded-3 shadow-sm mb-4" role="alert">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i> <%= error_msg %>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        <% } %>
+
+        <div class="glass-card p-4 p-md-5 animate-fade-in">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-center mb-4 gap-3">
+                <h2 class="m-0 fw-bold d-flex align-items-center gap-2">
+                    <i class="bi bi-people-fill text-primary"></i>
+                    إدارة الموظفين
+                </h2>
+                <button class="btn btn-primary px-4 rounded-pill shadow-sm d-flex align-items-center gap-2 fw-semibold" data-bs-toggle="modal" data-bs-target="#addEmployeeModal">
+                    <i class="bi bi-person-plus-fill fs-5"></i>
+                    إضافة موظف جديد
+                </button>
+            </div>
+
+            <div class="alert alert-warning empty-slots-info" style="display:none; font-size: 15px;"></div>
+
+            <!-- Shift Split Rule Settings (For Admins only) -->
+            <% if (user.role === 'admin' || user.role === 'super_admin') { 
+                const rule = {
+                    enabled: shiftSplitRule?.enabled || false,
+                    startTime: shiftSplitRule?.startTime || '10:00',
+                    endTime: shiftSplitRule?.endTime || '18:00',
+                    days: shiftSplitRule?.days || [],
+                    employees: shiftSplitRule?.employees || []
+                };
+            %>
+            <div class="card mb-4 border-primary border-opacity-25" style="background: rgba(99, 102, 241, 0.03);">
+                <div class="card-header bg-transparent border-bottom-0 pt-4 pb-0 d-flex justify-content-between align-items-center">
+                    <h5 class="fw-bold m-0 text-primary d-flex align-items-center gap-2">
+                        <i class="bi bi-diagram-3-fill"></i> نظام تجزئة الشيفت الاستثنائي
+                    </h5>
+                    <button class="btn btn-sm btn-outline-primary rounded-pill" type="button" data-bs-toggle="collapse" data-bs-target="#shiftSplitConfig" aria-expanded="<%= rule.enabled ? 'true' : 'false' %>">
+                        <i class="bi bi-gear-fill"></i> الإعدادات
+                    </button>
+                </div>
+                <div class="collapse <%= rule.enabled ? 'show' : '' %>" id="shiftSplitConfig">
+                    <div class="card-body">
+                        <form action="/dashboard/employees/shift-split" method="POST">
+                            <div class="row g-3 align-items-end">
+                                <div class="col-md-2">
+                                    <div class="form-check form-switch fs-5">
+                                        <input class="form-check-input" type="checkbox" role="switch" id="shiftEnabled" name="enabled" <%= rule.enabled ? 'checked' : '' %>>
+                                        <label class="form-check-label fs-6 fw-bold text-dark mt-1" for="shiftEnabled">تفعيل النظام</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label fw-bold small">يبدأ الساعة</label>
+                                    <input type="time" class="form-control form-control-sm" name="startTime" value="<%= rule.startTime %>" required>
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label fw-bold small">ينتهي الساعة</label>
+                                    <input type="time" class="form-control form-control-sm" name="endTime" value="<%= rule.endTime %>" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold small d-block">الأيام المستهدفة</label>
+                                    <div class="d-flex flex-wrap gap-2">
+                                        <% ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'].forEach((day, index) => { %>
+                                            <div class="form-check form-check-inline m-0">
+                                                <input class="form-check-input" type="checkbox" name="days" value="<%= day %>" id="sDay<%= index %>" <%= rule.days.includes(day) ? 'checked' : '' %>>
+                                                <label class="form-check-label small" for="sDay<%= index %>"><%= day %></label>
+                                            </div>
+                                        <% }) %>
+                                    </div>
+                                </div>
+                                <div class="col-md-9">
+                                    <label class="form-label fw-bold small d-block">الموظفين المشمولين في التجزئة (Round Robin صارم)</label>
+                                    <div class="d-flex flex-wrap gap-2 border p-2 rounded bg-white">
+                                        <% employees.filter(e => e.role === 'sales').forEach(emp => { %>
+                                            <div class="form-check form-check-inline m-0">
+                                                <input class="form-check-input" type="checkbox" name="selectedEmployees" value="<%= emp.id %>" id="sEmp<%= emp.id %>" <%= rule.employees.includes(emp.id) ? 'checked' : '' %>>
+                                                <label class="form-check-label small" for="sEmp<%= emp.id %>"><%= emp.fullName || emp.username %></label>
+                                            </div>
+                                        <% }) %>
+                                        <% if(employees.filter(e => e.role === 'sales').length === 0) { %>
+                                            <span class="text-muted small">لا يوجد موظفي مبيعات حالياً</span>
+                                        <% } %>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <button type="submit" class="btn btn-primary w-100 fw-bold">حفظ القاعدة</button>
+                                </div>
+                            </div>
+                        </form>
+                        <div class="text-muted small mt-3">
+                            <i class="bi bi-info-circle"></i> عند تفعيل هذا النظام وتطابق الوقت واليوم، سيتم إلغاء التوزيع العادي، وتوزيع الرسائل الجديدة <strong>بالتساوي والترتيب (واحدة للأول، واحدة للثاني، إلخ)</strong> حصرياً بين الموظفين المحددين أعلاه.
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <% } %>
+
+            <!-- Empty State -->
+            <% if (employees.length === 0) { %>
+                <div class="text-center py-5 glass-card mb-4" style="background: rgba(0, 0, 0, 0.02);">
+                    <i class="bi bi-people text-secondary opacity-50" style="font-size: 4rem;"></i>
+                    <h4 class="text-muted mt-3">لا يوجد موظفون مضافون حالياً</h4>
+                    <p class="text-secondary small">قم بإضافة موظف مبيعات (Sales) أو مدير (Admin) للبدء في توزيع العملاء.</p>
+                    <button class="btn btn-outline-primary rounded-pill mt-2 px-4" data-bs-toggle="modal" data-bs-target="#addEmployeeModal">أضف موظف الآن</button>
+                </div>
+            <% } else { %>
+                
+                <!-- Desktop Table View -->
+                <div class="d-none d-lg-block table-responsive">
+                    <table class="table align-middle">
+                        <thead>
+                            <tr>
+                                <th>الاسم الكامل</th>
+                                <th>اسم المستخدم</th>
+                                <th>الهاتف</th>
+                                <th>الدور</th>
+                                <th>مواعيد العمل</th>
+                                <th>أيام العمل</th>
+                                <th>الموظف البديل</th>
+                                <th class="text-center">العملاء الحاليين</th>
+                                <th class="text-center">الحالة</th>
+                                <th class="text-center">إجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% employees.forEach(emp => { %>
+                                <tr>
+                                    <td>
+                                        <div class="fw-bold text-dark"><%= emp.fullName || '—' %></div>
+                                    </td>
+                                    <td>
+                                        <code class="text-primary"><%= emp.username %></code>
+                                    </td>
+                                    <td>
+                                        <span class="text-secondary"><%= emp.phone || '—' %></span>
+                                    </td>
+                                    <td>
+                                        <% if (emp.role === 'super_admin') { %>
+                                            <span class="badge bg-danger rounded-pill">Super Admin</span>
+                                        <% } else if (emp.role === 'admin') { %>
+                                            <span class="badge bg-warning text-dark rounded-pill">Admin</span>
+                                        <% } else { %>
+                                            <span class="badge bg-info text-white rounded-pill">Sales</span>
+                                        <% } %>
+                                    </td>
+                                    <td>
+                                        <% if (emp.workStartTime && emp.workEndTime) { %>
+                                            <span class="small text-secondary fw-semibold">
+                                                من: <%= formatTimeAMPM(emp.workStartTime) %><br>
+                                                إلى: <%= formatTimeAMPM(emp.workEndTime) %>
+                                            </span>
+                                        <% } else { %>
+                                            <span class="text-muted small">—</span>
+                                        <% } %>
+                                    </td>
+                                    <td>
+                                        <% if (emp.workDays) { %>
+                                            <div class="d-flex flex-wrap gap-1" style="max-width: 180px;">
+                                                <% emp.workDays.split(',').forEach(day => { %>
+                                                    <span class="day-badge"><%= day.trim() %></span>
+                                                <% }) %>
+                                            </div>
+                                        <% } else { %>
+                                            <span class="text-muted small">—</span>
+                                        <% } %>
+                                    </td>
+                                    <td>
+                                        <% if (emp.substituteUser) { %>
+                                            <span class="text-dark fw-semibold small"><%= emp.substituteUser.fullName %></span>
+                                        <% } else { %>
+                                            <span class="text-muted small">—</span>
+                                        <% } %>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-light text-dark border border-secondary border-opacity-10 px-3 py-1 rounded">
+                                            <%= emp.customerCount || 0 %>
+                                        </span>
+                                    </td>
+                                    <td class="text-center">
+                                        <form action="/dashboard/employees/toggle-leave/<%= emp.id %>" method="POST" class="d-inline">
+                                            <button type="submit" class="btn btn-sm <%= emp.isOnLeave ? 'btn-danger' : 'btn-success' %> rounded-pill px-3 py-1 fw-bold text-white d-inline-flex align-items-center gap-1" style="font-size: 12px;">
+                                                <i class="bi <%= emp.isOnLeave ? 'bi-moon-fill' : 'bi-sun-fill' %>"></i>
+                                                <%= emp.isOnLeave ? 'إجازة' : 'نشط' %>
+                                            </button>
+                                        </form>
+                                    </td>
+                                    <td class="text-center">
+                                        <div class="d-flex justify-content-center align-items-center gap-2">
+                                            <button class="btn btn-sm btn-outline-primary rounded px-2" 
+                                                    onclick="editEmployee(this)"
+                                                    data-id="<%= emp.id %>"
+                                                    data-fullname="<%= emp.fullName || '' %>"
+                                                    data-username="<%= emp.username %>"
+                                                    data-phone="<%= emp.phone || '' %>"
+                                                    data-role="<%= emp.role %>"
+                                                    data-start="<%= emp.workStartTime || '09:00' %>"
+                                                    data-end="<%= emp.workEndTime || '17:00' %>"
+                                                    data-days="<%= emp.workDays || '' %>"
+                                                    data-substitute="<%= emp.substituteUserId || '' %>"
+                                                    data-max="<%= emp.maxCustomers %>"
+                                                    title="تعديل">
+                                                <i class="bi bi-pencil-square"></i>
+                                            </button>
+                                            
+                                            <% if (emp.role !== 'super_admin') { %>
+                                                <form action="/dashboard/employees/delete" method="POST" class="m-0 d-inline" onsubmit="return confirm('هل أنت متأكد من حذف هذا الموظف؟ سيتم نقل عملائه للموظف البديل أو تصنيفهم كغير مخصصين.')">
+                                                    <input type="hidden" name="id" value="<%= emp.id %>">
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger rounded px-2" title="حذف">
+                                                        <i class="bi bi-trash3"></i>
+                                                    </button>
+                                                </form>
+                                            <% } %>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <% }) %>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Mobile Card View -->
+                <div class="d-block d-lg-none">
+                    <% employees.forEach(emp => { %>
+                        <div class="employee-card-mobile">
+                            <div class="d-flex justify-content-between align-items-start border-bottom pb-2 mb-2">
+                                <div>
+                                    <h5 class="fw-bold text-dark mb-1"><%= emp.fullName || '—' %></h5>
+                                    <code class="text-primary small"><%= emp.username %></code>
+                                </div>
+                                <div>
+                                    <% if (emp.role === 'super_admin') { %>
+                                        <span class="badge bg-danger rounded-pill">Super Admin</span>
+                                    <% } else if (emp.role === 'admin') { %>
+                                        <span class="badge bg-warning text-dark rounded-pill">Admin</span>
+                                    <% } else { %>
+                                        <span class="badge bg-info text-white rounded-pill">Sales</span>
+                                    <% } %>
+                                </div>
+                            </div>
+                            <div class="row g-2 small text-secondary">
+                                <div class="col-6">
+                                    <strong>الهاتف:</strong> <%= emp.phone || '—' %>
+                                </div>
+                                <div class="col-6">
+                                    <strong>الموظف البديل:</strong> <%= emp.substituteUser ? emp.substituteUser.fullName : 'لا يوجد' %>
+                                </div>
+                                <div class="col-6">
+                                    <strong>مواعيد العمل:</strong><br>
+                                    <% if (emp.workStartTime && emp.workEndTime) { %>
+                                        من: <%= formatTimeAMPM(emp.workStartTime) %><br>
+                                        إلى: <%= formatTimeAMPM(emp.workEndTime) %>
+                                    <% } else { %>
+                                        <span class="text-muted small">—</span>
+                                    <% } %>
+                                </div>
+                                <div class="col-6">
+                                    <strong>العملاء الحاليين:</strong> <%= emp.customerCount || 0 %>
+                                </div>
+                                <div class="col-12">
+                                    <strong>أيام العمل:</strong>
+                                    <% if (emp.workDays) { %>
+                                        <div class="d-inline-flex flex-wrap gap-1 mt-1">
+                                            <% emp.workDays.split(',').forEach(day => { %>
+                                                <span class="day-badge"><%= day.trim() %></span>
+                                            <% }) %>
+                                        </div>
+                                    <% } else { %>
+                                        <span class="text-muted">—</span>
+                                    <% } %>
+                                </div>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top">
+                                <form action="/dashboard/employees/toggle-leave/<%= emp.id %>" method="POST" class="m-0">
+                                    <button type="submit" class="btn btn-sm <%= emp.isOnLeave ? 'btn-danger' : 'btn-success' %> rounded-pill px-3 py-1 text-white fw-bold d-inline-flex align-items-center gap-1" style="font-size: 11px;">
+                                        <i class="bi <%= emp.isOnLeave ? 'bi-moon-fill' : 'bi-sun-fill' %>"></i>
+                                        <%= emp.isOnLeave ? 'إجازة' : 'نشط' %>
+                                    </button>
+                                </form>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-sm btn-outline-primary px-3 py-1 d-flex align-items-center gap-1" 
+                                            onclick="editEmployee(this)"
+                                            data-id="<%= emp.id %>"
+                                            data-fullname="<%= emp.fullName || '' %>"
+                                            data-username="<%= emp.username %>"
+                                            data-phone="<%= emp.phone || '' %>"
+                                            data-role="<%= emp.role %>"
+                                            data-start="<%= emp.workStartTime || '09:00' %>"
+                                            data-end="<%= emp.workEndTime || '17:00' %>"
+                                            data-days="<%= emp.workDays || '' %>"
+                                            data-substitute="<%= emp.substituteUserId || '' %>"
+                                            data-max="<%= emp.maxCustomers %>">
+                                        <i class="bi bi-pencil-square"></i> تعديل
+                                    </button>
+                                    <% if (emp.role !== 'super_admin') { %>
+                                        <form action="/dashboard/employees/delete" method="POST" class="m-0" onsubmit="return confirm('هل أنت متأكد من حذف هذا الموظف؟')">
+                                            <input type="hidden" name="id" value="<%= emp.id %>">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger px-3 py-1 d-flex align-items-center gap-1">
+                                                <i class="bi bi-trash3"></i> حذف
+                                            </button>
+                                        </form>
+                                    <% } %>
+                                </div>
+                            </div>
+                        </div>
+                    <% }) %>
+                </div>
+
+            <% } %>
+        </div>
+    </div>
+
+    <!-- Add Employee Modal -->
+    <div class="modal fade" id="addEmployeeModal" tabindex="-1" aria-labelledby="addEmployeeModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content shadow-lg">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold" id="addEmployeeModalLabel">إضافة موظف جديد</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="alert alert-warning m-3 mb-0 empty-slots-info" style="display:none; font-size: 14px;"></div>
+                <form action="/dashboard/employees/add" method="POST" onsubmit="return submitAddForm()">
+                    <div class="modal-body p-4">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">الاسم الكامل للموظف</label>
+                                <input type="text" name="fullName" class="form-control" placeholder="الاسم ثلاثي أو ثنائي" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">رقم الهاتف</label>
+                                <input type="text" name="phone" class="form-control" placeholder="01xxxxxxxxx" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">اسم المستخدم (لتسجيل الدخول)</label>
+                                <input type="text" name="username" class="form-control" placeholder="مثال: ahmed_sales" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">كلمة المرور</label>
+                                <input type="password" name="password" class="form-control" placeholder="أدخل كلمة مرور قوية" required minlength="6">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">دور الموظف (Role)</label>
+                                <select name="role" id="addRole" class="form-select" required onchange="toggleScheduleFields('add')">
+                                    <option value="sales" selected>مبيعات (Sales)</option>
+                                    <option value="admin">مدير (Admin)</option>
+                                </select>
+                            </div>
+                            <input type="hidden" name="maxCustomers" value="999999">
+                            <div class="col-12 add-schedule-fields">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold">بداية وقت العمل</label>
+                                        <input type="time" name="workStartTime" class="form-control" value="09:00">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold">نهاية وقت العمل</label>
+                                        <input type="time" name="workEndTime" class="form-control" value="17:00">
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label fw-bold d-block">أيام العمل</label>
+                                        <div class="d-flex flex-wrap gap-3 mt-1">
+                                            <% ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'].forEach((day, index) => { %>
+                                                <div class="form-check">
+                                                    <input class="form-check-input add-day-check" type="checkbox" value="<%= day %>" id="addDay<%= index %>" <%= index < 5 ? 'checked' : '' %>>
+                                                    <label class="form-check-label" for="addDay<%= index %>">
+                                                        <%= day %>
+                                                    </label>
+                                                </div>
+                                            <% }) %>
+                                        </div>
+                                        <input type="hidden" name="workDays" id="addWorkDaysInput" value="السبت,الأحد,الإثنين,الثلاثاء,الأربعاء">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-bold">الموظف البديل (في حالة الإجازة أو خارج أوقات العمل)</label>
+                                <select name="substituteUserId" class="form-select">
+                                    <option value="">-- لا يوجد موظف بديل --</option>
+                                    <% employees.forEach(emp => { %>
+                                        <option value="<%= emp.id %>"><%= emp.fullName %> (<%= emp.role %>)</option>
+                                    <% }) %>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-top">
+                        <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">إلغاء</button>
+                        <button type="submit" class="btn btn-primary rounded-pill px-5 fw-bold">إضافة الموظف</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Employee Modal -->
+    <div class="modal fade" id="editEmployeeModal" tabindex="-1" aria-labelledby="editEmployeeModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content shadow-lg">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold" id="editEmployeeModalLabel">تعديل بيانات الموظف</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="alert alert-warning m-3 mb-0 empty-slots-info" style="display:none; font-size: 14px;"></div>
+                <form action="/dashboard/employees/edit" method="POST" onsubmit="return submitEditForm()">
+                    <input type="hidden" name="id" id="editId">
+                    <div class="modal-body p-4">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">الاسم الكامل للموظف</label>
+                                <input type="text" name="fullName" id="editFullName" class="form-control" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">رقم الهاتف</label>
+                                <input type="text" name="phone" id="editPhone" class="form-control" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">اسم المستخدم (لتسجيل الدخول)</label>
+                                <input type="text" name="username" id="editUsername" class="form-control" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">كلمة المرور (اتركها فارغة لعدم التغيير)</label>
+                                <input type="password" name="password" id="editPassword" class="form-control" placeholder="أدخل كلمة مرور جديدة أو اتركها فارغة" minlength="6">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">دور الموظف (Role)</label>
+                                <select name="role" id="editRole" class="form-select" required onchange="toggleScheduleFields('edit')">
+                                    <option value="sales">مبيعات (Sales)</option>
+                                    <option value="admin">مدير (Admin)</option>
+                                </select>
+                            </div>
+                            <input type="hidden" name="maxCustomers" id="editMaxCustomers">
+                            <div class="col-12 edit-schedule-fields">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold">بداية وقت العمل</label>
+                                        <input type="time" name="workStartTime" id="editWorkStartTime" class="form-control">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold">نهاية وقت العمل</label>
+                                        <input type="time" name="workEndTime" id="editWorkEndTime" class="form-control">
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label fw-bold d-block">أيام العمل</label>
+                                        <div class="d-flex flex-wrap gap-3 mt-1">
+                                            <% ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'].forEach((day, index) => { %>
+                                                <div class="form-check">
+                                                    <input class="form-check-input edit-day-check" type="checkbox" value="<%= day %>" id="editDay<%= index %>">
+                                                    <label class="form-check-label" for="editDay<%= index %>">
+                                                        <%= day %>
+                                                    </label>
+                                                </div>
+                                            <% }) %>
+                                        </div>
+                                        <input type="hidden" name="workDays" id="editWorkDaysInput">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-bold">الموظف البديل (في حالة الإجازة أو خارج أوقات العمل)</label>
+                                <select name="substituteUserId" id="editSubstituteUserId" class="form-select">
+                                    <option value="">-- لا يوجد موظف بديل --</option>
+                                    <% employees.forEach(emp => { %>
+                                        <option value="<%= emp.id %>" id="subOpt<%= emp.id %>"><%= emp.fullName %> (<%= emp.role %>)</option>
+                                    <% }) %>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-top">
+                        <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">إلغاء</button>
+                        <button type="submit" class="btn btn-primary rounded-pill px-5 fw-bold">حفظ التغييرات</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // دالة تجميع أيام العمل للنموذج الأول
+        function submitAddForm() {
+            const checkedDays = Array.from(document.querySelectorAll('.add-day-check:checked')).map(el => el.value);
+            document.getElementById('addWorkDaysInput').value = checkedDays.join(',');
+            return true;
+        }
+
+        // دالة تجميع أيام العمل للنموذج الثاني
+        function submitEditForm() {
+            const checkedDays = Array.from(document.querySelectorAll('.edit-day-check:checked')).map(el => el.value);
+            document.getElementById('editWorkDaysInput').value = checkedDays.join(',');
+            return true;
+        }
+
+        // دالة فتح مودال التعديل وتعبئة البيانات
+        function editEmployee(btn) {
+            const id = btn.getAttribute('data-id');
+            const fullName = btn.getAttribute('data-fullname');
+            const username = btn.getAttribute('data-username');
+            const phone = btn.getAttribute('data-phone');
+            const role = btn.getAttribute('data-role');
+            const start = btn.getAttribute('data-start');
+            const end = btn.getAttribute('data-end');
+            const days = btn.getAttribute('data-days');
+            const substitute = btn.getAttribute('data-substitute');
+            const max = btn.getAttribute('data-max');
+
+            document.getElementById('editId').value = id;
+            document.getElementById('editFullName').value = fullName;
+            document.getElementById('editUsername').value = username;
+            document.getElementById('editPhone').value = phone;
+            document.getElementById('editRole').value = role;
+            document.getElementById('editWorkStartTime').value = start;
+            document.getElementById('editWorkEndTime').value = end;
+            document.getElementById('editMaxCustomers').value = max;
+            document.getElementById('editPassword').value = ''; // إفراغ كلمة المرور
+            document.getElementById('editWorkDaysInput').value = days;
+
+            // إخفاء الموظف نفسه من قائمة البدلاء لمنع الاختيار الخاطئ
+            const subDropdown = document.getElementById('editSubstituteUserId');
+            subDropdown.value = substitute;
+            
+            // تحديث خيارات البدلاء لإخفاء الموظف الحالي
+            const options = subDropdown.querySelectorAll('option');
+            options.forEach(opt => {
+                if (opt.value === id) {
+                    opt.style.display = 'none';
+                } else {
+                    opt.style.display = 'block';
+                }
+            });
+
+            // تعبئة مربعات الاختيار للأيام
+            const dayList = days.split(',').map(d => d.trim());
+            const checkboxes = document.querySelectorAll('.edit-day-check');
+            checkboxes.forEach(chk => {
+                chk.checked = dayList.includes(chk.value);
+            });
+
+            const editModal = new bootstrap.Modal(document.getElementById('editEmployeeModal'));
+            editModal.show();
+        }
+
+        const allSalesEmployees = <%- JSON.stringify(employees.filter(e => e.role === 'sales' && e.is_active !== false)) %>;
+
+        function calculateEmptySlots() {
+            const days = ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'];
+            let emptySlotsHtml = '<strong>الأوقات الفارغة (غير المغطاة بالمبيعات):</strong><ul class="mb-0 ps-3 mt-1">';
+            let hasEmpty = false;
+            
+            days.forEach(day => {
+                let intervals = [];
+                allSalesEmployees.forEach(emp => {
+                    if (emp.workDays && emp.workDays.includes(day) && emp.workStartTime && emp.workEndTime) {
+                        const toMins = t => { const [h,m] = t.split(':'); return parseInt(h)*60 + parseInt(m); };
+                        let start = toMins(emp.workStartTime);
+                        let end = toMins(emp.workEndTime);
+                        if (start <= end) {
+                            intervals.push({start, end});
+                        } else {
+                            intervals.push({start, end: 1440});
+                            intervals.push({start: 0, end});
+                        }
+                    }
+                });
+                
+                intervals.sort((a,b) => a.start - b.start);
+                let merged = [];
+                if (intervals.length > 0) {
+                    let current = intervals[0];
+                    for (let i = 1; i < intervals.length; i++) {
+                        if (intervals[i].start <= current.end) {
+                            current.end = Math.max(current.end, intervals[i].end);
+                        } else {
+                            merged.push(current);
+                            current = intervals[i];
+                        }
+                    }
+                    merged.push(current);
+                }
+                
+                let gaps = [];
+                let curTime = 0;
+                merged.forEach(inter => {
+                    if (inter.start > curTime) {
+                        gaps.push({start: curTime, end: inter.start});
+                    }
+                    curTime = Math.max(curTime, inter.end);
+                });
+                if (curTime < 1440) {
+                    gaps.push({start: curTime, end: 1440});
+                }
+                
+                const formatTime = mins => {
+                    const h = Math.floor(mins / 60).toString().padStart(2, '0');
+                    const m = (mins % 60).toString().padStart(2, '0');
+                    return `${h}:${m}`;
+                };
+                
+                if (gaps.length > 0) {
+                    hasEmpty = true;
+                    let gapStrs = gaps.map(g => `${formatTime(g.start)} - ${formatTime(g.end)}`);
+                    emptySlotsHtml += `<li><strong>${day}:</strong> ${gapStrs.join(' و ')}</li>`;
+                } else {
+                    emptySlotsHtml += `<li><strong>${day}:</strong> <span class="text-success">مغطى بالكامل</span></li>`;
+                }
+            });
+            
+            emptySlotsHtml += '</ul>';
+            return emptySlotsHtml;
+        }
+
+        function toggleScheduleFields(modalType) {
+            const role = document.getElementById(modalType + 'Role').value;
+            const scheduleDivs = document.querySelectorAll('.' + modalType + '-schedule-field');
+            if (role === 'admin') {
+                document.querySelector('.' + modalType + '-schedule-fields').style.display = 'none';
+            } else {
+                document.querySelector('.' + modalType + '-schedule-fields').style.display = 'block';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const emptyHtml = calculateEmptySlots();
+            document.querySelectorAll('.empty-slots-info').forEach(el => {
+                el.innerHTML = emptyHtml;
+                el.style.display = 'block';
+            });
+            toggleScheduleFields('add');
+        });
+    </script>
+</body>
+
+</html>

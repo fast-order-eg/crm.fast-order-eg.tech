@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>سجل التغييرات - Bird-CRM</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="/style.css?v=<%= Date.now() %>" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+
+    <style>
+        .action-badge {
+            font-size: 11px;
+            padding: 4px 10px;
+            border-radius: 50px;
+            font-weight: 600;
+            display: inline-block;
+            text-align: center;
+        }
+        .action-status_change { background-color: rgba(13, 110, 253, 0.1) !important; color: #0d6efd !important; }
+        .action-note_added { background-color: rgba(111, 66, 193, 0.1) !important; color: #6f42c1 !important; }
+        .action-customer_assigned { background-color: rgba(25, 135, 84, 0.1) !important; color: #198754 !important; }
+        .action-default { background-color: rgba(108, 117, 125, 0.1) !important; color: #6c757d !important; }
+
+        .log-card-mobile {
+            background: #ffffff;
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin-bottom: 1rem;
+            transition: all 0.3s;
+        }
+        .log-card-mobile:hover {
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+            border-color: var(--primary-color);
+        }
+
+        .value-box {
+            font-size: 11px;
+            background: rgba(0,0,0,0.03);
+            border: 1px solid rgba(0,0,0,0.05);
+            border-radius: 4px;
+            padding: 4px 8px;
+            word-break: break-all;
+            max-height: 80px;
+            overflow-y: auto;
+            font-family: monospace;
+        }
+
+        .table-responsive::-webkit-scrollbar {
+            height: 6px;
+        }
+        .table-responsive::-webkit-scrollbar-thumb {
+            background: rgba(212, 175, 55, 0.3);
+            border-radius: 4px;
+        }
+        
+        .copy-btn {
+            padding: 2px 6px;
+            font-size: 11px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        .copy-btn:hover {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        /* Mobile filters collapse */
+        @media (max-width: 768px) {
+            #filtersSection {
+                display: none !important;
+            }
+            #filtersSection.mobile-visible {
+                display: flex !important;
+            }
+        }
+        .apply-filter-pulse {
+            animation: pulse-btn 0.3s ease;
+        }
+        @keyframes pulse-btn {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+
+<body>
+    <%- include('partials/navbar') %>
+    <%- include('partials/sidebar') %>
+
+    <div class="container-fluid main-content px-4 px-lg-5">
+        <!-- Toast notifications container -->
+        <div id="alertContainer" style="position: fixed; top: 100px; left: 50%; transform: translateX(-50%); z-index: 1060; width: 90%; max-width: 400px;"></div>
+
+        <div class="glass-card p-4 animate-fade-in">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
+            <h2 class="m-0 fw-bold d-flex align-items-center gap-2">
+                <i class="bi bi-clock-history text-primary"></i>
+                سجل التغييرات
+            </h2>
+            <div class="d-flex align-items-center gap-2">
+                <!-- View Mode Buttons -->
+                <button type="button" class="btn btn-outline-primary rounded-circle d-flex align-items-center justify-content-center" id="btnViewTable" onclick="setViewMode('table')" title="عرض الجدول" style="width: 40px; height: 40px; padding: 0;">
+                    <i class="bi bi-table fs-5"></i>
+                </button>
+                <button type="button" class="btn btn-outline-primary rounded-circle d-flex align-items-center justify-content-center" id="btnViewCards" onclick="setViewMode('cards')" title="عرض كروت فردية" style="width: 40px; height: 40px; padding: 0;">
+                    <i class="bi bi-grid fs-5"></i>
+                </button>
+
+                <!-- Desktop: تحديث فقط -->
+                <button class="btn btn-outline-primary px-3 rounded-pill fw-semibold d-flex align-items-center gap-1 d-none d-md-flex" onclick="loadLogs()">
+                    <i class="bi bi-arrow-clockwise fs-5"></i>
+                    تحديث السجل
+                </button>
+                <!-- Mobile: أيقونة refresh + أيقونة filter -->
+                <button class="btn btn-outline-primary rounded-circle d-flex align-items-center justify-content-center d-md-none" onclick="loadLogs()" title="تحديث" style="width: 40px; height: 40px; padding: 0;">
+                    <i class="bi bi-arrow-clockwise fs-5"></i>
+                </button>
+                <button class="btn btn-outline-secondary rounded-circle d-flex align-items-center justify-content-center d-md-none" onclick="toggleMobileFilters()" title="فلتر" id="mobileFilterToggle" style="width: 40px; height: 40px; padding: 0;">
+                    <i class="bi bi-funnel-fill fs-5"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Filters Toolbar (Desktop always visible, Mobile collapsible) -->
+        <div id="filtersSection" class="row g-3 mb-4 p-3 rounded shadow-sm border border-secondary border-opacity-10 bg-light bg-opacity-50">
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-secondary">البحث بالعميل (الاسم أو الرقم)</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="text" id="filterSearch" class="form-control form-control-sm" placeholder="اسم العميل أو رقم الهاتف...">
+                </div>
+            </div>
+
+            <div class="col-md-2">
+                <label class="form-label small fw-bold text-secondary">نوع الإجراء</label>
+                <select id="filterAction" class="form-select form-select-sm">
+                    <option value="all">الكل</option>
+                    <option value="status_change">تغيير الحالة</option>
+                    <option value="note_added">تعديل الملاحظات</option>
+                    <option value="customer_assigned">تعيين الموظف</option>
+                </select>
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-secondary">الموظف الذي قام بالإجراء</label>
+                <select id="filterEmployee" class="form-select form-select-sm">
+                    <option value="all">الكل</option>
+                    <% employees.forEach(emp => { %>
+                        <option value="<%= emp.id %>"><%= emp.fullName || emp.username %> (<%= emp.role === 'admin' ? 'مدير' : emp.role === 'super_admin' ? 'مدير عام' : 'مبيعات' %>)</option>
+                    <% }) %>
+                </select>
+            </div>
+
+            <div class="col-md-2">
+                <label class="form-label small fw-bold text-secondary">من تاريخ</label>
+                <input type="date" id="filterDateFrom" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold text-secondary">إلى تاريخ</label>
+                <input type="date" id="filterDateTo" class="form-control form-control-sm">
+            </div>
+            <!-- زرار تطبيق الفلتر -->
+            <div class="col-12 col-md-auto d-flex align-items-end">
+                <button class="btn btn-primary fw-semibold rounded-pill px-4 w-100" onclick="applyFilter()" id="applyFilterBtn">
+                    <i class="bi bi-funnel-fill me-1"></i> تطبيق الفلتر
+                </button>
+            </div>
+        </div>
+
+
+            <!-- Loader -->
+            <div id="loader" class="text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">جاري التحميل...</span>
+                </div>
+                <p class="text-muted mt-2">جاري تحميل سجل التغييرات...</p>
+            </div>
+
+            <!-- Empty State -->
+            <div id="emptyState" class="text-center py-5 d-none">
+                <i class="bi bi-clock-history text-secondary opacity-30" style="font-size: 4rem;"></i>
+                <h4 class="text-muted mt-3">سجل التغييرات فارغ</h4>
+                <p class="text-secondary small">لا توجد عمليات مسجلة تطابق خيارات التصفية المحددة.</p>
+            </div>
+
+            <!-- Desktop View Table -->
+            <div id="tableView" class="d-none table-responsive">
+                <table class="table align-middle">
+                    <thead>
+                        <tr>
+                            <th style="width: 15%">التاريخ والوقت</th>
+                            <th style="width: 15%">بواسطة</th>
+                            <th style="width: 15%">الإجراء</th>
+                            <th style="width: 25%">التفاصيل بالعربي</th>
+                            <th style="width: 15%">العميل المرتبط</th>
+                            <th style="width: 15%">القيم المحدثة</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logsTableBody">
+                        <!-- Dynamic Rows here -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Mobile View Cards -->
+            <div id="cardsView" class="d-none">
+                <!-- Dynamic Cards here -->
+            </div>
+
+            <!-- Pagination Grid -->
+            <div id="paginationContainer" class="d-flex justify-content-between align-items-center mt-4 border-top pt-3 d-none">
+                <span class="text-secondary small" id="paginationInfo"></span>
+                <nav aria-label="Page navigation">
+                    <ul class="pagination pagination-sm m-0" id="paginationList">
+                        <!-- Dynamic Pagination links -->
+                    </ul>
+                </nav>
+            </div>
+
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentPage = 1;
+        const limit = 10;
+        let debounceTimer;
+        let viewMode = window.innerWidth >= 992 ? 'table' : 'cards';
+
+        // Initialize view on load
+        document.addEventListener("DOMContentLoaded", () => {
+            // On desktop, filters are always visible
+            // On mobile, hide filters by default
+            handleFilterVisibility();
+            window.addEventListener('resize', handleFilterVisibility);
+            applyViewMode();
+            loadLogs();
+        });
+
+        function handleFilterVisibility() {
+            const filtersSection = document.getElementById('filtersSection');
+            if (window.innerWidth >= 768) {
+                filtersSection.style.display = '';
+            } else {
+                if (!filtersSection.classList.contains('mobile-visible')) {
+                    filtersSection.style.display = 'none';
+                }
+            }
+        }
+
+        // Toggle Mobile Filters Visibility
+        function toggleMobileFilters() {
+            const filtersSection = document.getElementById('filtersSection');
+            const toggle = document.getElementById('mobileFilterToggle');
+            if (filtersSection.style.display === 'none' || filtersSection.style.display === '') {
+                filtersSection.style.display = 'flex';
+                filtersSection.classList.add('mobile-visible');
+                toggle.innerHTML = '<i class="bi bi-x-lg fs-5"></i>';
+                toggle.classList.remove('btn-outline-secondary');
+                toggle.classList.add('btn-secondary');
+            } else {
+                filtersSection.style.display = 'none';
+                filtersSection.classList.remove('mobile-visible');
+                toggle.innerHTML = '<i class="bi bi-funnel-fill fs-5"></i>';
+                toggle.classList.remove('btn-secondary');
+                toggle.classList.add('btn-outline-secondary');
+            }
+        }
+
+        // Apply Filter Button Click
+        function applyFilter() {
+            currentPage = 1;
+            // Close mobile filters after applying
+            if (window.innerWidth < 768) {
+                const filtersSection = document.getElementById('filtersSection');
+                const toggle = document.getElementById('mobileFilterToggle');
+                filtersSection.style.display = 'none';
+                filtersSection.classList.remove('mobile-visible');
+                toggle.innerHTML = '<i class="bi bi-funnel-fill fs-5"></i>';
+                toggle.classList.remove('btn-secondary');
+                toggle.classList.add('btn-outline-secondary');
+            }
+            // Visual feedback
+            const btn = document.getElementById('applyFilterBtn');
+            btn.classList.add('apply-filter-pulse');
+            setTimeout(() => btn.classList.remove('apply-filter-pulse'), 300);
+            loadLogs();
+        }
+
+        // Fetch logs data via AJAX
+        function loadLogs(page = 1) {
+            currentPage = page;
+            const search = document.getElementById('filterSearch').value;
+            const action = document.getElementById('filterAction').value;
+            const employeeId = document.getElementById('filterEmployee').value;
+            const dateFrom = document.getElementById('filterDateFrom').value;
+            const dateTo = document.getElementById('filterDateTo').value;
+
+            document.getElementById('loader').classList.remove('d-none');
+            document.getElementById('tableView').classList.add('d-none');
+            document.getElementById('cardsView').classList.add('d-none');
+            document.getElementById('emptyState').classList.add('d-none');
+            document.getElementById('paginationContainer').classList.add('d-none');
+
+            const url = `/dashboard/changelog/data?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}&action=${action}&employeeId=${employeeId}&dateFrom=${dateFrom}&dateTo=${dateTo}`;
+
+            fetch(url)
+                .then(res => res.json())
+                .then(res => {
+                    document.getElementById('loader').classList.add('d-none');
+                    if (res.success && res.logs && res.logs.length > 0) {
+                        renderTable(res.logs);
+                        renderCards(res.logs);
+                        renderPagination(res.page, res.totalPages, res.totalCount);
+                        
+                        applyViewMode();
+                        document.getElementById('paginationContainer').classList.remove('d-none');
+                    } else {
+                        document.getElementById('emptyState').classList.remove('d-none');
+                    }
+                })
+                .catch(err => {
+                    console.error(err);
+                    document.getElementById('loader').classList.add('d-none');
+                    showAlert('حدث خطأ أثناء تحميل السجلات. يرجى المحاولة مرة أخرى.', 'danger');
+                });
+        }
+
+        // Alert helper
+        function showAlert(msg, type = 'success') {
+            const container = document.getElementById('alertContainer');
+            const alertHtml = `
+                <div class="alert alert-${type} alert-dismissible fade show rounded-3 shadow-sm mb-3" role="alert">
+                    <i class="bi ${type === 'success' ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill'} me-2"></i> 
+                    ${msg}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            `;
+            container.innerHTML = alertHtml;
+            setTimeout(() => {
+                const alert = container.querySelector('.alert');
+                if (alert) {
+                    const bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                }
+            }, 4000);
+        }
+
+        // Copy Text Helper
+        function copyText(text) {
+            navigator.clipboard.writeText(text)
+                .then(() => {
+                    if (window.showToast) window.showToast('تم نسخ الرقم بنجاح!');
+                    else showAlert('تم نسخ رقم العميل بنجاح!');
+                })
+                .catch(err => {
+                    if (window.showToast) window.showToast('فشل نسخ الرقم.', 'danger');
+                    else showAlert('فشل نسخ الرقم.', 'danger');
+                });
+        }
+
+        // Translate Actions
+        function getActionLabel(act) {
+            const labels = {
+                'status_change': 'تغيير الحالة',
+                'note_added': 'إضافة ملاحظة',
+                'customer_assigned': 'تعيين الموظف'
+            };
+            return labels[act] || act;
+        }
+
+        function getActionClass(act) {
+            return `action-${act}` in { 'action-status_change': 1, 'action-note_added': 1, 'action-customer_assigned': 1 }
+                ? `action-${act}`
+                : 'action-default';
+        }
+
+        // Render Desktop Table rows
+        function renderTable(logs) {
+            const tbody = document.getElementById('logsTableBody');
+            tbody.innerHTML = '';
+
+            logs.forEach((log) => {
+                const dateStr = log.createdAt ? formatDateTime(log.createdAt) : '—';
+                const performerName = log.performer ? log.performer.fullName || log.performer.username : 'النظام تلقائياً';
+                const customerName = log.customer ? log.customer.customerName || 'عميل واتساب' : '—';
+                const customerPhone = log.customer ? log.customer.phoneNumber : '';
+
+                let valueCell = '—';
+                if (log.oldValue || log.newValue) {
+                    valueCell = `
+                        <div class="d-flex flex-column gap-1">
+                            ${log.oldValue ? `<div class="value-box text-danger">السابق: ${formatValueIfDate(log.oldValue)}</div>` : ''}
+                            ${log.newValue ? `<div class="value-box text-success">الجديد: ${formatValueIfDate(log.newValue)}</div>` : ''}
+                        </div>
+                    `;
+                }
+
+                let customerCell = '—';
+                if (log.customer) {
+                    customerCell = `
+                        <div>
+                            <div class="fw-bold small text-dark">${customerName}</div>
+                            <div class="d-flex align-items-center gap-1 mt-1">
+                                <code class="small text-secondary" style="font-size: 11px;">${customerPhone}</code>
+                                <button class="btn btn-light copy-btn" onclick="copyText('${customerPhone}')" title="نسخ"><i class="bi bi-copy"></i></button>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                const row = `
+                    <tr>
+                        <td class="small text-secondary fw-semibold">${dateStr}</td>
+                        <td>
+                            <span class="text-dark fw-semibold small">${performerName}</span>
+                        </td>
+                        <td>
+                            <span class="action-badge ${getActionClass(log.action)}">${getActionLabel(log.action)}</span>
+                        </td>
+                        <td class="small text-dark fw-medium" style="line-height: 1.4;">${log.description}</td>
+                        <td>${customerCell}</td>
+                        <td>${valueCell}</td>
+                    </tr>
+                `;
+                tbody.insertAdjacentHTML('beforeend', row);
+            });
+        }
+
+        // Render Mobile Cards
+        function renderCards(logs) {
+            const container = document.getElementById('cardsView');
+            container.innerHTML = '';
+
+            logs.forEach((log) => {
+                const dateStr = log.createdAt ? formatDateTime(log.createdAt) : '—';
+                const performerName = log.performer ? log.performer.fullName || log.performer.username : 'النظام تلقائياً';
+                const customerName = log.customer ? log.customer.customerName || 'عميل واتساب' : '—';
+                const customerPhone = log.customer ? log.customer.phoneNumber : '';
+
+                let valuesHtml = '';
+                if (log.oldValue || log.newValue) {
+                    valuesHtml = `
+                        <div class="mt-2 border-top pt-2">
+                            <strong class="small text-secondary d-block mb-1">القيم المعدلة:</strong>
+                            <div class="d-flex flex-column gap-1">
+                                ${log.oldValue ? `<div class="value-box text-danger">السابق: ${formatValueIfDate(log.oldValue)}</div>` : ''}
+                                ${log.newValue ? `<div class="value-box text-success">الجديد: ${formatValueIfDate(log.newValue)}</div>` : ''}
+                            </div>
+                        </div>
+                    `;
+                }
+
+                let customerHtml = '';
+                if (log.customer) {
+                    customerHtml = `
+                        <div class="col-12 mt-1">
+                            <strong class="small text-secondary">العميل المرتبط:</strong>
+                            <span class="text-dark small ms-1">${customerName}</span>
+                            <code class="small text-secondary ms-1">(${customerPhone})</code>
+                        </div>
+                    `;
+                }
+
+                const card = `
+                    <div class="log-card-mobile animate-fade-in">
+                        <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
+                            <span class="small text-secondary fw-semibold">${dateStr}</span>
+                            <span class="action-badge ${getActionClass(log.action)}">${getActionLabel(log.action)}</span>
+                        </div>
+                        <div class="row g-2 small">
+                            <div class="col-12">
+                                <strong class="small text-secondary">بواسطة:</strong>
+                                <span class="text-dark fw-semibold">${performerName}</span>
+                            </div>
+                            <div class="col-12">
+                                <strong class="small text-secondary">التفاصيل:</strong>
+                                <p class="small text-dark mt-1 mb-0">${log.description}</p>
+                            </div>
+                            ${customerHtml}
+                        </div>
+                        ${valuesHtml}
+                    </div>
+                `;
+                container.insertAdjacentHTML('beforeend', card);
+            });
+        }
+
+        // Render Pagination buttons
+        function renderPagination(page, totalPages, totalCount) {
+            const info = document.getElementById('paginationInfo');
+            const list = document.getElementById('paginationList');
+
+            info.textContent = `عرض ${(page - 1) * limit + 1} إلى ${Math.min(page * limit, totalCount)} من إجمالي ${totalCount} سجل`;
+            list.innerHTML = '';
+
+            // Previous
+            const prevDisabled = page === 1 ? 'disabled' : '';
+            list.insertAdjacentHTML('beforeend', `
+                <li class="page-item ${prevDisabled}">
+                    <button class="page-link" onclick="loadLogs(${page - 1})" aria-label="Previous">&laquo;</button>
+                </li>
+            `);
+
+            // Page Numbers (Show max 5 pages around current)
+            let startPage = Math.max(1, page - 2);
+            let endPage = Math.min(totalPages, page + 2);
+
+            for (let i = startPage; i <= endPage; i++) {
+                const active = i === page ? 'active' : '';
+                list.insertAdjacentHTML('beforeend', `
+                    <li class="page-item ${active}">
+                        <button class="page-link" onclick="loadLogs(${i})">${i}</button>
+                    </li>
+                `);
+            }
+
+            // Next
+            const nextDisabled = page === totalPages ? 'disabled' : '';
+            list.insertAdjacentHTML('beforeend', `
+                <li class="page-item ${nextDisabled}">
+                    <button class="page-link" onclick="loadLogs(${page + 1})" aria-label="Next">&raquo;</button>
+                </li>
+            `);
+        }
+
+        // Set View Mode
+        function setViewMode(mode) {
+            viewMode = mode;
+            applyViewMode();
+        }
+
+        // Apply View Mode (Table/Cards)
+        function applyViewMode() {
+            const tableView = document.getElementById('tableView');
+            const cardsView = document.getElementById('cardsView');
+            const btnTable = document.getElementById('btnViewTable');
+            const btnCards = document.getElementById('btnViewCards');
+
+            if (!tableView || !cardsView || !btnTable || !btnCards) return;
+
+            if (viewMode === 'table') {
+                btnTable.classList.remove('btn-outline-primary');
+                btnTable.classList.add('btn-primary', 'text-white');
+                btnCards.classList.remove('btn-primary', 'text-white');
+                btnCards.classList.add('btn-outline-primary');
+                
+                tableView.classList.remove('d-none');
+                cardsView.classList.add('d-none');
+            } else {
+                btnCards.classList.remove('btn-outline-primary');
+                btnCards.classList.add('btn-primary', 'text-white');
+                btnTable.classList.remove('btn-primary', 'text-white');
+                btnTable.classList.add('btn-outline-primary');
+                
+                cardsView.classList.remove('d-none');
+                tableView.classList.add('d-none');
+            }
+        }
+
+        // Format DateTime (Hours and Minutes only)
+        function formatDateTime(date) {
+            if (!date) return '—';
+            const d = new Date(date);
+            if (isNaN(d.getTime())) return '—';
+            return d.toLocaleString('en-US', { 
+                year: 'numeric', 
+                month: '2-digit', 
+                day: '2-digit', 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                hour12: true 
+            });
+        }
+
+        // Format value if it matches ISO date
+        function formatValueIfDate(val) {
+            if (!val) return val;
+            // Check if string matches ISO datetime pattern (e.g. 2026-06-27T12:43:00.000Z)
+            const isoDateRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/;
+            if (isoDateRegex.test(val)) {
+                const d = new Date(val);
+                if (!isNaN(d.getTime())) {
+                    return formatDateTime(d);
+                }
+            }
+            return val;
+        }
+    </script>
+</body>
+
+</html>

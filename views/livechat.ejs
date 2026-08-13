@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اللايف شات | Bird-CRM</title>
+    <!-- CSS Dependencies -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Noto+Kufi+Arabic:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="/style.css" rel="stylesheet">
+
+    <style>
+        .badge-handoff {
+            background-color: rgba(245, 158, 11, 0.15);
+            color: #d97706;
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            font-size: 0.75rem;
+            padding: 4px 10px;
+            border-radius: 20px;
+        }
+        .badge-bot {
+            background-color: rgba(99, 102, 241, 0.15);
+            color: #4f46e5;
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            font-size: 0.75rem;
+            padding: 4px 10px;
+            border-radius: 20px;
+        }
+        .lc-wrapper {
+            height: calc(100vh - 120px);
+            display: flex;
+            flex-direction: column;
+        }
+        .lc-outer {
+            display: flex;
+            flex: 1;
+            background: #ffffff;
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+        }
+        .lc-contacts {
+            width: 340px;
+            min-width: 320px;
+            border-left: 1px solid #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            background: #f8fafc;
+        }
+        .lc-contacts-head {
+            padding: 14px 16px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #ffffff;
+        }
+        .lc-search {
+            padding: 10px 14px;
+            border-bottom: 1px solid #e2e8f0;
+            background: #ffffff;
+        }
+        .lc-search input {
+            background: #f1f5f9;
+            border: 1px solid #cbd5e1;
+            color: #1e293b;
+            border-radius: 8px;
+            padding: 6px 12px;
+            font-size: 12px;
+            width: 100%;
+        }
+        .lc-search input::placeholder { color: #94a3b8; }
+        .lc-contacts-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+        .lc-item {
+            padding: 12px 14px;
+            border-bottom: 1px solid #f1f5f9;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            position: relative;
+        }
+        .lc-item:hover {
+            background: #edf2f7;
+        }
+        .lc-item.active {
+            background: #e0e7ff;
+            border-right: 4px solid #6366f1;
+        }
+        .lc-av {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            background: #6366f1;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 16px;
+            flex-shrink: 0;
+            position: relative;
+        }
+        .lc-av.handoff-av {
+            background: #f59e0b;
+        }
+        .h-dot {
+            width: 10px;
+            height: 10px;
+            background: #ef4444;
+            border: 2px solid #ffffff;
+            border-radius: 50%;
+            position: absolute;
+            top: 0;
+            right: 0;
+        }
+        .lc-info {
+            flex: 1;
+            min-width: 0;
+        }
+        .lc-name {
+            font-weight: 600;
+            font-size: 13px;
+            color: #0f172a;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .lc-phone {
+            font-size: 11px;
+            color: #64748b;
+            direction: ltr;
+            text-align: right;
+        }
+        .lc-prev {
+            font-size: 11px;
+            color: #64748b;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-top: 2px;
+        }
+        .lc-meta {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 4px;
+            flex-shrink: 0;
+        }
+        .lc-t {
+            font-size: 10px;
+            color: #94a3b8;
+        }
+        .unread-pill {
+            background: #6366f1;
+            color: #ffffff;
+            font-size: 10px;
+            font-weight: bold;
+            padding: 2px 6px;
+            border-radius: 10px;
+        }
+        .lc-chat {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #ffffff;
+            position: relative;
+        }
+        .lc-empty {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #94a3b8;
+        }
+        .lc-chat-head {
+            padding: 12px 20px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #f8fafc;
+        }
+        .lc-msgs {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            background: #f8fafc;
+        }
+        .lc-send-bar {
+            padding: 12px 16px;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #ffffff;
+        }
+        .lc-send-bar textarea {
+            flex: 1;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            padding: 8px 12px;
+            font-size: 13px;
+            resize: none;
+            outline: none;
+            max-height: 100px;
+        }
+        .btn-ls {
+            background: #6366f1;
+            color: #ffffff;
+            border: none;
+            border-radius: 10px;
+            width: 42px;
+            height: 42px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        .btn-ls:hover { background: #4f46e5; }
+        .bbl {
+            max-width: 70%;
+            padding: 10px 14px;
+            border-radius: 12px;
+            font-size: 13px;
+            line-height: 1.5;
+            word-wrap: break-word;
+            position: relative;
+        }
+        .bbl.usr {
+            align-self: flex-start;
+            background: #ffffff;
+            color: #1e293b;
+            border: 1px solid #e2e8f0;
+            border-bottom-right-radius: 2px;
+        }
+        .bbl.bot {
+            align-self: flex-end;
+            background: #6366f1;
+            color: #ffffff;
+            border-bottom-left-radius: 2px;
+        }
+        .bbl-t {
+            font-size: 9px;
+            opacity: 0.7;
+            margin-top: 4px;
+            text-align: left;
+        }
+
+        @media (max-width: 768px) {
+            .lc-wrapper { height: 100vh; padding-bottom: 10px !important; }
+            .lc-contacts { width: 100% !important; border-left: none !important; }
+            .lc-outer:not(.lc-show-chat) .lc-chat { display: none !important; }
+            .lc-outer.lc-show-chat .lc-contacts { display: none !important; }
+        }
+    </style>
+</head>
+<body>
+    <%- include('partials/navbar') %>
+    <%- include('partials/sidebar') %>
+
+    <div class="main-content p-3">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+            <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-chat-dots-fill me-2 text-primary"></i>اللايف شات</h5>
+            <div class="d-flex gap-2">
+                <span class="badge-handoff"><i class="bi bi-person-fill me-1"></i><%= conversations.filter(c=>c.is_handoff).length %> تحويل نشط</span>
+                <span class="badge-bot"><i class="bi bi-chat-fill me-1"></i><%= conversations.length %> محادثة</span>
+            </div>
+        </div>
+
+        <div class="lc-outer">
+            <!-- contacts sidebar -->
+            <div class="lc-contacts">
+                <div class="lc-contacts-head">
+                    <span class="fw-bold text-dark" style="font-size:13px;">المحادثات</span>
+                    <span class="badge bg-primary rounded-pill" style="font-size:11px;"><%= conversations.length %></span>
+                </div>
+                <div class="lc-search d-flex gap-2">
+                    <input type="text" id="lcSearch" placeholder="🔍 ابحث بالاسم أو الرقم...">
+                    <button class="btn btn-sm btn-outline-warning d-flex align-items-center justify-content-center" id="lcFilterHandoff" title="عرض المحادثات المتوقفة فقط" style="border-radius:8px; width:36px; padding:0;">
+                        <i class="bi bi-funnel-fill"></i>
+                    </button>
+                </div>
+                <div class="lc-contacts-list">
+                    <% if (!conversations.length) { %>
+                    <div class="text-center p-4 text-muted" style="font-size:12px;">
+                        <i class="bi bi-chat-square-dots" style="font-size:1.8rem;display:block;margin-bottom:8px;opacity:.4;"></i>
+                        لا توجد محادثات بعد.
+                    </div>
+                    <% } %>
+
+                    <% conversations.forEach(c => {
+                        const isLid = c.remoteJid.endsWith('@lid');
+                        const phoneFromJid = (!isLid && c.remoteJid.endsWith('@s.whatsapp.net')) ? c.remoteJid.split('@')[0] : '';
+                        const phone = c.phoneNumber || phoneFromJid;
+                        const nm = c.customerName || phone || (isLid ? 'عميل' : c.remoteJid.split('@')[0]);
+                        const ts = new Date(c.lastMessageAt).toLocaleTimeString('en-US',{timeZone: 'Africa/Cairo', hour:'2-digit',minute:'2-digit',hour12:true});
+
+                        let badgeBg = 'background-color: #f1f5f9; color: #475569 !important; border: 1px solid #cbd5e1;';
+                        const assignedSales = c.Customer && c.Customer.assignedTo ? (c.Customer.assignedTo.fullName || c.Customer.assignedTo.username) : 'غير مخصص';
+                        if (assignedSales.includes('رحمة')) {
+                            badgeBg = 'background-color: #f3e8ff; color: #6b21a8 !important; border: 1px solid #d8b4fe;';
+                        } else if (assignedSales.includes('علا')) {
+                            badgeBg = 'background-color: #e0f2fe; color: #0369a1 !important; border: 1px solid #7dd3fc;';
+                        } else if (assignedSales !== 'غير مخصص') {
+                            badgeBg = 'background-color: #e0e7ff; color: #3730a3 !important; border: 1px solid #a5b4fc;';
+                        }
+                    %>
+                    <div class="lc-item"
+                         data-jid="<%= c.remoteJid %>"
+                         data-handoff="<%= c.is_handoff %>"
+                         data-name="<%= nm.replace(/"/g,'') %>"
+                         data-phone="<%= phone %>"
+                         onclick="loadChat('<%= c.remoteJid %>','<%= nm.replace(/'/g,'') %>',<%= c.is_handoff %>,'<%= phone %>')">
+                        <div class="lc-av <%= c.is_handoff ? 'handoff-av' : '' %>">
+                            <%= nm[0].toUpperCase() %>
+                            <% if (c.is_handoff) { %><div class="h-dot"></div><% } %>
+                        </div>
+                        <div class="lc-info">
+                            <div class="lc-name"><%= nm %></div>
+                            <div class="lc-assigned-sales" style="margin-top:2px; margin-bottom:2px;">
+                                <span class="badge shadow-sm" style="<%= badgeBg %> font-size: 10.5px; padding: 2px 7px; border-radius: 6px; font-weight: 600;">
+                                    <i class="bi bi-person-badge me-1"></i>المسؤول: <%= assignedSales %>
+                                </span>
+                            </div>
+                            <% if (phone) { %><div class="lc-phone"><span class="d-none d-md-inline">📞 </span>+<%= phone %></div><% } %>
+                            <div class="lc-prev"><%= c.lastMessageText ? c.lastMessageText.replace(/[M:d+]/g, '').trim() : '...' %></div>
+                        </div>
+                        <div class="lc-meta">
+                            <div class="lc-t"><%= ts %></div>
+                            <% if (c.unreadCount > 0) { %><span class="unread-pill"><%= c.unreadCount %></span><% } %>
+                        </div>
+                    </div>
+                    <% }) %>
+                </div>
+            </div>
+
+            <!-- main chat area -->
+            <div class="lc-chat">
+                <div class="lc-empty" id="lcEmpty">
+                    <i class="bi bi-chat-left-text" style="font-size:3rem;margin-bottom:12px;opacity:.3;"></i>
+                    <span>اختر محادثة من القائمة الجانبية لعرض الرسائل</span>
+                </div>
+                <div id="lcActive" style="display:none; flex-direction:column; height:100%;">
+                    <div class="lc-chat-head">
+                         <div class="d-flex align-items-center gap-3">
+                            <button class="btn btn-sm btn-light d-md-none" onclick="goBackToList()">
+                                <i class="bi bi-arrow-right"></i>
+                            </button>
+                            <div class="lc-av" id="lcAv" style="width:36px;height:36px;font-size:14px;">?</div>
+                             <div>
+                                 <div class="fw-bold text-dark" style="font-size:14px;" id="lcNm">-</div>
+                                 <div class="d-flex align-items-center gap-2" style="font-size:11px;color:#6366f1;direction:ltr;">
+                                     <span id="lcPhone">-</span>
+                                     <span id="lcPhoneActions" class="align-items-center gap-2" style="display: none;">
+                                         <button class="btn btn-link text-muted p-0 border-0" onclick="copyPhone()" title="نسخ الرقم" style="box-shadow: none; font-size: 12px;">
+                                             <i class="bi bi-copy"></i>
+                                         </button>
+                                         <a id="lcWaLink" href="#" target="_blank" class="text-success p-0" title="فتح في واتساب" style="font-size: 14px;">
+                                             <i class="bi bi-whatsapp"></i>
+                                         </a>
+                                     </span>
+                                 </div>
+                             </div>
+                         </div>
+                         <div class="d-flex flex-column align-items-end gap-1">
+                             <span class="text-muted" style="font-size:10px; font-weight: 500;">المتحكم الحالي</span>
+                             <button class="btn btn-sm fw-semibold" id="lcBtn" onclick="doHandoff()" style="font-size:11px; border-radius: 8px; min-width: 90px; padding: 4px 10px;">
+                                 -
+                             </button>
+                         </div>
+                    </div>
+                    <div class="lc-msgs" id="lcMsgs"></div>
+                    <div class="lc-send-bar">
+                        <textarea id="lcIn" placeholder="اكتب ردك... (Enter=إرسال، Shift+Enter=سطر جديد)" rows="1"></textarea>
+                        <button class="btn-ls" onclick="sendMsg()"><i class="bi bi-send-fill"></i></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+    let curJid=null, curHO=false;
+    const io_=io();
+    io_.on('connect',()=>io_.emit('join_room','user_<%= targetUserId %>'));
+    io_.on('new_message',msg=>{
+        const el=document.querySelector(`.lc-item[data-jid="${msg.remoteJid}"]`);
+        let content = msg.content ? msg.content.replace(/[M:d+]/g, '').trim() : '';
+        if(el) el.querySelector('.lc-prev').textContent=content;
+        if(msg.remoteJid===curJid) addBbl(content, msg.role==='user', new Date(msg.createdAt), msg.media_url, msg.messageId, msg.status);
+    });
+    
+    io_.on('message_status', (data) => {
+        if (data.messageId) {
+            const statusEl = document.getElementById(`status-${data.messageId}`);
+            if (statusEl) {
+                statusEl.innerHTML = getStatusIcon(data.status);
+            }
+        }
+    });
+
+    function getStatusIcon(status) {
+        if (status === 'pending') return '<i class="bi bi-clock tick-pending"></i>';
+        if (status === 'sent') return '<i class="bi bi-check2 tick-sent"></i>';
+        if (status === 'delivered') return '<i class="bi bi-check2-all tick-delivered"></i>';
+        if (status === 'read') return '<i class="bi bi-check2-all tick-read"></i>';
+        return '';
+    }
+
+    let showOnlyHandoff = false;
+
+    function applyFilters() {
+        const q = document.getElementById('lcSearch').value.toLowerCase();
+        document.querySelectorAll('.lc-item').forEach(el => {
+            const isHandoff = el.dataset.handoff === 'true';
+            const matchesName = el.dataset.name.toLowerCase().includes(q);
+            const matchesHandoff = showOnlyHandoff ? isHandoff : true;
+            el.style.display = (matchesName && matchesHandoff) ? '' : 'none';
+        });
+    }
+
+    document.getElementById('lcSearch').addEventListener('input', applyFilters);
+
+    document.getElementById('lcFilterHandoff').addEventListener('click', function() {
+        showOnlyHandoff = !showOnlyHandoff;
+        this.classList.toggle('btn-warning');
+        this.classList.toggle('text-dark');
+        this.classList.toggle('btn-outline-warning');
+        applyFilters();
+    });
+
+    function goBackToList() {
+        const outer = document.querySelector('.lc-outer');
+        if (outer) outer.classList.remove('lc-show-chat');
+    }
+
+    function copyPhone() {
+        const phoneSpan = document.getElementById('lcPhone');
+        if (phoneSpan && phoneSpan.textContent) {
+            const phoneNum = phoneSpan.textContent.replace('+', '').trim();
+            if (phoneNum) {
+                navigator.clipboard.writeText(phoneNum).then(() => {
+                    if (window.showToast) window.showToast('تم نسخ الرقم بنجاح!');
+                }).catch(err => console.error('Failed to copy: ', err));
+            }
+        }
+    }
+
+    async function loadChat(jid,nm,ho,phone){
+        curJid=jid;curHO=ho;
+        const outer = document.querySelector('.lc-outer');
+        if (outer) outer.classList.add('lc-show-chat');
+
+        document.getElementById('lcEmpty').style.display='none';
+        const act=document.getElementById('lcActive');
+        act.style.display='flex';
+
+        document.querySelectorAll('.lc-item').forEach(e=>e.classList.remove('active'));
+        const activeItem = document.querySelector(`.lc-item[data-jid="${jid}"]`);
+        if(activeItem) activeItem.classList.add('active');
+
+        document.getElementById('lcAv').textContent=(nm||'?')[0].toUpperCase();
+        document.getElementById('lcNm').textContent=nm;
+
+        const phoneSpan = document.getElementById('lcPhone');
+        const phoneActions = document.getElementById('lcPhoneActions');
+        const waLink = document.getElementById('lcWaLink');
+        
+        if (phone) {
+            phoneSpan.textContent = '+' + phone;
+            waLink.href = 'https://wa.me/' + phone;
+            phoneActions.style.display = 'inline-flex';
+        } else {
+            phoneSpan.textContent = jid;
+            phoneActions.style.display = 'none';
+        }
+
+        updBtn(ho);
+
+        const msgsEl=document.getElementById('lcMsgs');
+        msgsEl.innerHTML='<div class="text-center p-3 text-muted" style="font-size:12px;"><i class="bi bi-arrow-repeat spin me-1"></i>جاري التحميل...</div>';
+
+        try {
+            const r = await fetch('/dashboard/livechat/' + encodeURIComponent(jid) + '/messages');
+            const data = await r.json();
+            msgsEl.innerHTML='';
+            if (Array.isArray(data)) {
+                data.forEach(m => addBbl(m.content ? m.content.replace(/\[M:\d+\]/g, '').trim() : '', m.role==='user', new Date(m.createdAt), m.media_url, m.messageId, m.status));
+            }
+            msgsEl.scrollTop = msgsEl.scrollHeight;
+        } catch(e) {
+            msgsEl.innerHTML='<div class="text-center p-3 text-danger" style="font-size:12px;">فشل تحميل الرسائل</div>';
+        }
+    }
+
+    function addBbl(text, isUser, date, mediaUrl, messageId, status){
+        if (!text && !mediaUrl) return;
+        const msgsEl = document.getElementById('lcMsgs');
+        const div = document.createElement('div');
+        div.className = 'bbl ' + (isUser ? 'usr' : 'bot');
+
+        const ts = date ? date.toLocaleTimeString('en-US',{timeZone: 'Africa/Cairo', hour:'2-digit',minute:'2-digit',hour12:true}) : '';
+
+        let contentHtml = '';
+
+        if (mediaUrl) {
+            const ext = mediaUrl.split('.').pop().toLowerCase();
+            if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
+                contentHtml += `<div class="media-bubble"><a href="${mediaUrl}" target="_blank"><img src="${mediaUrl}" alt="صورة"></a></div>`;
+            } else if (['mp4', 'webm', 'ogg'].includes(ext)) {
+                contentHtml += `<div class="media-bubble"><video src="${mediaUrl}" controls></video></div>`;
+            } else if (['mp3', 'ogg', 'wav', 'm4a', 'opus'].includes(ext)) {
+                contentHtml += `<div class="media-bubble"><audio src="${mediaUrl}" controls></audio></div>`;
+            } else {
+                contentHtml += `<div class="media-bubble"><a href="${mediaUrl}" target="_blank" class="btn btn-sm btn-light border"><i class="bi bi-file-earmark-arrow-down me-1"></i>تحميل الملف</a></div>`;
+            }
+        }
+
+        if (text) {
+            contentHtml += `<div class="msg-text">${text}</div>`;
+        }
+
+        let statusHtml = '';
+        if (!isUser && messageId) {
+            statusHtml = `<span id="status-${messageId}" class="ms-1">${getStatusIcon(status || 'sent')}</span>`;
+        }
+
+        div.innerHTML = `${contentHtml}<div class="bbl-t">${ts} ${statusHtml}</div>`;
+        msgsEl.appendChild(div);
+        msgsEl.scrollTop = msgsEl.scrollHeight;
+    }
+
+    function updBtn(ho){
+        const btn=document.getElementById('lcBtn');
+        if(ho){
+            btn.className='btn btn-sm btn-warning text-dark fw-bold shadow-sm';
+            btn.textContent='👨‍💼 المبيعات';
+        } else {
+            btn.className='btn btn-sm btn-primary text-white fw-bold shadow-sm';
+            btn.textContent='🤖 البوت';
+        }
+    }
+
+    async function doHandoff(){
+        if(!curJid) return;
+        const newHO = !curHO;
+        try {
+            const r = await fetch('/dashboard/livechat/' + encodeURIComponent(curJid) + '/handoff', {
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({ is_handoff: newHO })
+            });
+            const data = await r.json();
+            if(data.success){
+                curHO = newHO;
+                updBtn(curHO);
+                const el = document.querySelector(`.lc-item[data-jid="${curJid}"]`);
+                if(el){
+                    el.dataset.handoff = newHO ? 'true' : 'false';
+                    const av = el.querySelector('.lc-av');
+                    if(newHO){
+                        av.classList.add('handoff-av');
+                        if(!av.querySelector('.h-dot')) av.innerHTML += '<div class="h-dot"></div>';
+                    } else {
+                        av.classList.remove('handoff-av');
+                        const dot = av.querySelector('.h-dot');
+                        if(dot) dot.remove();
+                    }
+                }
+            }
+        } catch(e) {
+            alert('حدث خطأ في تغيير التحكم');
+        }
+    }
+
+    async function sendMsg(){
+        const txt = document.getElementById('lcIn').value.trim();
+        if(!txt || !curJid) return;
+        document.getElementById('lcIn').value='';
+        
+        addBbl(txt, false, new Date(), null, null, 'pending');
+
+        try {
+            await fetch('/dashboard/livechat/' + encodeURIComponent(curJid) + '/send', {
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({ text: txt })
+            });
+        } catch(e) {
+            console.error('Send error:', e);
+        }
+    }
+
+    document.getElementById('lcIn').addEventListener('keypress', e => {
+        if(e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMsg();
+        }
+    });
+
+    // Auto-open chat if jid or phone URL parameter is present
+    window.addEventListener('load', () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const targetJid = urlParams.get('jid');
+        const targetPhone = urlParams.get('phone');
+
+        if (targetJid || targetPhone) {
+            setTimeout(() => {
+                let targetEl = null;
+                if (targetJid) {
+                    targetEl = document.querySelector(`.lc-item[data-jid="${targetJid}"]`);
+                }
+                if (!targetEl && targetPhone) {
+                    targetEl = document.querySelector(`.lc-item[data-phone="${targetPhone}"]`);
+                }
+                if (targetEl) {
+                    targetEl.click();
+                    targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    console.log('✅ Auto-opened chat:', targetJid || targetPhone);
+                } else {
+                    console.log('⚠️ Target chat not found:', targetJid || targetPhone);
+                }
+            }, 400);
+        }
+    });
+    </script>
+</body>
+</html>

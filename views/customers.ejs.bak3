@@ -1,0 +1,1512 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>إدارة ومتابعة العملاء - Bird-CRM</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="/style.css?v=<%= Date.now() %>" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+
+    <style>
+        .status-badge {
+            font-size: 11px;
+            padding: 5px 10px;
+            border-radius: 50px;
+            font-weight: 600;
+            display: inline-block;
+            text-align: center;
+        }
+        .status-select {
+            font-size: 12px;
+            padding: 4px 8px;
+            border-radius: 8px;
+            font-weight: 600;
+            border: 1px solid rgba(0,0,0,0.1);
+            cursor: pointer;
+        }
+        .status-new { background-color: rgba(13, 110, 253, 0.1) !important; color: #0d6efd !important; }
+        .status-in_funnel { background-color: rgba(108, 117, 125, 0.1) !important; color: #6c757d !important; }
+        .status-awaiting_payment { background-color: rgba(255, 193, 7, 0.15) !important; color: #b8860b !important; }
+        .status-awaiting_sales { background-color: rgba(255, 159, 67, 0.15) !important; color: #ff9f43 !important; }
+        .status-first_follow_up { background-color: rgba(0, 210, 188, 0.15) !important; color: #00b5ad !important; }
+        .status-final_follow_up { background-color: rgba(235, 94, 40, 0.15) !important; color: #eb5e28 !important; }
+        .status-scheduled_follow_up { background-color: rgba(111, 66, 193, 0.1) !important; color: #6f42c1 !important; }
+        .status-successful { background-color: rgba(25, 135, 84, 0.1) !important; color: #198754 !important; }
+        .status-not_interested { background-color: rgba(220, 53, 69, 0.1) !important; color: #dc3545 !important; }
+
+        .payment-badge {
+            font-size: 11px;
+            padding: 4px 8px;
+            border-radius: 8px;
+            font-weight: 600;
+            display: inline-block;
+            text-align: center;
+        }
+        .payment-pending { background-color: rgba(108, 117, 125, 0.15) !important; color: #6c757d !important; }
+        .payment-receipt_uploaded { background-color: rgba(13, 110, 253, 0.15) !important; color: #0d6efd !important; }
+        .payment-confirmed { background-color: rgba(25, 135, 84, 0.15) !important; color: #198754 !important; }
+        .payment-rejected { background-color: rgba(220, 53, 69, 0.15) !important; color: #dc3545 !important; }
+
+        .btn-xs {
+            padding: 1px 5px;
+            font-size: 10px;
+            border-radius: 3px;
+        }
+
+        .customer-card-mobile {
+            background: #ffffff;
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin-bottom: 1rem;
+            transition: all 0.3s;
+        }
+        .customer-card-mobile:hover {
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+            border-color: var(--primary-color);
+        }
+
+        .notes-textarea {
+            width: 100%;
+            border: 1px dashed rgba(212, 175, 55, 0.3);
+            background: transparent;
+            font-size: 13px;
+            color: var(--text-color);
+            border-radius: 4px;
+            padding: 4px 8px;
+            transition: all 0.3s;
+            resize: none;
+            height: 40px;
+        }
+        .notes-textarea:focus {
+            outline: none;
+            border: 1px solid var(--primary-color);
+            background: #ffffff;
+            box-shadow: 0 0 5px rgba(212, 175, 55, 0.2);
+            height: 85px;
+        }
+
+        .summary-tooltip {
+            max-width: 200px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            cursor: pointer;
+            color: var(--text-secondary);
+        }
+
+        .table-responsive::-webkit-scrollbar {
+            height: 6px;
+        }
+        .table-responsive::-webkit-scrollbar-thumb {
+            background: rgba(212, 175, 55, 0.3);
+            border-radius: 4px;
+        }
+        .copy-btn {
+            padding: 2px 6px;
+            font-size: 11px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        .copy-btn:hover {
+            background-color: var(--primary-color);
+            color: white;
+        }
+    </style>
+</head>
+
+<body>
+    <%- include('partials/navbar') %>
+    <%- include('partials/sidebar') %>
+
+    <div class="container-fluid main-content px-4 px-lg-5">
+        
+        <!-- Alerts (Toasts / Top notifications via Javascript) -->
+        <div id="alertContainer" style="position: fixed; top: 100px; left: 50%; transform: translateX(-50%); z-index: 1060; width: 90%; max-width: 400px;"></div>
+
+        <div class="glass-card p-4 animate-fade-in">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
+                <h2 class="m-0 fw-bold d-flex align-items-center gap-2">
+                    <i class="bi bi-person-fill-gear text-primary"></i>
+                    إدارة ومتابعة العملاء (CRM)
+                </h2>
+                <div class="d-flex gap-2 align-items-center flex-wrap">
+                    <button class="btn btn-primary rounded-circle d-flex align-items-center justify-content-center text-white shadow-sm" data-bs-toggle="modal" data-bs-target="#addCustomerModal" title="إضافة عميل" style="width: 40px; height: 40px; padding: 0;">
+                        <i class="bi bi-person-plus-fill fs-5"></i>
+                    </button>
+                    <button type="button" class="btn btn-outline-primary rounded-circle d-flex align-items-center justify-content-center" id="btnViewTable" onclick="setViewMode('table')" title="عرض الجدول" style="width: 40px; height: 40px; padding: 0;">
+                        <i class="bi bi-table fs-5"></i>
+                    </button>
+                    <button type="button" class="btn btn-outline-primary rounded-circle d-flex align-items-center justify-content-center" id="btnViewCards" onclick="setViewMode('cards')" title="عرض كروت فردية" style="width: 40px; height: 40px; padding: 0;">
+                        <i class="bi bi-grid fs-5"></i>
+                    </button>
+                    <button class="btn btn-outline-primary rounded-circle d-flex align-items-center justify-content-center" onclick="loadData()" title="تحديث" style="width: 40px; height: 40px; padding: 0;">
+                        <i class="bi bi-arrow-clockwise fs-5"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary rounded-circle d-flex align-items-center justify-content-center d-lg-none" type="button" data-bs-toggle="collapse" data-bs-target="#filtersCollapse" aria-expanded="false" aria-controls="filtersCollapse" title="تصفية وفلترة" style="width: 40px; height: 40px; padding: 0;">
+                        <i class="bi bi-funnel fs-5"></i>
+                    </button>
+                    <% if (user.role === 'super_admin' || user.role === 'admin') { %>
+                        <button class="btn btn-success rounded-circle d-flex align-items-center justify-content-center text-white" onclick="exportExcel()" title="تصدير Excel" style="width: 40px; height: 40px; padding: 0;">
+                            <i class="bi bi-file-earmark-spreadsheet fs-5"></i>
+                        </button>
+                    <% } %>
+                </div>
+            </div>
+
+            <!-- FIlters Toolbar -->
+            <div class="collapse d-lg-block mb-4" id="filtersCollapse">
+                <div class="row g-3 p-3 rounded shadow-sm border border-secondary border-opacity-10 bg-light bg-opacity-50">
+                    <div class="col-md-3">
+                        <label class="form-label small fw-bold text-secondary">البحث بالاسم أو الرقم</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-search"></i></span>
+                            <input type="text" id="filterSearch" class="form-control form-control-sm" placeholder="ابحث هنا...">
+                        </div>
+                    </div>
+                    <input type="hidden" id="filterStatus" value="all">
+
+                    <% if (user.role === 'super_admin' || user.role === 'admin') { %>
+                    <div class="col-md-2">
+                        <label class="form-label small fw-bold text-secondary">الموظف المسؤول</label>
+                        <select id="filterEmployee" class="form-select form-select-sm">
+                            <option value="all">الكل</option>
+                            <option value="unassigned">غير مخصص</option>
+                            <% employees.forEach(emp => { %>
+                                <option value="<%= emp.id %>"><%= emp.fullName %></option>
+                            <% }) %>
+                        </select>
+                    </div>
+                    <% } else { %>
+                        <input type="hidden" id="filterEmployee" value="<%= user.id %>">
+                    <% } %>
+
+                    <div class="col-md-2">
+                        <label class="form-label small fw-bold text-secondary">من تاريخ</label>
+                        <input type="date" id="filterDateFrom" class="form-control form-control-sm">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small fw-bold text-secondary">إلى تاريخ</label>
+                        <input type="date" id="filterDateTo" class="form-control form-control-sm">
+                    </div>
+                    <div class="col-md-1 d-flex align-items-end">
+                        <div class="form-check form-switch mb-1">
+                            <input class="form-check-input" type="checkbox" role="switch" id="filterTodayFollowUps" onchange="loadData(1)">
+                            <label class="form-check-label small fw-bold text-danger" for="filterTodayFollowUps">المتابعات المجدولة</label>
+                        </div>
+                    </div>
+                    
+                    <!-- Filter and Reset Buttons -->
+                    <div class="col-12 d-flex justify-content-end gap-2 mt-2">
+                        <button type="button" class="btn btn-outline-secondary btn-sm px-3 rounded-pill fw-bold" onclick="resetFilters()">
+                            <i class="bi bi-arrow-counterclockwise"></i> إعادة ضبط
+                        </button>
+                        <button type="button" class="btn btn-primary btn-sm px-4 rounded-pill fw-bold text-white" onclick="loadData(1)">
+                            <i class="bi bi-funnel-fill"></i> فلترة
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Loader -->
+            <div id="loader" class="text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">جاري التحميل...</span>
+                </div>
+                <p class="text-muted mt-2">جاري تحميل بيانات العملاء...</p>
+            </div>
+
+            <!-- Empty State -->
+            <div id="emptyState" class="text-center py-5 d-none">
+                <i class="bi bi-person-x text-secondary opacity-30" style="font-size: 4rem;"></i>
+                <h4 class="text-muted mt-3">لم يتم العثور على عملاء</h4>
+                <p class="text-secondary small">جرب تغيير خيارات التصفية أو البحث للحصول على نتائج.</p>
+            </div>
+
+            <!-- Desktop View Table -->
+            <div id="tableView" class="d-none table-responsive">
+                <table class="table align-middle">
+                    <thead>
+                        <tr>
+                            <th style="width: 5%">#</th>
+                            <th style="width: 25%">العميل</th>
+                            <th class="text-center" style="width: 20%">رقم الهاتف</th>
+                            <% if (user.role === 'super_admin' || user.role === 'admin') { %>
+                                <th style="width: 15%">المسؤول</th>
+                            <% } %>
+                            <th style="width: 10%">الحالة</th>
+                            <th style="width: 10%">حالة الدفع</th>
+                            <th class="text-center" style="width: 15%">إجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody id="customerTableBody">
+                        <!-- Dynamic Rows here -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Mobile View Cards -->
+            <div id="cardsView" class="d-none">
+                <!-- Dynamic Cards here -->
+            </div>
+
+            <!-- Pagination Grid -->
+            <div id="paginationContainer" class="d-flex justify-content-between align-items-center mt-4 border-top pt-3 d-none">
+                <span class="text-secondary small" id="paginationInfo"></span>
+                <nav aria-label="Page navigation">
+                    <ul class="pagination pagination-sm m-0" id="paginationList">
+                        <!-- Dynamic Pagination links -->
+                    </ul>
+                </nav>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- AI Summary Modal -->
+    <div class="modal fade" id="summaryModal" tabindex="-1" aria-labelledby="summaryModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow-lg">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold" id="summaryModalLabel">📝 ملخص المحادثة بالذكاء الاصطناعي</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4 fs-6 text-dark" id="summaryModalBody" style="white-space: pre-wrap; line-height:1.6;">
+                    <!-- Content -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">إغلاق</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Follow Up Date Modal -->
+    <div class="modal fade" id="followUpModal" tabindex="-1" aria-labelledby="followUpModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow-lg">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold" id="followUpModalLabel">⏰ جدولة موعد المتابعة</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="followUpForm" onsubmit="submitFollowUp(event)">
+                    <input type="hidden" id="followUpCustomerId">
+                    <div class="modal-body p-4">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">اختر تاريخ ووقت المتابعة:</label>
+                            <input type="datetime-local" id="followUpDateTime" class="form-control" required>
+                            <div class="form-text">سيتم نقل حالة العميل تلقائياً إلى "متابعة بتاريخ مجدول".</div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">إلغاء</button>
+                        <button type="submit" class="btn btn-primary rounded-pill px-5 fw-bold">حفظ الموعد</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Customer Modal -->
+    <div class="modal fade" id="addCustomerModal" tabindex="-1" aria-labelledby="addCustomerModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow-lg border-0 rounded-4">
+                <div class="modal-header bg-light border-bottom-0 py-3">
+                    <h5 class="modal-title fw-bold text-primary d-flex align-items-center gap-2" id="addCustomerModalLabel">
+                        <i class="bi bi-person-plus-fill text-primary"></i>
+                        إضافة عميل جديد
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="addCustomerForm" onsubmit="submitAddCustomer(event)">
+                    <div class="modal-body px-4 py-3">
+                        <div class="mb-3">
+                            <label for="addCustomerName" class="form-label fw-bold small text-secondary">اسم العميل <span class="text-danger">*</span></label>
+                            <input type="text" id="addCustomerName" name="customerName" class="form-control rounded-3" placeholder="أدخل اسم العميل" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="addCustomerPhone" class="form-label fw-bold small text-secondary">رقم الهاتف (واتساب) <span class="text-danger">*</span></label>
+                            <input type="tel" id="addCustomerPhone" name="phoneNumber" class="form-control rounded-3" placeholder="مثال: 201012345678" required>
+                            <div class="form-text small text-muted">يرجى إدخال الرقم بالصيغة الدولية بدون رمز الزائد (+).</div>
+                        </div>
+                        <input type="hidden" id="addCustomerStatus" name="status" value="new">
+                        <div class="mb-3">
+                            <label for="addCustomerNotes" class="form-label fw-bold small text-secondary">ملاحظات</label>
+                            <textarea id="addCustomerNotes" name="notes" class="form-control rounded-3" rows="3" placeholder="أي ملاحظات إضافية عن العميل..."></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer bg-light border-top-0 py-3">
+                        <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">إلغاء</button>
+                        <button type="submit" class="btn btn-primary rounded-pill px-5 fw-bold text-white" id="btnAddCustomerSubmit">حفظ العميل</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Customer Details Modal (الطولي المتناسب مع الموبايل) -->
+    <div class="modal fade" id="customerDetailsModal" tabindex="-1" aria-labelledby="customerDetailsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" style="max-width: 480px;">
+            <div class="modal-content shadow-lg border-0 rounded-4">
+                <div class="modal-header bg-light border-bottom-0 py-3">
+                    <h5 class="modal-title fw-bold text-primary d-flex align-items-center gap-2" id="customerDetailsModalLabel">
+                        <i class="bi bi-person-badge-fill text-warning"></i>
+                        تفاصيل العميل كاملة
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body px-4 py-3">
+                    <!-- Loader -->
+                    <div id="detailsLoader" class="text-center py-5">
+                        <div class="spinner-border text-warning" role="status">
+                            <span class="visually-hidden">جاري التحميل...</span>
+                        </div>
+                        <p class="text-muted mt-2 small">جاري جلب بيانات العميل...</p>
+                    </div>
+
+                    <!-- Details Content -->
+                    <div id="detailsContent" class="d-none">
+                        <input type="hidden" id="detailsCustomerId">
+                        
+                        <!-- Customer Info -->
+                        <div class="card border-0 bg-light rounded-3 p-3 mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h6 class="fw-bold text-dark mb-0" id="detailsCustName">—</h6>
+                                <span class="badge bg-secondary fs-6" id="detailsCustIdTag">#</span>
+                            </div>
+                            <div class="d-flex align-items-center gap-2 mb-2">
+                                <i class="bi bi-telephone text-secondary small"></i>
+                                <code class="text-dark fw-bold" id="detailsCustPhone">—</code>
+                                <button class="btn btn-sm btn-light py-0 px-2 border" onclick="copyText(document.getElementById('detailsCustPhone').textContent)" style="font-size: 11px;">
+                                    <i class="bi bi-copy"></i> نسخ
+                                </button>
+                            </div>
+                            <div class="d-flex align-items-center gap-2 mb-0 d-none" id="detailsEmailContainer">
+                                <i class="bi bi-envelope text-secondary small"></i>
+                                <span class="small text-muted" id="detailsCustEmail">—</span>
+                            </div>
+                        </div>
+
+                        <!-- System Dates -->
+                        <div class="row g-2 mb-3">
+                            <div class="col-12">
+                                <div class="p-2 border rounded bg-white small">
+                                    <div class="text-muted mb-1"><i class="bi bi-calendar-plus me-1 text-warning"></i> بداية التواصل:</div>
+                                    <span class="fw-bold text-dark" id="detailsFirstContact">—</span>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="p-2 border rounded bg-white small">
+                                    <div class="text-muted mb-1"><i class="bi bi-reply me-1 text-success"></i> آخر رد من العميل:</div>
+                                    <span class="fw-semibold text-dark" id="detailsLastReply">—</span>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="p-2 border rounded bg-white small">
+                                    <div class="text-muted mb-1"><i class="bi bi-robot me-1 text-info"></i> آخر رسالة للبوت:</div>
+                                    <span class="fw-semibold text-dark" id="detailsLastBot">—</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Actions (Status) -->
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold text-secondary">حالة العميل</label>
+                            <select id="detailsStatusSelect" class="form-select form-select-sm" onchange="detailsUpdateStatus()">
+                                <option value="new">عميل جديد</option>
+                                <option value="awaiting_payment">بانتظار الدفع</option>
+                                <option value="awaiting_sales">متابعة مبيعات</option>
+                                <option value="first_follow_up">متابعة أولى</option>
+                                <option value="final_follow_up">متابعة نهائية</option>
+                                <option value="scheduled_follow_up">متابعة بموعد</option>
+                                <option value="successful">تم البيع (عميل حالي)</option>
+                                <option value="not_interested">غير مهتم / ملغي</option>
+                            </select>
+                        </div>
+
+                        <!-- Follow-up Time in Details Modal -->
+                        <div class="mb-3 d-none" id="detailsFollowUpContainer">
+                            <div class="p-2 border rounded bg-white small">
+                                <div class="text-muted mb-1"><i class="bi bi-clock me-1 text-primary" id="detailsFollowUpIcon"></i> <span id="detailsFollowUpLabel">ميعاد المتابعة:</span></div>
+                                <span class="fw-bold text-dark" id="detailsFollowUpTime">—</span>
+                            </div>
+                        </div>
+
+                        <div class="mb-3" id="detailsAssigneeContainer">
+                            <label class="form-label small fw-bold text-secondary">الموظف المسؤول</label>
+                            <select id="detailsAssigneeSelect" class="form-select form-select-sm" onchange="detailsUpdateAssignee()">
+                                <!-- Options populated dynamically -->
+                            </select>
+                        </div>
+
+                        <!-- Notes -->
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold text-secondary">الملاحظات</label>
+                            <textarea id="detailsNotes" class="form-control form-control-sm" rows="3" placeholder="اكتب ملاحظات المبيعات هنا..."></textarea>
+                            <div class="d-flex justify-content-end mt-2">
+                                <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 fw-semibold" id="btnSaveNotes" onclick="detailsUpdateNotes()">
+                                    <i class="bi bi-save me-1"></i> حفظ الملاحظات
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Payment Section -->
+                        <div class="p-3 border border-secondary border-opacity-10 rounded bg-light mb-3">
+                            <label class="small fw-bold text-secondary d-block mb-2">حالة ومعلومات الدفع</label>
+                            <div class="mb-2">
+                                <select id="detailsPaymentStatusSelect" class="form-select form-select-sm" onchange="detailsUpdatePaymentStatusDropdown()">
+                                    <option value="pending">قيد الانتظار</option>
+                                    <option value="receipt_uploaded">تم رفع الإيصال</option>
+                                    <option value="confirmed">تم الدفع (مؤكد)</option>
+                                    <option value="rejected">مرفوض</option>
+                                </select>
+                            </div>
+                            
+                            <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                                <span class="payment-badge m-0" id="detailsPaymentBadge">قيد الانتظار</span>
+                                <div id="detailsReceiptContainer" class="d-none">
+                                    <a href="#" id="detailsReceiptLink" target="_blank" class="btn btn-sm btn-outline-info py-1 px-2 fw-semibold" style="font-size: 11px;">
+                                        <i class="bi bi-image"></i> عرض إيصال الدفع
+                                    </a>
+                                </div>
+                            </div>
+                            
+                            <div id="detailsUploadReceiptContainer" class="mt-2 pt-2 border-top">
+                                <label class="small fw-bold text-secondary d-block mb-1">رفع إيصال الدفع</label>
+                                <form id="uploadReceiptForm" onsubmit="submitUploadReceipt(event)">
+                                    <div class="input-group input-group-sm">
+                                        <input type="file" class="form-control" id="paymentReceiptFile" accept="image/*,application/pdf" required>
+                                        <button class="btn btn-outline-primary" type="submit">رفع الملف</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- AI Summary -->
+                        <div class="p-3 border rounded bg-white">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <strong class="small text-secondary"><i class="bi bi-robot text-warning me-1"></i> ملخص المحادثة بالذكاء الاصطناعي:</strong>
+                                <button class="btn btn-sm btn-outline-warning py-0 px-2 d-flex align-items-center gap-1 font-semibold" id="btnRefreshSummary" onclick="detailsRefreshSummary()" title="تحديث وتوليد ملخص جديد">
+                                    <i class="bi bi-arrow-clockwise"></i> تحديث الملخص
+                                </button>
+                            </div>
+                            <div id="detailsSummaryContainer" class="small text-dark p-2 bg-light rounded" style="white-space: pre-wrap; min-height: 60px; line-height: 1.5; font-size: 13px;">
+                                —
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light border-top-0 py-2">
+                    <div class="d-flex w-100 justify-content-between gap-2">
+                        <a href="#" id="detailsWhatsAppBtn" target="_blank" class="btn btn-sm btn-success px-3 rounded-pill fw-bold d-flex align-items-center gap-1">
+                            <i class="bi bi-whatsapp"></i> واتساب
+                        </a>
+                        <button class="btn btn-sm btn-primary px-3 rounded-pill fw-bold d-flex align-items-center gap-1" onclick="detailsOpenFollowUp()">
+                            <i class="bi bi-calendar-event"></i> جدولة متابعة
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentPage = 1;
+        const limit = 10;
+        let debounceTimer;
+        let viewMode = window.innerWidth >= 992 ? 'table' : 'cards';
+
+        const role = "<%= user.role %>";
+        const employeesList = <%- JSON.stringify(employees) %>;
+
+        function setViewMode(mode) {
+            viewMode = mode;
+            applyViewMode();
+        }
+
+        function applyViewMode() {
+            const tableView = document.getElementById('tableView');
+            const cardsView = document.getElementById('cardsView');
+            const btnTable = document.getElementById('btnViewTable');
+            const btnCards = document.getElementById('btnViewCards');
+
+            if (viewMode === 'table') {
+                btnTable.classList.remove('btn-outline-primary');
+                btnTable.classList.add('btn-primary', 'text-white');
+                btnCards.classList.remove('btn-primary', 'text-white');
+                btnCards.classList.add('btn-outline-primary');
+                
+                tableView.classList.remove('d-none');
+                cardsView.classList.add('d-none');
+            } else {
+                btnCards.classList.remove('btn-outline-primary');
+                btnCards.classList.add('btn-primary', 'text-white');
+                btnTable.classList.remove('btn-primary', 'text-white');
+                btnTable.classList.add('btn-outline-primary');
+                
+                cardsView.classList.remove('d-none');
+                tableView.classList.add('d-none');
+            }
+        }
+
+        function formatDateTime(date) {
+            if (!date) return '—';
+            const d = new Date(date);
+            if (isNaN(d.getTime())) return '—';
+            return d.toLocaleString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true });
+        }
+
+        // Initialize view on load
+        document.addEventListener("DOMContentLoaded", () => {
+            applyViewMode();
+            loadData();
+        });
+
+        // Debounce search function
+        function debounceLoad() {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                currentPage = 1;
+                loadData();
+            }, 500);
+        }
+
+        // Reset Filters function
+        function resetFilters() {
+            document.getElementById('filterSearch').value = '';
+            document.getElementById('filterStatus').value = 'all';
+            if (document.getElementById('filterEmployee')) {
+                document.getElementById('filterEmployee').value = 'all';
+            }
+            document.getElementById('filterDateFrom').value = '';
+            document.getElementById('filterDateTo').value = '';
+            document.getElementById('filterTodayFollowUps').checked = false;
+            loadData(1);
+        }
+
+        // Export to Excel function
+        function exportExcel() {
+            const search = document.getElementById('filterSearch').value;
+            const status = document.getElementById('filterStatus').value;
+            const employeeId = document.getElementById('filterEmployee').value;
+            const dateFrom = document.getElementById('filterDateFrom').value;
+            const dateTo = document.getElementById('filterDateTo').value;
+            const todayFollowUps = document.getElementById('filterTodayFollowUps').checked;
+
+            const url = `/dashboard/customers/export?search=${encodeURIComponent(search)}&status=${status}&employeeId=${employeeId}&dateFrom=${dateFrom}&dateTo=${dateTo}&todayFollowUps=${todayFollowUps}`;
+            window.location.href = url;
+        }
+
+        // Fetch data via AJAX
+        function loadData(page = 1) {
+            currentPage = page;
+            const search = document.getElementById('filterSearch').value;
+            const status = document.getElementById('filterStatus').value;
+            const employeeId = document.getElementById('filterEmployee').value;
+            const dateFrom = document.getElementById('filterDateFrom').value;
+            const dateTo = document.getElementById('filterDateTo').value;
+            const todayFollowUps = document.getElementById('filterTodayFollowUps').checked;
+
+            document.getElementById('loader').classList.remove('d-none');
+            document.getElementById('tableView').classList.add('d-none');
+            document.getElementById('cardsView').classList.add('d-none');
+            document.getElementById('emptyState').classList.add('d-none');
+            document.getElementById('paginationContainer').classList.add('d-none');
+
+            const url = `/dashboard/customers/data?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}&status=${status}&employeeId=${employeeId}&dateFrom=${dateFrom}&dateTo=${dateTo}&todayFollowUps=${todayFollowUps}`;
+
+            fetch(url)
+                .then(res => res.json())
+                .then(res => {
+                    document.getElementById('loader').classList.add('d-none');
+                    if (res.success && res.customers && res.customers.length > 0) {
+                        renderTable(res.customers, res.totalCount);
+                        renderCards(res.customers, res.totalCount);
+                        renderPagination(res.page, res.totalPages, res.totalCount);
+                        
+                        applyViewMode();
+                        document.getElementById('paginationContainer').classList.remove('d-none');
+                    } else {
+                        document.getElementById('emptyState').classList.remove('d-none');
+                    }
+                })
+                .catch(err => {
+                    console.error(err);
+                    document.getElementById('loader').classList.add('d-none');
+                    showAlert('حدث خطأ أثناء تحميل البيانات. يرجى المحاولة مرة أخرى.', 'danger');
+                });
+        }
+
+        // Alert helper
+        function showAlert(msg, type = 'success') {
+            const container = document.getElementById('alertContainer');
+            const alertHtml = `
+                <div class="alert alert-${type} alert-dismissible fade show rounded-3 shadow-sm mb-3" role="alert">
+                    <i class="bi ${type === 'success' ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill'} me-2"></i> 
+                    ${msg}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            `;
+            container.innerHTML = alertHtml;
+            setTimeout(() => {
+                const alert = container.querySelector('.alert');
+                if (alert) {
+                    const bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                }
+            }, 4000);
+        }
+
+        // Copy Text Helper
+        function copyText(text) {
+            navigator.clipboard.writeText(text)
+                .then(() => {
+                    if (window.showToast) window.showToast('تم نسخ الرقم بنجاح!');
+                    else showAlert('تم نسخ الرقم بنجاح!');
+                })
+                .catch(err => {
+                    if (window.showToast) window.showToast('فشل نسخ الرقم.', 'danger');
+                    else showAlert('فشل نسخ الرقم.', 'danger');
+                });
+        }
+
+        // Show AI Summary Modal
+        function showSummary(summaryText) {
+            document.getElementById('summaryModalBody').textContent = summaryText || "لا يوجد ملخص متاح حالياً لهذه المحادثة.";
+            const modal = new bootstrap.Modal(document.getElementById('summaryModal'));
+            modal.show();
+        }
+
+        function renderTable(customers, totalCount) {
+            const tbody = document.getElementById('customerTableBody');
+            tbody.innerHTML = '';
+
+            customers.forEach((cust, index) => {
+                const dateStart = cust.firstContactAt ? formatDateTime(cust.firstContactAt) : '—';
+                const summaryText = cust.aiSummary || '';
+                const shortSummary = summaryText.length > 50 ? summaryText.substring(0, 50) + '...' : (summaryText || '—');
+                const serialNum = totalCount - ((currentPage - 1) * limit + index);
+                
+                // Status Select Options
+                let statusOptions = `
+                    <option value="new" ${cust.status === 'new' ? 'selected' : ''}>عميل جديد</option>
+                    <option value="awaiting_payment" ${cust.status === 'awaiting_payment' ? 'selected' : ''}>بانتظار الدفع</option>
+                    <option value="awaiting_sales" ${cust.status === 'awaiting_sales' ? 'selected' : ''}>متابعة مبيعات</option>
+                    <option value="first_follow_up" ${cust.status === 'first_follow_up' ? 'selected' : ''}>متابعة أولى</option>
+                    <option value="final_follow_up" ${cust.status === 'final_follow_up' ? 'selected' : ''}>متابعة نهائية</option>
+                    <option value="scheduled_follow_up" ${cust.status === 'scheduled_follow_up' ? 'selected' : ''}>متابعة بموعد</option>
+                    <option value="successful" ${cust.status === 'successful' ? 'selected' : ''}>تم البيع</option>
+                    <option value="not_interested" ${cust.status === 'not_interested' ? 'selected' : ''}>غير مهتم/ملغي</option>
+                `;
+
+                // Assignee options
+                let assigneeCol = '';
+                if (role === 'super_admin' || role === 'admin') {
+                    let employeeOptions = `<option value="">غير مخصص</option>`;
+                    employeesList.forEach(emp => {
+                        employeeOptions += `<option value="${emp.id}" ${cust.assignedToUserId === emp.id ? 'selected' : ''}>${emp.fullName}</option>`;
+                    });
+                    assigneeCol = `
+                        <td>
+                            <select class="form-select form-select-sm" onchange="updateAssignee(${cust.id}, this.value)">
+                                ${employeeOptions}
+                            </select>
+                        </td>
+                    `;
+                }
+
+                let followUpTimeStr = '';
+                if (cust.scheduledFollowUpAt) {
+                    const formatted = formatDateTime(cust.scheduledFollowUpAt);
+                    const cancelBtn = `<i class="fas fa-times text-danger ms-2" style="cursor:pointer;" onclick="cancelFollowUp(${cust.id}, event)" title="إلغاء المتابعة"></i>`;
+                    if (cust.status === 'scheduled_follow_up') {
+                        followUpTimeStr = `<div class="small text-muted mt-1" style="font-size: 11px;"><i class="bi bi-clock me-1 text-primary"></i> ${formatted} ${cancelBtn}</div>`;
+                    } else if (cust.status === 'first_follow_up') {
+                        followUpTimeStr = `<div class="small text-muted mt-1" style="font-size: 11px;"><i class="bi bi-clock me-1 text-warning"></i> ${formatted} ${cancelBtn}</div>`;
+                    } else if (cust.status === 'final_follow_up') {
+                        followUpTimeStr = `<div class="small text-muted mt-1" style="font-size: 11px;"><i class="bi bi-clock me-1 text-danger"></i> ${formatted} ${cancelBtn}</div>`;
+                    }
+                }
+
+                const row = `
+                    <tr id="row-${cust.id}">
+                        <td class="small text-secondary fw-semibold">${serialNum}</td>
+                        <td>
+                            <div class="fw-bold text-dark">${cust.customerName || 'عميل واتساب'}</div>
+                            ${cust.email ? `<div class="small text-muted">${cust.email}</div>` : ''}
+                        </td>
+                        <td class="text-center">
+                            <div class="d-flex justify-content-center align-items-center gap-1" dir="ltr">
+                                <code class="text-secondary">${cust.phoneNumber}</code>
+                                <button class="btn btn-light copy-btn" onclick="copyText('${cust.phoneNumber}')" title="نسخ"><i class="bi bi-copy"></i></button>
+                            </div>
+                        </td>
+
+                        ${assigneeCol}
+
+                        <td>
+                            <select class="status-select status-${cust.status} form-select-sm border-0 shadow-sm" onchange="updateStatus(${cust.id}, this.value)">
+                                ${statusOptions}
+                            </select>
+                            ${followUpTimeStr}
+                        </td>
+
+                        <td>
+                            <span class="payment-badge payment-${cust.paymentStatus || 'pending'}">
+                                ${cust.paymentStatus === 'receipt_uploaded' ? 'تم رفع الإيصال' : 
+                                  cust.paymentStatus === 'confirmed' ? 'مؤكد' : 
+                                  cust.paymentStatus === 'rejected' ? 'مرفوض' : 'قيد الانتظار'}
+                            </span>
+                            ${cust.paymentReceiptUrl ? `
+                                <div class="mt-1">
+                                    <a href="${cust.paymentReceiptUrl}" target="_blank" class="btn btn-xs btn-outline-info p-1" style="font-size:10px;" title="عرض الإيصال">
+                                        <i class="bi bi-image"></i> الإيصال
+                                    </a>
+                                </div>
+                            ` : ''}
+                            ${(role === 'super_admin' || role === 'admin') && cust.paymentStatus === 'receipt_uploaded' ? `
+                                <div class="mt-1 d-flex gap-1 justify-content-center">
+                                    <button class="btn btn-xs btn-success p-1 text-white" onclick="updatePaymentStatus(${cust.id}, 'confirmed')" title="تأكيد الدفع">
+                                        <i class="bi bi-check-lg"></i>
+                                    </button>
+                                    <button class="btn btn-xs btn-danger p-1 text-white" onclick="updatePaymentStatus(${cust.id}, 'rejected')" title="رفض الدفع">
+                                        <i class="bi bi-x-lg"></i>
+                                    </button>
+                                </div>
+                            ` : ''}
+                        </td>
+                        <td class="text-center">
+                            <div class="d-flex justify-content-center gap-2">
+                                <a href="https://wa.me/${cust.phoneNumber}" target="_blank" class="btn btn-sm btn-outline-success px-2 py-1 rounded" title="محادثة واتساب">
+                                    <i class="bi bi-whatsapp"></i>
+                                </a>
+
+                                <button class="btn btn-sm btn-outline-info px-2 py-1 rounded" onclick="showCustomerDetails(${cust.id}, ${serialNum})" title="عرض التفاصيل">
+                                    <i class="bi bi-person-lines-fill"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                tbody.insertAdjacentHTML('beforeend', row);
+            });
+        }
+
+        // Render Mobile Cards
+        function renderCards(customers, totalCount) {
+            const container = document.getElementById('cardsView');
+            container.innerHTML = '';
+
+            customers.forEach((cust, index) => {
+                const dateStart = cust.firstContactAt ? formatDateTime(cust.firstContactAt) : '—';
+                const assigneeName = cust.assignedTo ? cust.assignedTo.fullName : 'غير مخصص';
+                const serialNum = totalCount - ((currentPage - 1) * limit + index);
+
+                // Dropdowns inside card
+                let statusOptions = `
+                    <option value="new" ${cust.status === 'new' ? 'selected' : ''}>عميل جديد</option>
+                    <option value="awaiting_payment" ${cust.status === 'awaiting_payment' ? 'selected' : ''}>بانتظار الدفع</option>
+                    <option value="awaiting_sales" ${cust.status === 'awaiting_sales' ? 'selected' : ''}>متابعة مبيعات</option>
+                    <option value="first_follow_up" ${cust.status === 'first_follow_up' ? 'selected' : ''}>متابعة أولى</option>
+                    <option value="final_follow_up" ${cust.status === 'final_follow_up' ? 'selected' : ''}>متابعة نهائية</option>
+                    <option value="scheduled_follow_up" ${cust.status === 'scheduled_follow_up' ? 'selected' : ''}>متابعة بموعد</option>
+                    <option value="successful" ${cust.status === 'successful' ? 'selected' : ''}>تم البيع</option>
+                    <option value="not_interested" ${cust.status === 'not_interested' ? 'selected' : ''}>غير مهتم/ملغي</option>
+                `;
+
+                let assigneeSelect = '';
+                if (role === 'super_admin' || role === 'admin') {
+                    let employeeOptions = `<option value="">غير مخصص</option>`;
+                    employeesList.forEach(emp => {
+                        employeeOptions += `<option value="${emp.id}" ${cust.assignedToUserId === emp.id ? 'selected' : ''}>${emp.fullName}</option>`;
+                    });
+                    assigneeSelect = `
+                        <div class="col-6 mb-2">
+                            <strong class="small text-secondary d-block">المسؤول:</strong>
+                            <select class="form-select form-select-sm mt-1" onchange="updateAssignee(${cust.id}, this.value)">
+                                ${employeeOptions}
+                            </select>
+                        </div>
+                    `;
+                } else {
+                    assigneeSelect = `
+                        <div class="col-6 mb-2">
+                            <strong class="small text-secondary">المسؤول:</strong>
+                            <span class="d-block small text-dark mt-1">${assigneeName}</span>
+                        </div>
+                    `;
+                }
+
+                const card = <%- include('partials/customer_card') %>;
+                container.insertAdjacentHTML('beforeend', card);
+            });
+        }
+
+        // Render Pagination buttons
+        function renderPagination(page, totalPages, totalCount) {
+            const info = document.getElementById('paginationInfo');
+            const list = document.getElementById('paginationList');
+
+            info.textContent = `عرض ${(page - 1) * limit + 1} إلى ${Math.min(page * limit, totalCount)} من إجمالي ${totalCount} عميل`;
+            list.innerHTML = '';
+
+            // Previous
+            const prevDisabled = page === 1 ? 'disabled' : '';
+            list.insertAdjacentHTML('beforeend', `
+                <li class="page-item ${prevDisabled}">
+                    <button class="page-link" onclick="loadData(${page - 1})" aria-label="Previous">&laquo;</button>
+                </li>
+            `);
+
+            // Page Numbers (Show max 5 pages around current)
+            let startPage = Math.max(1, page - 2);
+            let endPage = Math.min(totalPages, page + 2);
+
+            for (let i = startPage; i <= endPage; i++) {
+                const active = i === page ? 'active' : '';
+                list.insertAdjacentHTML('beforeend', `
+                    <li class="page-item ${active}">
+                        <button class="page-link" onclick="loadData(${i})">${i}</button>
+                    </li>
+                `);
+            }
+
+            // Next
+            const nextDisabled = page === totalPages ? 'disabled' : '';
+            list.insertAdjacentHTML('beforeend', `
+                <li class="page-item ${nextDisabled}">
+                    <button class="page-link" onclick="loadData(${page + 1})" aria-label="Next">&raquo;</button>
+                </li>
+            `);
+        }
+
+        // AJAX: Update Status
+        function updateStatus(id, newStatus) {
+
+
+            // Auto-trigger follow-up date modal
+            if (newStatus === 'scheduled_follow_up') {
+                openFollowUpModal(id, '');
+            }
+
+            fetch('/dashboard/customers/update-status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, status: newStatus })
+            })
+            .then(res => res.json())
+            .then(res => {
+                if (res.success) {
+                    showAlert('تم تحديث حالة العميل بنجاح!');
+                    // Update dropdown classes dynamically
+                    const selects = document.querySelectorAll(`#row-${id} .status-select, #card-${id} .status-select`);
+                    selects.forEach(sel => {
+                        sel.className = 'status-select';
+                        sel.classList.add(`status-${newStatus}`);
+                        sel.value = newStatus;
+                    });
+
+                    // Refresh table if status involves automated scheduling
+                    if (newStatus === 'first_follow_up' || newStatus === 'final_follow_up') {
+                        loadData(currentPage);
+                    }
+                } else {
+                    showAlert(res.error || 'فشل تحديث الحالة.', 'danger');
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                showAlert('خطأ في الاتصال بالسيرفر.', 'danger');
+            });
+        }
+
+        // AJAX: Update Payment Status
+        function updatePaymentStatus(id, newPaymentStatus) {
+            if (!confirm(`هل أنت متأكد من ${newPaymentStatus === 'confirmed' ? 'تأكيد' : 'رفض'} عملية الدفع لهذا العميل؟`)) {
+                return;
+            }
+            
+            fetch('/dashboard/customers/update-payment-status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, paymentStatus: newPaymentStatus })
+            })
+            .then(res => res.json())
+            .then(res => {
+                if (res.success) {
+                    showAlert('تم تحديث حالة الدفع بنجاح!');
+                    loadData(currentPage); // Refresh view
+                } else {
+                    showAlert(res.error || 'فشل تحديث حالة الدفع.', 'danger');
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                showAlert('خطأ في الاتصال بالسيرفر.', 'danger');
+            });
+        }
+
+        // AJAX: Update Notes
+        function updateNotes(id, newNotes) {
+            fetch('/dashboard/customers/update-notes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, notes: newNotes })
+            })
+            .then(res => res.json())
+            .then(res => {
+                if (res.success) {
+                    showAlert('تم حفظ الملاحظات.');
+                    // Sync textareas in both table and mobile view
+                    const textareas = document.querySelectorAll(`#row-${id} .notes-textarea, #card-${id} .notes-textarea`);
+                    textareas.forEach(ta => ta.value = newNotes);
+                } else {
+                    showAlert(res.error || 'فشل تحديث الملاحظات.', 'danger');
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                showAlert('خطأ في الاتصال بالسيرفر.', 'danger');
+            });
+        }
+
+        // AJAX: Update Assignee (Admin only)
+        function updateAssignee(id, newAssigneeId) {
+            fetch('/dashboard/customers/assign', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, assignedToUserId: newAssigneeId })
+            })
+            .then(res => res.json())
+            .then(res => {
+                if (res.success) {
+                    showAlert('تم إعادة تعيين الموظف المسؤول!');
+                    // Re-sync values
+                    const selects = document.querySelectorAll(`#row-${id} select:not(.status-select), #card-${id} select:not(.status-select)`);
+                    selects.forEach(sel => sel.value = newAssigneeId);
+                } else {
+                    showAlert(res.error || 'فشل التعيين.', 'danger');
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                showAlert('خطأ في الاتصال بالسيرفر.', 'danger');
+            });
+        }
+
+        // Open follow up modal
+        function openFollowUpModal(id, currentDateTime) {
+            const detailsModalEl = document.getElementById('customerDetailsModal');
+            
+            const showFollowUp = () => {
+                document.getElementById('followUpCustomerId').value = id;
+                if (currentDateTime) {
+                    // Convert to datetime-local format (YYYY-MM-DDTHH:MM)
+                    const date = new Date(currentDateTime);
+                    const localStr = new Date(date.getTime() - (date.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
+                    document.getElementById('followUpDateTime').value = localStr;
+                } else {
+                    document.getElementById('followUpDateTime').value = '';
+                }
+                const modal = new bootstrap.Modal(document.getElementById('followUpModal'));
+                modal.show();
+            };
+
+            // If details modal is open, hide it first
+            if (detailsModalEl && detailsModalEl.classList.contains('show')) {
+                const detailsModal = bootstrap.Modal.getInstance(detailsModalEl);
+                if (detailsModal) {
+                    detailsModal.hide();
+                    setTimeout(showFollowUp, 350); // Wait for modal hide transition
+                    return;
+                }
+            }
+            showFollowUp();
+        }
+
+        // Submit follow up date
+        function submitFollowUp(event) {
+            event.preventDefault();
+            const id = document.getElementById('followUpCustomerId').value;
+            const date = document.getElementById('followUpDateTime').value;
+
+            fetch('/dashboard/customers/schedule-followup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, date })
+            })
+            .then(res => res.json())
+            .then(res => {
+                if (res.success) {
+                    showAlert('تم جدولة موعد المتابعة وحفظه!');
+                    bootstrap.Modal.getInstance(document.getElementById('followUpModal')).hide();
+                    
+                    // Since it updates status, refresh view
+                    loadData(currentPage);
+                } else {
+                    showAlert(res.error || 'فشل جدولة المتابعة.', 'danger');
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                showAlert('خطأ في الاتصال بالسيرفر.', 'danger');
+            });
+        }
+
+        // AJAX: Analyze and Show AI Summary Modal
+        function analyzeSummary(customerId) {
+            // Show modal with loading state
+            document.getElementById('summaryModalBody').innerHTML = `
+                <div class="text-center py-4">
+                    <div class="spinner-border text-warning mb-2" role="status"></div>
+                    <p class="m-0 fw-bold text-secondary">⏳ جاري تحليل المحادثة وتلخيصها بالذكاء الاصطناعي... يرجى الانتظار.</p>
+                </div>
+            `;
+            const modal = new bootstrap.Modal(document.getElementById('summaryModal'));
+            modal.show();
+
+            // Send request to summarize
+            fetch(`/dashboard/customers/${customerId}/summarize`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(res => res.json())
+            .then(res => {
+                if (res.success && res.summary) {
+                    // Show summary in modal
+                    document.getElementById('summaryModalBody').textContent = res.summary;
+                    
+                    // Update the cell and card text in the background
+                    const shortSummary = res.summary.length > 50 ? res.summary.substring(0, 50) + '...' : res.summary;
+                    
+                    const cell = document.getElementById(`summary-text-${customerId}`);
+                    if (cell) {
+                        cell.textContent = shortSummary;
+                    }
+                    const cardCell = document.getElementById(`card-summary-text-${customerId}`);
+                    if (cardCell) {
+                        cardCell.textContent = res.summary;
+                    }
+                } else {
+                    document.getElementById('summaryModalBody').textContent = res.error || "فشل تحليل المحادثة.";
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                document.getElementById('summaryModalBody').textContent = "حدث خطأ أثناء الاتصال بالسيرفر لتوليد الملخص.";
+            });
+        }
+
+        // ============================================================
+        // 🔍 Customer Details Drawer/Modal Functionality (Vertical Portrait Style)
+        // ============================================================
+        let detailsModalInstance = null;
+
+        function showCustomerDetails(customerId, serialNum) {
+            // Get references
+            const modalEl = document.getElementById('customerDetailsModal');
+            const loader = document.getElementById('detailsLoader');
+            const content = document.getElementById('detailsContent');
+            
+            // Set Loading state
+            loader.classList.remove('d-none');
+            content.classList.add('d-none');
+            
+            // Show modal
+            if (!detailsModalInstance) {
+                detailsModalInstance = new bootstrap.Modal(modalEl);
+            }
+            detailsModalInstance.show();
+            
+            // Fetch fresh customer details
+            fetch(`/dashboard/customers/${customerId}`)
+                .then(res => res.json())
+                .then(res => {
+                    if (res.success && res.customer) {
+                        const cust = res.customer;
+                        
+                        // Populate hidden id
+                        document.getElementById('detailsCustomerId').value = cust.id;
+                        
+                        // Populate texts
+                        document.getElementById('detailsCustName').textContent = cust.customerName || 'عميل واتساب';
+                        if (serialNum) {
+                            document.getElementById('detailsCustIdTag').textContent = `#${serialNum}`;
+                        } else {
+                            const currentTag = document.getElementById('detailsCustIdTag').textContent;
+                            if (!currentTag || currentTag === '#' || currentTag === '') {
+                                document.getElementById('detailsCustIdTag').textContent = `#${cust.id}`;
+                            }
+                        }
+                        document.getElementById('detailsCustPhone').textContent = cust.phoneNumber;
+                        
+                        // Email JID
+                        const emailContainer = document.getElementById('detailsEmailContainer');
+                        if (cust.email) {
+                            emailContainer.classList.remove('d-none');
+                            document.getElementById('detailsCustEmail').textContent = cust.email;
+                        } else {
+                            emailContainer.classList.add('d-none');
+                        }
+                        
+                        // Dates
+                        document.getElementById('detailsFirstContact').textContent = formatDateTime(cust.firstContactAt);
+                        document.getElementById('detailsLastReply').textContent = formatDateTime(cust.lastReplyAt);
+                        document.getElementById('detailsLastBot').textContent = formatDateTime(cust.lastBotMessageAt);
+                        
+                        // Follow-up Time
+                        const followUpContainer = document.getElementById('detailsFollowUpContainer');
+                        const followUpLabel = document.getElementById('detailsFollowUpLabel');
+                        const followUpTime = document.getElementById('detailsFollowUpTime');
+                        const followUpIcon = document.getElementById('detailsFollowUpIcon');
+                        
+                        if (cust.scheduledFollowUpAt) {
+                            followUpContainer.classList.remove('d-none');
+                            followUpTime.innerHTML = `${formatDateTime(cust.scheduledFollowUpAt)} <i class="fas fa-times text-danger ms-2" style="cursor:pointer;" onclick="cancelFollowUp(${cust.id}, event)" title="إلغاء المتابعة"></i>`;
+                            if (cust.status === 'scheduled_follow_up') {
+                                followUpLabel.textContent = 'ميعاد المتابعة المجدولة:';
+                                followUpIcon.className = 'bi bi-clock me-1 text-primary';
+                            } else if (cust.status === 'first_follow_up') {
+                                followUpLabel.textContent = 'تاريخ المتابعة الأولى:';
+                                followUpIcon.className = 'bi bi-clock me-1 text-warning';
+                            } else if (cust.status === 'final_follow_up') {
+                                followUpLabel.textContent = 'تاريخ المتابعة النهائية:';
+                                followUpIcon.className = 'bi bi-clock me-1 text-danger';
+                            } else {
+                                followUpLabel.textContent = 'تاريخ المتابعة:';
+                                followUpIcon.className = 'bi bi-clock me-1 text-secondary';
+                            }
+                        } else {
+                            followUpContainer.classList.add('d-none');
+                        }
+                        
+                        // Notes
+                        document.getElementById('detailsNotes').value = cust.notes || '';
+                        
+                        // Status select styling & option
+                        const statusSelect = document.getElementById('detailsStatusSelect');
+                        statusSelect.className = 'form-select form-select-sm';
+                        statusSelect.classList.add(`status-${cust.status}`);
+                        statusSelect.value = cust.status;
+                        
+                        // Assignee Select
+                        const assigneeContainer = document.getElementById('detailsAssigneeContainer');
+                        const assigneeSelect = document.getElementById('detailsAssigneeSelect');
+                        if (role === 'super_admin' || role === 'admin') {
+                            assigneeContainer.classList.remove('d-none');
+                            assigneeSelect.innerHTML = '<option value="">غير مخصص</option>';
+                            employeesList.forEach(emp => {
+                                const selected = cust.assignedToUserId === emp.id ? 'selected' : '';
+                                assigneeSelect.insertAdjacentHTML('beforeend', `<option value="${emp.id}" ${selected}>${emp.fullName}</option>`);
+                            });
+                        } else {
+                            assigneeContainer.classList.add('d-none');
+                        }
+                        
+                        // Payment Status Badges & confirmation options
+                        const paymentBadge = document.getElementById('detailsPaymentBadge');
+                        paymentBadge.className = 'payment-badge';
+                        paymentBadge.classList.add(`payment-${cust.paymentStatus || 'pending'}`);
+                        paymentBadge.textContent = cust.paymentStatus === 'receipt_uploaded' ? 'تم رفع الإيصال' : 
+                                              cust.paymentStatus === 'confirmed' ? 'مؤكد' : 
+                                              cust.paymentStatus === 'rejected' ? 'مرفوض' : 'قيد الانتظار';
+                        
+                        // Receipt Uploaded?
+                        const receiptContainer = document.getElementById('detailsReceiptContainer');
+                        const receiptLink = document.getElementById('detailsReceiptLink');
+                        if (cust.paymentReceiptUrl) {
+                            receiptContainer.classList.remove('d-none');
+                            receiptLink.href = cust.paymentReceiptUrl;
+                        } else {
+                            receiptContainer.classList.add('d-none');
+                        }
+                        
+                        // Payment Status Dropdown
+                        const paymentSelect = document.getElementById('detailsPaymentStatusSelect');
+                        paymentSelect.value = cust.paymentStatus || 'pending';
+                        paymentSelect.className = 'form-select form-select-sm';
+                        paymentSelect.classList.add(`status-${cust.paymentStatus || 'pending'}`);
+                        
+                        // AI Summary
+                        document.getElementById('detailsSummaryContainer').textContent = cust.aiSummary || 'لا يوجد ملخص متاح حالياً لهذه المحادثة.';
+                        
+                        // WhatsApp Link
+                        document.getElementById('detailsWhatsAppBtn').href = `https://wa.me/${cust.phoneNumber}`;
+                        
+                        // Toggle view
+                        loader.classList.add('d-none');
+                        content.classList.remove('d-none');
+                    } else {
+                        showAlert('فشل تحميل تفاصيل العميل.', 'danger');
+                        if (detailsModalInstance) detailsModalInstance.hide();
+                    }
+                })
+                .catch(err => {
+                    console.error(err);
+                    showAlert('حدث خطأ في الاتصال بالسيرفر.', 'danger');
+                    if (detailsModalInstance) detailsModalInstance.hide();
+                });
+        }
+
+        function detailsUpdateStatus() {
+            const id = document.getElementById('detailsCustomerId').value;
+            const select = document.getElementById('detailsStatusSelect');
+            const newStatus = select.value;
+            
+            // Call existing function
+            updateStatus(id, newStatus);
+            
+            // Update modal styling
+            select.className = 'form-select form-select-sm';
+            select.classList.add(`status-${newStatus}`);
+        }
+
+        function detailsUpdateAssignee() {
+            const id = document.getElementById('detailsCustomerId').value;
+            const newAssigneeId = document.getElementById('detailsAssigneeSelect').value;
+            
+            updateAssignee(id, newAssigneeId);
+        }
+
+        function detailsUpdateNotes() {
+            const id = document.getElementById('detailsCustomerId').value;
+            const newNotes = document.getElementById('detailsNotes').value;
+            
+            updateNotes(id, newNotes);
+        }
+
+        function detailsUpdatePaymentStatusDropdown() {
+            const id = document.getElementById('detailsCustomerId').value;
+            const select = document.getElementById('detailsPaymentStatusSelect');
+            const newPaymentStatus = select.value;
+            
+            fetch('/dashboard/customers/update-payment-status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, paymentStatus: newPaymentStatus })
+            })
+            .then(res => res.json())
+            .then(res => {
+                if (res.success) {
+                    showAlert('تم تحديث حالة الدفع بنجاح!');
+                    // Refresh details
+                    showCustomerDetails(id);
+                    // Refresh main list
+                    loadData(currentPage);
+                } else {
+                    showAlert(res.error || 'فشل تحديث حالة الدفع.', 'danger');
+                    select.value = 'pending'; // revert on failure
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                showAlert('خطأ في الاتصال بالسيرفر.', 'danger');
+            });
+        }
+
+        function submitUploadReceipt(event) {
+            event.preventDefault();
+            const id = document.getElementById('detailsCustomerId').value;
+            const fileInput = document.getElementById('paymentReceiptFile');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showAlert('يرجى اختيار ملف الإيصال أولاً.', 'warning');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('id', id);
+            formData.append('paymentReceipt', file);
+            
+            const btn = event.target.querySelector('button[type="submit"]');
+            const originalText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = 'جاري الرفع...';
+            
+            fetch('/dashboard/customers/upload-receipt', {
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(res => {
+                btn.disabled = false;
+                btn.textContent = originalText;
+                
+                if (res.success) {
+                    showAlert('تم رفع إيصال الدفع بنجاح!');
+                    fileInput.value = '';
+                    showCustomerDetails(id);
+                    loadData(currentPage);
+                } else {
+                    showAlert(res.error || 'فشل رفع الإيصال.', 'danger');
+                }
+            })
+            .catch(err => {
+                btn.disabled = false;
+                btn.textContent = originalText;
+                console.error(err);
+                showAlert('خطأ في الاتصال بالسيرفر.', 'danger');
+            });
+        }
+
+        function detailsOpenFollowUp() {
+            const id = document.getElementById('detailsCustomerId').value;
+            // Hide details modal first
+            if (detailsModalInstance) {
+                detailsModalInstance.hide();
+            }
+            // Give slight timeout for Bootstrap animations then open Followup modal
+            setTimeout(() => {
+                openFollowUpModal(id, '');
+            }, 350);
+        }
+
+        function detailsRefreshSummary() {
+            const customerId = document.getElementById('detailsCustomerId').value;
+            const summaryContainer = document.getElementById('detailsSummaryContainer');
+            const refreshBtn = document.getElementById('btnRefreshSummary');
+            
+            // Set loading state
+            summaryContainer.innerHTML = `
+                <div class="text-center py-3">
+                    <div class="spinner-border spinner-border-sm text-warning" role="status"></div>
+                    <span class="ms-2 small text-secondary">⏳ جاري تلخيص المحادثة بالذكاء الاصطناعي...</span>
+                </div>
+            `;
+            refreshBtn.disabled = true;
+            
+            // Send request to summarize
+            fetch(`/dashboard/customers/${customerId}/summarize`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(res => res.json())
+            .then(res => {
+                refreshBtn.disabled = false;
+                if (res.success && res.summary) {
+                    // Show summary in Details modal
+                    summaryContainer.textContent = res.summary;
+                    
+                    // Update the cell and card text in the background list
+                    const shortSummary = res.summary.length > 50 ? res.summary.substring(0, 50) + '...' : res.summary;
+                    
+                    const cell = document.getElementById(`summary-text-${customerId}`);
+                    if (cell) cell.textContent = shortSummary;
+                    
+                    const cardCell = document.getElementById(`card-summary-text-${customerId}`);
+                    if (cardCell) cardCell.textContent = res.summary;
+                    
+                    showAlert('تم تحديث ملخص الذكاء الاصطناعي بنجاح!');
+                } else {
+                    summaryContainer.textContent = res.error || "فشل تحليل المحادثة.";
+                    showAlert('فشل توليد الملخص.', 'danger');
+                }
+            })
+            .catch(err => {
+                refreshBtn.disabled = false;
+                console.error(err);
+                summaryContainer.textContent = "حدث خطأ أثناء الاتصال بالسيرفر لتوليد الملخص.";
+                showAlert('خطأ في الاتصال بالسيرفر.', 'danger');
+            });
+        }
+
+        function submitAddCustomer(event) {
+            event.preventDefault();
+            const submitBtn = document.getElementById('btnAddCustomerSubmit');
+            const originalText = submitBtn.textContent;
+            
+            const customerName = document.getElementById('addCustomerName').value;
+            const phoneNumber = document.getElementById('addCustomerPhone').value;
+            const status = document.getElementById('addCustomerStatus').value;
+            const notes = document.getElementById('addCustomerNotes').value;
+            
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'جاري الحفظ...';
+            
+            fetch('/dashboard/customers/add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ customerName, phoneNumber, status, notes })
+            })
+            .then(res => res.json())
+            .then(res => {
+                submitBtn.disabled = false;
+                submitBtn.textContent = originalText;
+                
+                if (res.success) {
+                    showAlert('تم إضافة العميل بنجاح!');
+                    // Reset form
+                    document.getElementById('addCustomerForm').reset();
+                    // Hide modal
+                    const modalEl = document.getElementById('addCustomerModal');
+                    const modal = bootstrap.Modal.getInstance(modalEl);
+                    if (modal) {
+                        modal.hide();
+                    } else {
+                        // fallback
+                        const newModal = new bootstrap.Modal(modalEl);
+                        newModal.hide();
+                    }
+                    
+                    // Reload data
+                    loadData(1);
+                } else {
+                    showAlert(res.error || 'فشل إضافة العميل.', 'danger');
+                }
+            })
+            .catch(err => {
+                submitBtn.disabled = false;
+                submitBtn.textContent = originalText;
+                console.error(err);
+                showAlert('خطأ في الاتصال بالسيرفر. يرجى المحاولة لاحقاً.', 'danger');
+            });
+        }
+
+        async function cancelFollowUp(customerId, event) {
+            if (event) event.stopPropagation();
+            if (!confirm('هل أنت متأكد من إلغاء المتابعة؟')) return;
+            try {
+                const response = await fetch('/customers/cancel-followup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ customerId })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    showAlert('تم إلغاء المتابعة المجدولة');
+                    loadData();
+                } else {
+                    showAlert(result.error || 'حدث خطأ', 'danger');
+                }
+            } catch (err) {
+                console.error(err);
+                showAlert('حدث خطأ في الاتصال بالسيرفر', 'danger');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const openNoteId = urlParams.get('openNote');
+            if (openNoteId) {
+                setTimeout(() => {
+                    showCustomerDetails(openNoteId);
+                    setTimeout(() => {
+                        const notesEl = document.getElementById('detailsNotes');
+                        if(notesEl) {
+                            notesEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            notesEl.focus();
+                        }
+                    }, 1000);
+                }, 500);
+            }
+        });
+    </script>
+</body>
+
+</html>

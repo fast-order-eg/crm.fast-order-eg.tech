@@ -1,0 +1,450 @@
+<div id="sidebar" class="fancy-sidebar">
+    <div class="sidebar-header text-center d-none d-lg-block">
+        <img src="/bird_crm_logo.png" alt="Bird CRM" class="sidebar-logo rounded-circle border border-primary border-2 shadow">
+    </div>
+    <% 
+    const role = user ? user.role : 'sales';
+    const isSuperAdmin = role === 'super_admin';
+    const isAdmin = role === 'super_admin' || role === 'admin';
+    const isSales = role === 'sales';
+    %>
+    <ul class="sidebar-menu">
+        <!-- 1. الرئيسية (Dashboard) -->
+        <li class="sidebar-item <%= page === 'home' ? 'active' : '' %>">
+            <a href="/dashboard" class="sidebar-link">
+                <div class="sidebar-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v3A1.5 1.5 0 0 1 5.5 7h-3A1.5 1.5 0 0 1 1 5.5v-3zm8 0A1.5 1.5 0 0 1 10.5 1h3A1.5 1.5 0 0 1 15 2.5v3A1.5 1.5 0 0 1 13.5 7h-3A1.5 1.5 0 0 1 9 5.5v-3zm-8 8A1.5 1.5 0 0 1 2.5 9h3A1.5 1.5 0 0 1 7 10.5v3A1.5 1.5 0 0 1 5.5 15h-3A1.5 1.5 0 0 1 1 13.5v-3zm8 0A1.5 1.5 0 0 1 10.5 9h3A1.5 1.5 0 0 1 15 10.5v3A1.5 1.5 0 0 1 13.5 15h-3A1.5 1.5 0 0 1 9 13.5v-3z" />
+                    </svg>
+                </div>
+                <span class="sidebar-label">الرئيسية</span>
+            </a>
+        </li>
+
+        <!-- 2. العملاء (Customers) -->
+        <li class="sidebar-item <%= page === 'customers' ? 'active' : '' %>">
+            <a href="/dashboard/customers" class="sidebar-link">
+                <div class="sidebar-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M15 14s1 0 1-1-1-4-5-4-5 3-5 4 1 1 1 1zm-7.978-3.07a.5.5 0 0 1 .402.646l-.5 2a.5.5 0 1 1-.97-.242l.5-2a.5.5 0 0 1 .568-.404zM3 14s-1 0-1-1 1-4 5-4a12.22 12.22 0 0 1 .979.041c-.482.44-.848 1.01-1.025 1.66A5.253 5.253 0 0 0 3 14zm3-11a3 3 0 1 1-6 0 3 3 0 0 1 6 0zm4.5 0a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM8 8a2 2 0 1 1-4 0 2 2 0 0 1 4 0z"/>
+                    </svg>
+                </div>
+                <span class="sidebar-label">العملاء</span>
+            </a>
+        </li>
+
+        <% if (isAdmin) { %>
+        <!-- 3. الموظفين (Employees) -->
+        <li class="sidebar-item <%= page === 'employees' ? 'active' : '' %>">
+            <a href="/dashboard/employees" class="sidebar-link">
+                <div class="sidebar-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M15 14s1 0 1-1-1-4-5-4-5 3-5 4 1 1 1 1zm-7.978-3.07a.5.5 0 0 1 .402.646l-.5 2a.5.5 0 1 1-.97-.242l.5-2a.5.5 0 0 1 .568-.404zM3 14s-1 0-1-1 1-4 5-4a12.22 12.22 0 0 1 .979.041c-.482.44-.848 1.01-1.025 1.66A5.253 5.253 0 0 0 3 14zm3-11a3 3 0 1 1-6 0 3 3 0 0 1 6 0zm4.5 0a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM8 8a2 2 0 1 1-4 0 2 2 0 0 1 4 0z"/>
+                    </svg>
+                </div>
+                <span class="sidebar-label">الموظفين</span>
+            </a>
+        </li>
+
+        <!-- 4. الأزرار التفاعلية (Buttons) -->
+        <li class="sidebar-item <%= page === 'buttons' ? 'active' : '' %>">
+            <a href="/dashboard/buttons" class="sidebar-link">
+                <div class="sidebar-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2zm2-1a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H4z"/>
+                        <path d="M5 4h6a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5H5a.5.5 0 0 1-.5-.5v-1A.5.5 0 0 1 5 4zm0 3h6a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5H5a.5.5 0 0 1-.5-.5v-1A.5.5 0 0 1 5 7zm0 3h6a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5H5a.5.5 0 0 1-.5-.5v-1A.5.5 0 0 1 5 10z"/>
+                    </svg>
+                </div>
+                <span class="sidebar-label">الأزرار التفاعلية</span>
+            </a>
+        </li>
+
+        <!-- 5. تفاصيل الخدمة (Products) -->
+        <li class="sidebar-item <%= page === 'products' ? 'active' : '' %>">
+            <a href="/dashboard/products" class="sidebar-link">
+                <div class="sidebar-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                      <path d="M2.97 1.35A1 1 0 0 1 3.73 1h8.54a1 1 0 0 1 .76.35l2.609 3.044A1.5 1.5 0 0 1 16 5.37v.255a2.375 2.375 0 0 1-4.25 1.458A2.371 2.371 0 0 1 9.875 8 2.37 2.37 0 0 1 8 7.083 2.37 2.37 0 0 1 6.125 8a2.37 2.37 0 0 1-1.875-.917A2.375 2.375 0 0 1 0 5.625V5.37a1.5 1.5 0 0 1 .361-.976l2.61-3.045zm1.78 4.275a1.375 1.375 0 0 0 2.75 0 .5.5 0 0 1 1 0 1.375 1.375 0 0 0 2.75 0 .5.5 0 0 1 1 0 1.375 1.375 0 1 0 2.75 0V5.37a.5.5 0 0 0-.12-.325L12.27 2H3.73L1.12 5.045A.5.5 0 0 0 1 5.37v.255a1.375 1.375 0 0 0 2.75 0 .5.5 0 0 1 1 0zM1.5 8.5A.5.5 0 0 1 2 9v6h1v-5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v5h6V9a.5.5 0 0 1 1 0v6h.5a.5.5 0 0 1 0 1H.5a.5.5 0 0 1 0-1H1V9a.5.5 0 0 1 .5-.5zM4 15h3v-5H4v5zm5-5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-3zm3 0h-2v3h2v-3z"/>
+                    </svg>
+                </div>
+                <span class="sidebar-label">تفاصيل الخدمة</span>
+            </a>
+        </li>
+        <% } %>
+
+        <!-- 6. محادثات واتساب (Live Chat) -->
+        <li class="sidebar-item <%= page === 'livechat' ? 'active' : '' %>">
+            <a href="/dashboard/livechat" class="sidebar-link">
+                <div class="sidebar-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M14 1a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H4.414A2 2 0 0 0 3 11.586l-2 2V2a1 1 0 0 1 1-1h12zM2 0a2 2 0 0 0-2 2v12.793a.5.5 0 0 0 .854.353l2.853-2.853A1 1 0 0 1 4.414 12H14a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2z"/>
+                        <path d="M5 6a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm4 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm4 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
+                    </svg>
+                </div>
+                <span class="sidebar-label">محادثات واتساب</span>
+            </a>
+        </li>
+
+        <% if (isAdmin) { %>
+        <!-- 7. رسائل جماعية (Broadcast) -->
+        <li class="sidebar-item <%= page === 'broadcast' ? 'active' : '' %>">
+            <a href="/dashboard/broadcast" class="sidebar-link">
+                <div class="sidebar-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M14.5 3a.5.5 0 0 1 .5.5v9a.5.5 0 0 1-.5.5h-13a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5h13zm-13-1A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h13a1.5 1.5 0 0 0 1.5-1.5v-9A1.5 1.5 0 0 0 14.5 2h-13z"/>
+                        <path d="M3 5.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5zM3 8a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5zm0 2.5a.5.5 0 0 1 .5-.5h6a.5.5 0 0 1 0 1h-6a.5.5 0 0 1-.5-.5z"/>
+                    </svg>
+                </div>
+                <span class="sidebar-label">رسائل جماعية</span>
+            </a>
+        </li>
+
+        <!-- 8. سجل التغييرات (Changelog) -->
+        <li class="sidebar-item <%= page === 'changelog' ? 'active' : '' %>">
+            <a href="/dashboard/changelog" class="sidebar-link">
+                <div class="sidebar-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                        <path fill-rule="evenodd" d="M8 3a5 5 0 1 1-4.546 2.914.5.5 0 0 0-.908-.417A6 6 0 1 0 8 2v1z"/>
+                        <path d="M8 4.466V.534a.25.25 0 0 0-.41-.192L5.23 2.308a.25.25 0 0 0 0 .384l2.36 1.966A.25.25 0 0 0 8 4.466z"/>
+                    </svg>
+                </div>
+                <span class="sidebar-label">سجل التغييرات</span>
+            </a>
+        </li>
+
+        <!-- 9. تقييم الأداء (KPI) -->
+        <li class="sidebar-item <%= page === 'kpi' ? 'active' : '' %>">
+            <a href="/dashboard/kpi" class="sidebar-link">
+                <div class="sidebar-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M13.5 1a1.5 1.5 0 0 0-1.5 1.5V14H3V3.5a.5.5 0 0 0-1 0V14a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V2.5A1.5 1.5 0 0 0 13.5 1z"/>
+                        <path d="M2 11h12v1H2v-1zm2-4h2v3H4V7zm4-3h2v6H8V4zm4 2h2v4h-2V6z"/>
+                    </svg>
+                </div>
+                <span class="sidebar-label">تقييم الأداء KPI</span>
+            </a>
+        </li>
+
+        <!-- 10. النظام المالي (Finance) -->
+        <li class="sidebar-item <%= page === 'finance' ? 'active' : '' %>">
+            <a href="/dashboard/finance" class="sidebar-link">
+                <div class="sidebar-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M1 3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V3zm14-1H1v12h14V2z"/>
+                        <path d="M8 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/>
+                        <path d="M0 4h1v8H0V4zm15 0h1v8h-1V4z"/>
+                    </svg>
+                </div>
+                <span class="sidebar-label">النظام المالي</span>
+            </a>
+        </li>
+
+        <!-- 11. الإعدادات (Settings) -->
+        <li class="sidebar-item <%= page === 'settings' ? 'active' : '' %>">
+            <a href="/dashboard/settings" class="sidebar-link">
+                <div class="sidebar-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872l-.1-.34zM8 10.93a2.929 2.929 0 1 1 0-5.86 2.929 2.929 0 0 1 0 5.858z"/>
+                    </svg>
+                </div>
+                <span class="sidebar-label">الإعدادات</span>
+            </a>
+        </li>
+
+        <!-- Instructions -->
+        <li class="sidebar-item <%= page === 'instructions' ? 'active' : '' %>">
+            <a href="/dashboard/instructions" class="sidebar-link">
+                <div class="sidebar-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M9.293 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.707A1 1 0 0 0 13.707 4L10 .293A1 1 0 0 0 9.293 0zM9.5 3.5v-2l3 3h-2a1 1 0 0 1-1-1zM4.5 9a.5.5 0 0 1 0-1h7a.5.5 0 0 1 0 1h-7zM4 10.5a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5zm.5 2.5a.5.5 0 0 1 0-1h4a.5.5 0 0 1 0 1h-4z" />
+                    </svg>
+                </div>
+                <span class="sidebar-label">التعليمات</span>
+            </a>
+        </li>
+
+        <!-- Training Simulator -->
+        <li class="sidebar-item <%= typeof page !== 'undefined' && page === 'training' ? 'active' : '' %>">
+            <a href="/dashboard/training" class="sidebar-link">
+                <div class="sidebar-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M8 15c4.418 0 8-3.134 8-7s-3.582-7-8-7-8 3.134-8 7c0 1.76.743 3.37 1.97 4.6-.097 1.016-.417 2.13-.771 2.966-.079.186.074.394.273.362 2.256-.37 3.597-.938 4.18-1.234A9.06 9.06 0 0 0 8 15Zm0-9.007c1.664-1.711 5.825 1.283 0 5.132-5.825-3.85-1.664-6.843 0-5.132Z"/>
+                    </svg>
+                </div>
+                <span class="sidebar-label">التدريب والمحاكاة</span>
+            </a>
+        </li>
+
+        <!-- Analytics -->
+        <li class="sidebar-item <%= page === 'analytics' ? 'active' : '' %>">
+            <a href="/dashboard/analytics" class="sidebar-link">
+                <div class="sidebar-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M4 11H2v3h2v-3zm5-4H7v7h2V7zm5-5h-2v12h2V2zm-2-1a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1h-2zM6 7a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V7zm-5 4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1v-3z"/>
+                    </svg>
+                </div>
+                <span class="sidebar-label">التحليلات</span>
+            </a>
+        </li>
+        <% } %>
+
+        <% if (isSales) { %>
+        <!-- Profile -->
+        <li class="sidebar-item <%= page === 'profile' ? 'active' : '' %>">
+            <a href="/dashboard/profile" class="sidebar-link">
+                <div class="sidebar-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M11 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0z" />
+                        <path fill-rule="evenodd" d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm8-7a7 7 0 0 0-5.468 11.37C3.242 11.226 4.805 10 8 10s4.757 1.225 5.468 2.37A7 7 0 0 0 8 1z" />
+                    </svg>
+                </div>
+                <span class="sidebar-label">الملف الشخصي</span>
+            </a>
+        </li>
+        <% } %>
+
+        <% if (false) { %>
+        <!-- Notifications - hidden but code preserved (bell icon in navbar) -->
+        <li class="sidebar-item <%= page === 'notifications' ? 'active' : '' %>">
+            <a href="/dashboard/notifications" class="sidebar-link">
+                <div class="sidebar-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M8 16a2 2 0 0 0 2-2H6a2 2 0 0 0 2 2M8 1.918l-.797.161A4 4 0 0 0 4 6c0 .628-.134 2.197-.459 3.742-.16.767-.376 1.566-.663 2.258h10.244c-.287-.692-.502-1.49-.663-2.258C12.134 8.197 12 6.628 12 6a4 4 0 0 0-3.203-3.92zM14.22 12c.223.447.481.801.78 1H1c.299-.199.557-.553.78-1C2.68 10.2 3 6.88 3 6c0-2.42 1.72-4.44 4.005-4.901a1 1 0 1 1 1.99 0A5 5 0 0 1 13 6c0 .88.32 4.2 1.22 6"/>
+                    </svg>
+                </div>
+                <span class="sidebar-label">الإشعارات</span>
+            </a>
+        </li>
+        <% } %>
+
+
+        <% if (isSuperAdmin) { %>
+        <!-- Manage Accounts (Super Admin Only) -->
+        <li class="sidebar-item <%= page === 'admin' ? 'active' : '' %>">
+            <a href="/admin" class="sidebar-link">
+                <div class="sidebar-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M7 14s-1 0-1-1 1-4 5-4 5 3 5 4-1 1-1 1H7zm4-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM5.216 14A2.238 2.238 0 0 1 5 13c0-1.355.68-2.75 1.936-3.72A6.325 6.325 0 0 0 5 9c-4 0-5 3-5 4s1 1 1 1h4.216zF4.5 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"/>
+                    </svg>
+                </div>
+                <span class="sidebar-label">إدارة الحسابات</span>
+            </a>
+        </li>
+        <% } %>
+    </ul>
+
+    <div class="sidebar-footer">
+        <div class="sidebar-version">
+            <%#<!-- Agent 2.0 text hidden --> %>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Fancy Sidebar Styles */
+    .fancy-sidebar {
+        position: fixed;
+        right: 20px;
+        top: 100px;
+        bottom: 20px;
+        width: 70px;
+        background: rgba(255, 255, 255, 0.85);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        border-radius: 16px;
+        box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05);
+        padding: 1rem 0.5rem;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        gap: 20px;
+        z-index: 1000;
+        transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        overflow-y: auto;
+        overflow-x: hidden;
+    }
+
+    /* تنسيق أنيق لشريط التمرير */
+    .fancy-sidebar::-webkit-scrollbar {
+        width: 5px;
+    }
+    .fancy-sidebar::-webkit-scrollbar-thumb {
+        background: rgba(212, 175, 55, 0.4);
+        border-radius: 4px;
+    }
+    .fancy-sidebar::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .sidebar-menu {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .sidebar-item {
+        width: 100%;
+        overflow: hidden;
+        border-radius: 12px;
+        border-left: 2px solid transparent;
+        background: transparent;
+        transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .sidebar-item:hover,
+    .sidebar-item:focus-within {
+        background: rgba(0, 0, 0, 0.03);
+        border-left-color: var(--primary-color);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    }
+
+    .sidebar-item.active {
+        background: rgba(212, 175, 55, 0.15);
+        border-left-color: var(--primary-color);
+    }
+
+    .sidebar-link {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px;
+        text-decoration: none;
+        color: var(--text-color);
+        cursor: pointer;
+        transition: all 0.3s ease;
+        white-space: nowrap;
+    }
+
+    .sidebar-link:hover {
+        color: var(--primary-color);
+        transform: translateX(-2px);
+    }
+
+    .sidebar-icon {
+        min-width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        border: 2px solid rgba(212, 175, 55, 0.3);
+        background: rgba(212, 175, 55, 0.1);
+        transition: all 0.3s ease;
+    }
+
+    .sidebar-item.active .sidebar-icon {
+        background: rgba(212, 175, 55, 0.3);
+        border-color: rgba(212, 175, 55, 0.5);
+    }
+
+    .sidebar-item:hover .sidebar-icon {
+        background: rgba(212, 175, 55, 0.2);
+        transform: scale(1.05);
+    }
+
+    .sidebar-label {
+        font-weight: 600;
+        font-size: 14px;
+        opacity: 0;
+        transform: translateX(10px);
+        transition: all 0.3s ease;
+        display: none;
+    }
+
+    .sidebar-footer {
+        text-align: center;
+        padding: 8px;
+        border-top: 1px solid rgba(0, 0, 0, 0.08);
+        margin-top: auto;
+    }
+
+    .sidebar-version {
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+
+    .sidebar-version .sidebar-label {
+        display: none;
+    }
+
+    /* Hover/Focus Expansion */
+    .fancy-sidebar:hover,
+    .fancy-sidebar:focus-within {
+        width: 260px;
+    }
+
+    .fancy-sidebar:hover .sidebar-label,
+    .fancy-sidebar:focus-within .sidebar-label {
+        opacity: 1;
+        transform: translateX(0);
+        display: inline;
+    }
+
+    .fancy-sidebar:hover .sidebar-version .sidebar-label,
+    .fancy-sidebar:focus-within .sidebar-version .sidebar-label {
+        display: inline;
+    }
+
+    /* Sidebar Logo Styles */
+    .sidebar-header {
+        padding: 0.2rem;
+        margin-bottom: 0px;
+        /* Remove the gap */
+        transition: all 0.3s ease;
+    }
+
+    .sidebar-logo {
+        width: 48px;
+        height: 48px;
+        object-fit: contain;
+        background: transparent;
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .sidebar-brand-name {
+        margin-top: 10px;
+        color: var(--primary-color);
+        font-size: 1.2rem;
+        letter-spacing: 2px;
+        text-shadow: 0 0 10px rgba(212, 175, 55, 0.3);
+    }
+
+    .fancy-sidebar:hover .sidebar-logo {
+        width: 80px;
+        height: 80px;
+        margin-bottom: 1rem;
+    }
+
+    /* Mobile Styles */
+    @media (max-width: 992px) {
+        .fancy-sidebar {
+            right: -320px;
+            top: 72px;
+            width: 280px;
+            height: calc(100vh - 72px);
+            border-radius: 0 !important;
+            border-top: none !important;
+            border-bottom: none !important;
+            border-right: 1px solid rgba(0, 0, 0, 0.08) !important;
+        }
+
+        .fancy-sidebar .sidebar-label {
+            opacity: 1;
+            transform: translateX(0);
+            display: inline;
+        }
+
+        .fancy-sidebar .sidebar-version .sidebar-label {
+            display: inline;
+        }
+
+        .fancy-sidebar.mobile-active {
+            right: 0px;
+            box-shadow: -5px 0 25px rgba(0, 0, 0, 0.1);
+        }
+    }
+</style>

@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مركز الإشعارات - Bird-CRM</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="/style.css?v=<%= Date.now() %>" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+
+    <style>
+        .notif-card {
+            background: #ffffff;
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin-bottom: 1rem;
+            transition: all 0.3s;
+        }
+
+        .notif-card:hover {
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+            border-color: var(--primary-color);
+        }
+
+        .notif-unread {
+            background-color: rgba(212, 175, 55, 0.03);
+            border-right: 4px solid var(--primary-color);
+        }
+
+        .notif-icon-box {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .icon-customer_assigned { background-color: rgba(25, 135, 84, 0.1); color: #198754; }
+        .icon-status_changed { background-color: rgba(255, 193, 7, 0.1); color: #ffc107; }
+        .icon-payment_received { background-color: rgba(13, 202, 240, 0.1); color: #0dcaf0; }
+        .icon-follow_up_due { background-color: rgba(220, 53, 69, 0.1); color: #dc3545; }
+        .icon-system { background-color: rgba(108, 117, 125, 0.1); color: #6c757d; }
+    </style>
+</head>
+
+<body>
+    <%- include('partials/navbar') %>
+    <%- include('partials/sidebar') %>
+
+    <div class="container-fluid main-content px-4 px-lg-5">
+        <!-- Toast notifications container -->
+        <div id="alertContainer" style="position: fixed; top: 100px; left: 50%; transform: translateX(-50%); z-index: 1060; width: 90%; max-width: 400px;"></div>
+
+        <div class="glass-card p-4 animate-fade-in">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
+                <h2 class="m-0 fw-bold d-flex align-items-center gap-2">
+                    <i class="bi bi-bell text-primary"></i>
+                    مركز الإشعارات الداخلية
+                </h2>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-primary px-3 rounded-pill fw-semibold d-flex align-items-center gap-1" onclick="markAllReadOnPage()">
+                        <i class="bi bi-check-all fs-5"></i>
+                        تحديد الكل كمقروء
+                    </button>
+                    <button class="btn btn-outline-secondary px-3 rounded-pill fw-semibold d-flex align-items-center gap-1" onclick="loadNotifications(1)">
+                        <i class="bi bi-arrow-clockwise fs-5"></i>
+                        تحديث الإشعارات
+                    </button>
+                </div>
+            </div>
+
+            <!-- Loader -->
+            <div id="loader" class="text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">جاري التحميل...</span>
+                </div>
+                <p class="text-muted mt-2">جاري تحميل الإشعارات...</p>
+            </div>
+
+            <!-- Empty State -->
+            <div id="emptyState" class="text-center py-5 d-none">
+                <i class="bi bi-bell-slash text-secondary opacity-30" style="font-size: 4rem;"></i>
+                <h4 class="text-muted mt-3">صندوق الإشعارات فارغ</h4>
+                <p class="text-secondary small">لا توجد إشعارات حالية في حسابك.</p>
+            </div>
+
+            <!-- Notifications Container -->
+            <div id="notificationsContainer" class="d-none">
+                <!-- Dynamic cards here -->
+            </div>
+
+            <!-- Pagination Grid -->
+            <div id="paginationContainer" class="d-flex justify-content-between align-items-center mt-4 border-top pt-3 d-none">
+                <span class="text-secondary small" id="paginationInfo"></span>
+                <nav aria-label="Page navigation">
+                    <ul class="pagination pagination-sm m-0" id="paginationList">
+                        <!-- Dynamic Pagination links -->
+                    </ul>
+                </nav>
+            </div>
+
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentPage = 1;
+        const limit = 10;
+
+        document.addEventListener("DOMContentLoaded", () => {
+            loadNotifications();
+        });
+
+        function loadNotifications(page = 1) {
+            currentPage = page;
+
+            document.getElementById('loader').classList.remove('d-none');
+            document.getElementById('notificationsContainer').classList.add('d-none');
+            document.getElementById('emptyState').classList.add('d-none');
+            document.getElementById('paginationContainer').classList.add('d-none');
+
+            const url = `/dashboard/notifications/data?page=${page}&limit=${limit}`;
+
+            fetch(url)
+                .then(res => res.json())
+                .then(res => {
+                    document.getElementById('loader').classList.add('d-none');
+                    if (res.success && res.notifications && res.notifications.length > 0) {
+                        renderNotificationsList(res.notifications);
+                        renderPagination(res.page, res.totalPages, res.totalCount);
+                        
+                        document.getElementById('notificationsContainer').classList.remove('d-none');
+                        document.getElementById('paginationContainer').classList.remove('d-none');
+                    } else {
+                        document.getElementById('emptyState').classList.remove('d-none');
+                    }
+                })
+                .catch(err => {
+                    console.error(err);
+                    document.getElementById('loader').classList.add('d-none');
+                    showAlert('حدث خطأ أثناء تحميل الإشعارات. يرجى المحاولة مرة أخرى.', 'danger');
+                });
+        }
+
+        function renderNotificationsList(notifications) {
+            const container = document.getElementById('notificationsContainer');
+            container.innerHTML = '';
+
+            notifications.forEach(notif => {
+                const isUnreadClass = notif.isRead ? '' : 'notif-unread';
+                const dateStr = notif.createdAt ? new Date(notif.createdAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short', hour12: true }) : '—';
+                
+                let iconClass = 'icon-system';
+                let iconSymbol = 'bi-bell-fill';
+                if (notif.type === 'customer_assigned') {
+                    iconClass = 'icon-customer_assigned';
+                    iconSymbol = 'bi-person-plus-fill';
+                } else if (notif.type === 'status_changed') {
+                    iconClass = 'icon-status_changed';
+                    iconSymbol = 'bi-arrow-left-right';
+                } else if (notif.type === 'payment_received') {
+                    iconClass = 'icon-payment_received';
+                    iconSymbol = 'bi-credit-card-fill';
+                } else if (notif.type === 'follow_up_due') {
+                    iconClass = 'icon-follow_up_due';
+                    iconSymbol = 'bi-calendar-event';
+                }
+
+                let customerLinkHtml = '';
+                if (notif.customer) {
+                    customerLinkHtml = `
+                        <div class="mt-2 pt-2 border-top">
+                            <span class="small text-secondary">العميل المرتبط:</span>
+                            <span class="small text-dark fw-semibold ms-1">${notif.customer.customerName || 'عميل واتساب'}</span>
+                            <code class="small text-secondary ms-1">(${notif.customer.phoneNumber})</code>
+                            <a href="/dashboard/customers" class="btn btn-sm btn-link p-0 ms-2 text-decoration-none small">عرض العملاء <i class="bi bi-arrow-left small"></i></a>
+                        </div>
+                    `;
+                }
+
+                const cardHtml = `
+                    <div class="notif-card ${isUnreadClass} animate-fade-in" id="notif-card-${notif.id}">
+                        <div class="d-flex align-items-start gap-3">
+                            <div class="notif-icon-box ${iconClass} flex-shrink-0">
+                                <i class="bi ${iconSymbol} fs-5"></i>
+                            </div>
+                            <div class="flex-grow-1">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <h6 class="m-0 fw-bold text-dark">${notif.title}</h6>
+                                    <span class="small text-muted" style="font-size: 11px;">${dateStr}</span>
+                                </div>
+                                <p class="text-secondary small mb-0" style="line-height: 1.4;">${notif.message}</p>
+                                ${customerLinkHtml}
+                            </div>
+                            ${!notif.isRead ? `
+                            <button class="btn btn-sm btn-outline-primary rounded-pill py-1 px-3 align-self-center flex-shrink-0" onclick="markSingleReadPage(${notif.id})">
+                                مقروء <i class="bi bi-check-circle"></i>
+                            </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+                container.insertAdjacentHTML('beforeend', cardHtml);
+            });
+        }
+
+        function markSingleReadPage(id) {
+            fetch('/dashboard/notifications/mark-read', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    const card = document.getElementById(`notif-card-${id}`);
+                    if (card) {
+                        card.classList.remove('notif-unread');
+                        const btn = card.querySelector('button');
+                        if (btn) btn.remove();
+                    }
+                    // تحديث الجرس في الهيدر
+                    if (typeof loadNotificationsData === 'function') {
+                        loadNotificationsData();
+                    }
+                }
+            })
+            .catch(err => console.error(err));
+        }
+
+        function markAllReadOnPage() {
+            fetch('/dashboard/notifications/mark-read', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ all: true })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert('تم تحديد جميع الإشعارات كمقروءة.');
+                    loadNotifications(currentPage);
+                    // تحديث الجرس في الهيدر
+                    if (typeof loadNotificationsData === 'function') {
+                        loadNotificationsData();
+                    }
+                }
+            })
+            .catch(err => console.error(err));
+        }
+
+        function renderPagination(page, totalPages, totalCount) {
+            const info = document.getElementById('paginationInfo');
+            const list = document.getElementById('paginationList');
+
+            info.textContent = `عرض ${(page - 1) * limit + 1} إلى ${Math.min(page * limit, totalCount)} من إجمالي ${totalCount} إشعار`;
+            list.innerHTML = '';
+
+            // Previous
+            const prevDisabled = page === 1 ? 'disabled' : '';
+            list.insertAdjacentHTML('beforeend', `
+                <li class="page-item ${prevDisabled}">
+                    <button class="page-link" onclick="loadNotifications(${page - 1})" aria-label="Previous">&laquo;</button>
+                </li>
+            `);
+
+            // Page Numbers
+            let startPage = Math.max(1, page - 2);
+            let endPage = Math.min(totalPages, page + 2);
+
+            for (let i = startPage; i <= endPage; i++) {
+                const active = i === page ? 'active' : '';
+                list.insertAdjacentHTML('beforeend', `
+                    <li class="page-item ${active}">
+                        <button class="page-link" onclick="loadNotifications(${i})">${i}</button>
+                    </li>
+                `);
+            }
+
+            // Next
+            const nextDisabled = page === totalPages ? 'disabled' : '';
+            list.insertAdjacentHTML('beforeend', `
+                <li class="page-item ${nextDisabled}">
+                    <button class="page-link" onclick="loadNotifications(${page + 1})" aria-label="Next">&raquo;</button>
+                </li>
+            `);
+        }
+
+        function showAlert(msg, type = 'success') {
+            const container = document.getElementById('alertContainer');
+            const alertHtml = `
+                <div class="alert alert-${type} alert-dismissible fade show rounded-3 shadow-sm mb-3" role="alert">
+                    <i class="bi ${type === 'success' ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill'} me-2"></i> 
+                    ${msg}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            `;
+            container.innerHTML = alertHtml;
+            setTimeout(() => {
+                const alert = container.querySelector('.alert');
+                if (alert) {
+                    const bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                }
+            }, 4000);
+        }
+    </script>
+</body>
+
+</html>

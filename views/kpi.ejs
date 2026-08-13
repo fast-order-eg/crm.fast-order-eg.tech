@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تقييم الأداء KPI - Bird-CRM</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="/style.css?v=<%= Date.now() %>" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    
+    <style>
+        .kpi-stat-card {
+            background: #ffffff;
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            border-radius: 12px;
+            padding: 1.5rem;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+        .kpi-stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 4px;
+            height: 100%;
+            background: var(--primary-color);
+        }
+        .kpi-stat-card.success::before {
+            background: var(--success-color);
+        }
+        .kpi-stat-card.danger::before {
+            background: var(--danger-color);
+        }
+        .kpi-stat-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.05);
+        }
+
+        /* استايل منصة التتويج Podium */
+        .podium-container {
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            margin: 2rem auto;
+            max-width: 600px;
+            gap: 15px;
+            height: 250px;
+        }
+        .podium-step {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: all 0.3s;
+        }
+        .podium-block {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-top-left-radius: 12px;
+            border-top-right-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            color: #ffffff;
+            font-weight: bold;
+            position: relative;
+        }
+        .podium-name {
+            font-size: 13px;
+            font-weight: 600;
+            text-align: center;
+            margin-bottom: 8px;
+            color: var(--text-color);
+            width: 100%;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .podium-score {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+        }
+        .podium-avatar {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            background: #cbd5e1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: #0f172a;
+            border: 3px solid #ffffff;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+            margin-bottom: 8px;
+        }
+        .podium-1 {
+            height: 140px;
+            background: linear-gradient(135deg, #d4af37, #b8860b);
+        }
+        .podium-1 .podium-avatar {
+            border-color: #d4af37;
+        }
+        .podium-2 {
+            height: 100px;
+            background: linear-gradient(135deg, #cbd5e1, #94a3b8);
+        }
+        .podium-2 .podium-avatar {
+            border-color: #94a3b8;
+        }
+        .podium-3 {
+            height: 70px;
+            background: linear-gradient(135deg, #a78bfa, #7c3aed);
+        }
+        .podium-3 .podium-avatar {
+            border-color: #a78bfa;
+        }
+        .crown {
+            position: absolute;
+            top: -24px;
+            font-size: 20px;
+            color: #d4af37;
+            animation: bounceCrown 2s infinite alternate;
+        }
+        @keyframes bounceCrown {
+            from { transform: translateY(0); }
+            to { transform: translateY(-4px); }
+        }
+
+        .chart-container {
+            position: relative;
+            height: 280px;
+            width: 100%;
+        }
+
+        .kpi-card-mobile {
+            background: #ffffff;
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin-bottom: 1rem;
+            transition: all 0.3s;
+        }
+        .kpi-card-mobile:hover {
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+            border-color: var(--primary-color);
+        }
+        .btn-group .btn-check:checked + .btn {
+            background-color: var(--primary-color, #0d6efd) !important;
+            color: #ffffff !important;
+            font-weight: 700 !important;
+            box-shadow: 0 2px 6px rgba(13, 110, 253, 0.2);
+        }
+        .btn-group .btn {
+            color: #475569;
+            background-color: transparent;
+            transition: all 0.2s ease;
+        }
+        .btn-group .btn:hover {
+            background-color: rgba(0, 0, 0, 0.05);
+            color: #0f172a;
+        }
+        @media (max-width: 576px) {
+            .btn-group .btn {
+                font-size: 11px;
+                padding: 6px 2px !important;
+            }
+            .glass-card h2 {
+                font-size: 1.35rem;
+                flex-direction: column;
+                gap: 0.5rem !important;
+                text-align: center;
+            }
+            #dateRangeDisplay {
+                font-size: 11px;
+                padding: 6px 10px !important;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <%- include('partials/navbar') %>
+    <%- include('partials/sidebar') %>
+
+    <div class="container-fluid main-content px-4 px-lg-5">
+        
+        <!-- Header -->
+        <div class="glass-card p-4 p-md-5 animate-fade-in mb-4">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+                <h2 class="m-0 fw-bold d-flex align-items-center justify-content-center justify-content-md-start gap-2 text-center text-md-start">
+                    <i class="bi bi-bar-chart-line-fill text-primary"></i>
+                    تقييم الأداء والمؤشرات (KPI)
+                </h2>
+                <div class="d-flex flex-wrap justify-content-center justify-content-md-end gap-2">
+                    <button class="btn btn-outline-secondary rounded-pill px-3 py-2 btn-sm fw-semibold d-flex align-items-center gap-1" onclick="exportExcel()">
+                        <i class="bi bi-file-earmark-spreadsheet-fill text-success fs-6"></i>
+                        تصدير التقرير (Excel)
+                    </button>
+                </div>
+            </div>
+
+            <!-- Filters Section -->
+            <div class="card border-0 rounded-3 p-3 mb-4" style="background: rgba(0, 0, 0, 0.02);">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-5">
+                        <div class="d-flex flex-column flex-sm-row justify-content-between align-items-center gap-2 mb-2 w-100">
+                            <label class="form-label fw-bold text-secondary small mb-0">الفترة الزمنية</label>
+                            <span id="dateRangeDisplay" class="badge bg-primary bg-opacity-10 text-primary small fw-bold rounded-pill px-3 py-1.5 d-none animate-fade-in"></span>
+                        </div>
+                        <div class="btn-group w-100 rounded-pill overflow-hidden border border-secondary border-opacity-10" role="group">
+                            <input type="radio" class="btn-check" name="kpiFilter" id="filterToday" value="today" checked>
+                            <label class="btn fw-semibold border-0 py-2" for="filterToday">اليوم</label>
+                            
+                            <input type="radio" class="btn-check" name="kpiFilter" id="filterMonth" value="month">
+                            <label class="btn fw-semibold border-0 py-2" for="filterMonth">هذا الشهر</label>
+                            
+                            <input type="radio" class="btn-check" name="kpiFilter" id="filterLastMonth" value="lastMonth">
+                            <label class="btn fw-semibold border-0 py-2" for="filterLastMonth">الشهر الماضي</label>
+                            
+                            <input type="radio" class="btn-check" name="kpiFilter" id="filterCustom" value="custom">
+                            <label class="btn fw-semibold border-0 py-2" for="filterCustom">مخصصة</label>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-7 custom-dates-row d-none">
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <label class="form-label fw-bold text-secondary small">من تاريخ</label>
+                                <input type="date" id="dateFrom" class="form-control rounded-3 py-2">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label fw-bold text-secondary small">إلى تاريخ</label>
+                                <input type="date" id="dateTo" class="form-control rounded-3 py-2">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dashboard Summary widgets -->
+            <div class="row g-3 mb-5">
+                <div class="col-md-4">
+                    <div class="kpi-stat-card">
+                        <div class="text-secondary small fw-bold mb-1">إجمالي الإيرادات</div>
+                        <h3 class="fw-bold mb-0 text-dark" id="widgetRevenue">0.00 جنيه</h3>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="kpi-stat-card success">
+                        <div class="text-secondary small fw-bold mb-1">إجمالي العقود المنفذة</div>
+                        <h3 class="fw-bold mb-0 text-dark" id="widgetContracts">0 صفقة</h3>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="kpi-stat-card danger">
+                        <div class="text-secondary small fw-bold mb-1">أسرع متوسط استجابة</div>
+                        <h3 class="fw-bold mb-0 text-dark" id="widgetAvgResponse">0 دقيقة</h3>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Podium & Charts Row -->
+            <div class="row g-4 mb-5">
+                <!-- Top Employees Podium -->
+                <div class="col-lg-5">
+                    <div class="card border-0 rounded-3 p-4 h-100 shadow-sm" style="background: rgba(255, 255, 255, 0.75);">
+                        <h5 class="fw-bold text-center text-dark mb-4">👑 فرسان المبيعات الأكثر تنفيذاً للعقود</h5>
+                        
+                        <div id="podiumContainer" class="podium-container">
+                            <!-- Third place -->
+                            <div class="podium-step" id="podiumStep3" style="visibility: hidden;">
+                                <span class="podium-name" id="podiumName3">—</span>
+                                <span class="podium-score" id="podiumScore3">—</span>
+                                <div class="podium-avatar" id="podiumAvatar3">3</div>
+                                <div class="podium-block podium-3">
+                                    <span class="fs-4">3</span>
+                                </div>
+                            </div>
+                            
+                            <!-- First place -->
+                            <div class="podium-step" id="podiumStep1" style="visibility: hidden;">
+                                <i class="bi bi-crown-fill crown"></i>
+                                <span class="podium-name" id="podiumName1">—</span>
+                                <span class="podium-score" id="podiumScore1">—</span>
+                                <div class="podium-avatar" id="podiumAvatar1">1</div>
+                                <div class="podium-block podium-1">
+                                    <span class="fs-3">1</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Second place -->
+                            <div class="podium-step" id="podiumStep2" style="visibility: hidden;">
+                                <span class="podium-name" id="podiumName2">—</span>
+                                <span class="podium-score" id="podiumScore2">—</span>
+                                <div class="podium-avatar" id="podiumAvatar2">2</div>
+                                <div class="podium-block podium-2">
+                                    <span class="fs-4">2</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="podiumEmpty" class="text-center py-5 text-muted small">
+                            لا توجد بيانات كافية لعرض لوحة المتصدرين.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts -->
+                <div class="col-lg-7">
+                    <div class="card border-0 rounded-3 p-4 h-100 shadow-sm" style="background: rgba(255, 255, 255, 0.75);">
+                        <h5 class="fw-bold text-dark mb-4"><i class="bi bi-graph-up text-primary me-1"></i> إيرادات الموظفين مقابل العقود المنفذة</h5>
+                        <div class="chart-container">
+                            <canvas id="kpiBarChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Employee Comparison Table (Desktop) -->
+            <h4 class="fw-bold text-dark mb-3"><i class="bi bi-list-stars text-primary"></i> جدول المقارنة التفصيلي للموظفين</h4>
+            <div class="d-none d-lg-block table-responsive">
+                <table class="table align-middle">
+                    <thead>
+                        <tr>
+                            <th>الموظف</th>
+                            <th class="text-center">العملاء المستلمين</th>
+                             <th class="text-center">تم الرد</th>
+                             <th class="text-center">تحديث الحالة</th>
+                            <th class="text-center">متوسط سرعة الرد</th>
+                            <th class="text-center">الردود المتأخرة</th>
+                            <th class="text-center">العقود المنفذة</th>
+                            <th class="text-center">نسبة التحويل</th>
+                            <th class="text-center">الإيرادات</th>
+                        </tr>
+                    </thead>
+                    <tbody id="kpiTableBody">
+                        <tr>
+                             <td colspan="9" class="text-center py-4 text-muted">جاري تحميل بيانات الأداء...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Employee Comparison Cards (Mobile) -->
+            <div class="d-block d-lg-none" id="kpiMobileCards">
+                <div class="text-center py-4 text-muted">جاري تحميل بيانات الأداء...</div>
+            </div>
+
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        let kpiChart = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // الاستماع لتغيير الفلاتر السريعة
+            document.querySelectorAll('input[name="kpiFilter"]').forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    const customDates = document.querySelector('.custom-dates-row');
+                    if (e.target.value === 'custom') {
+                        customDates.classList.remove('d-none');
+                    } else {
+                        customDates.classList.add('d-none');
+                        fetchKPIData();
+                    }
+                });
+            });
+
+            // الاستماع لتغيير التواريخ المخصصة
+            document.getElementById('dateFrom').addEventListener('change', fetchKPIData);
+            document.getElementById('dateTo').addEventListener('change', fetchKPIData);
+
+            // التحميل المبدئي
+            fetchKPIData();
+        });
+
+        // جلب الإحصائيات من الـ API
+        async function fetchKPIData() {
+            try {
+                const activeFilter = document.querySelector('input[name="kpiFilter"]:checked').value;
+                let url = `/dashboard/kpi/data?`;
+                let displayFrom = '';
+                let displayTo = '';
+                
+                if (activeFilter === 'today') {
+                    const today = new Date().toISOString().split('T')[0];
+                    url += `period=${today}&periodType=daily`;
+                    displayFrom = today;
+                    displayTo = today;
+                } else if (activeFilter === 'month') {
+                    const thisMonth = new Date().toISOString().substring(0, 7);
+                    url += `period=${thisMonth}&periodType=monthly`;
+                    
+                    const now = new Date();
+                    const year = now.getFullYear();
+                    const month = String(now.getMonth() + 1).padStart(2, '0');
+                    displayFrom = `${year}-${month}-01`;
+                    displayTo = now.toISOString().split('T')[0];
+                } else if (activeFilter === 'lastMonth') {
+                    const lastMonthDate = new Date();
+                    lastMonthDate.setMonth(lastMonthDate.getMonth() - 1);
+                    const lastMonth = lastMonthDate.toISOString().substring(0, 7);
+                    url += `period=${lastMonth}&periodType=monthly`;
+                    
+                    const year = lastMonthDate.getFullYear();
+                    const month = lastMonthDate.getMonth();
+                    const firstDay = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+                    const lastDayDate = new Date(year, month + 1, 0);
+                    const lastDay = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDayDate.getDate()).padStart(2, '0')}`;
+                    displayFrom = firstDay;
+                    displayTo = lastDay;
+                } else if (activeFilter === 'custom') {
+                    const dateFrom = document.getElementById('dateFrom').value;
+                    const dateTo = document.getElementById('dateTo').value;
+                    if (dateFrom && dateTo) {
+                        url += `dateFrom=${dateFrom}&dateTo=${dateTo}`;
+                        displayFrom = dateFrom;
+                        displayTo = dateTo;
+                    }
+                }
+
+                // تحديث تسمية الفترة الزمنية في واجهة المستخدم
+                const displayEl = document.getElementById('dateRangeDisplay');
+                if (displayEl) {
+                    if (displayFrom && displayTo) {
+                        displayEl.textContent = `من ${displayFrom} إلى ${displayTo}`;
+                        displayEl.classList.remove('d-none');
+                    } else {
+                        displayEl.classList.add('d-none');
+                    }
+                }
+
+                if (activeFilter === 'custom' && (!displayFrom || !displayTo)) {
+                    return; // انتظر إدخال التواريخ
+                }
+
+                const response = await fetch(url);
+                const result = await response.json();
+                
+                if (result.success) {
+                    updateDashboard(result.kpis);
+                } else {
+                    console.error('Failed to load KPI data:', result.error);
+                }
+            } catch (err) {
+                console.error('Error fetching KPI data:', err);
+            }
+        }
+
+        // تحديث محتوى الصفحة بالبيانات الجديدة
+        function updateDashboard(kpis) {
+            updateWidgets(kpis);
+            updateTable(kpis);
+            updatePodium(kpis);
+            updateCharts(kpis);
+        }
+
+        // تحديث الـ 3 كروت العلوية
+        function updateWidgets(kpis) {
+            let totalRevenue = 0;
+            let totalContracts = 0;
+            let activeResponseTimes = [];
+
+            kpis.forEach(kpi => {
+                totalRevenue += kpi.revenue;
+                totalContracts += kpi.contractsClosed;
+                if (kpi.responseCount > 0) {
+                    activeResponseTimes.push(kpi.avgResponseTimeMin);
+                }
+            });
+
+            document.getElementById('widgetRevenue').textContent = `${Math.round(totalRevenue).toLocaleString('en-US')} جنيه`;
+            document.getElementById('widgetContracts').textContent = `${totalContracts} صفقة`;
+            
+            const bestResponse = activeResponseTimes.length > 0 ? Math.min(...activeResponseTimes) : 0;
+            document.getElementById('widgetAvgResponse').textContent = `${bestResponse.toFixed(1)} دقيقة`;
+        }
+
+        // تحديث جدول مقارنة الموظفين وبطاقات الموبايل
+        function updateTable(kpis) {
+            const tbody = document.getElementById('kpiTableBody');
+            const mobileContainer = document.getElementById('kpiMobileCards');
+            tbody.innerHTML = '';
+            mobileContainer.innerHTML = '';
+
+            if (kpis.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" class="text-center py-4 text-muted">لا توجد سجلات أداء للموظفين خلال هذه الفترة.</td></tr>';
+                mobileContainer.innerHTML = '<div class="text-center py-4 text-muted kpi-card-mobile">لا توجد سجلات أداء للموظفين خلال هذه الفترة.</div>';
+                return;
+            }
+
+            kpis.forEach(kpi => {
+                // Desktop Row
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>
+                        <div class="fw-bold text-dark">${kpi.fullName}</div>
+                        <span class="badge ${kpi.role === 'admin' ? 'bg-warning text-dark' : 'bg-info text-white'} rounded-pill" style="font-size: 10px;">
+                            ${kpi.role === 'admin' ? 'أدمن' : 'مبيعات'}
+                        </span>
+                    </td>
+                    <td class="text-center fw-semibold">${kpi.customersReceived}</td>
+                    <td class="text-center">${kpi.customersContacted}</td>
+                    <td class="text-center text-secondary">${kpi.statusUpdates}</td>
+                    <td class="text-center">
+                        <span class="badge bg-light text-dark px-2 py-1 border border-secondary border-opacity-10 rounded">
+                            <i class="bi bi-clock me-1 text-primary"></i>${kpi.avgResponseTimeMin} دقيقة
+                        </span>
+                    </td>
+                    <td class="text-center">
+                        <span class="badge ${kpi.lateResponses > 0 ? 'bg-danger-subtle text-danger' : 'bg-success-subtle text-success'} px-2 py-1 rounded">
+                            ${kpi.lateResponses}
+                        </span>
+                    </td>
+                    <td class="text-center text-success fw-bold">${kpi.contractsClosed}</td>
+                    <td class="text-center">
+                        <div class="fw-bold text-dark">${kpi.conversionRate}%</div>
+                        <div class="progress rounded-pill" style="height: 4px; background: rgba(0,0,0,0.05); width: 80px; margin: 2px auto 0;">
+                            <div class="progress-bar bg-success rounded-pill" style="width: ${kpi.conversionRate}%"></div>
+                        </div>
+                    </td>
+                    <td class="text-center text-dark fw-bold">${Math.round(kpi.revenue).toLocaleString('en-US')} ج.م</td>
+                `;
+                tbody.appendChild(tr);
+
+                // Mobile Card
+                const mobileCard = document.createElement('div');
+                mobileCard.className = 'kpi-card-mobile';
+                mobileCard.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
+                        <div>
+                            <h6 class="fw-bold text-dark mb-1">${kpi.fullName}</h6>
+                            <span class="badge ${kpi.role === 'admin' ? 'bg-warning text-dark' : 'bg-info text-white'} rounded-pill px-2" style="font-size: 10px;">
+                                ${kpi.role === 'admin' ? 'أدمن' : 'مبيعات'}
+                            </span>
+                        </div>
+                        <div class="text-end">
+                            <span class="d-block small text-secondary fw-semibold">الإيرادات</span>
+                            <span class="fw-bold text-dark fs-6">${Math.round(kpi.revenue).toLocaleString('en-US')} ج.م</span>
+                        </div>
+                    </div>
+                    
+                    <div class="row g-2 small text-secondary mb-3">
+                        <div class="col-6 d-flex justify-content-between border-end pe-2">
+                            <span>العملاء المستلمين:</span>
+                            <strong class="text-dark">${kpi.customersReceived}</strong>
+                        </div>
+                        <div class="col-6 d-flex justify-content-between ps-2">
+                            <span>تم الرد:</span>
+                            <strong class="text-dark">${kpi.customersContacted}</strong>
+                        </div>
+                        <div class="col-6 d-flex justify-content-between border-end pe-2">
+                            <span>متوسط الرد:</span>
+                            <strong class="text-primary">${kpi.avgResponseTimeMin} دقيقة</strong>
+                        </div>
+                        <div class="col-6 d-flex justify-content-between ps-2">
+                            <span>الردود المتأخرة:</span>
+                            <strong class="${kpi.lateResponses > 0 ? 'text-danger' : 'text-success'}">${kpi.lateResponses}</strong>
+                        </div>
+                        <div class="col-6 d-flex justify-content-between border-end pe-2">
+                            <span>العقود المنفذة:</span>
+                            <strong class="text-success">${kpi.contractsClosed}</strong>
+                        </div>
+                        <div class="col-6 d-flex justify-content-between ps-2">
+                            <span>نسبة التحويل:</span>
+                            <strong class="text-dark">${kpi.conversionRate}%</strong>
+                        </div>
+                    </div>
+                    
+                    <div class="progress rounded-pill mt-2" style="height: 6px; background: rgba(0,0,0,0.05);">
+                        <div class="progress-bar bg-success rounded-pill" style="width: ${kpi.conversionRate}%"></div>
+                    </div>
+                `;
+                mobileContainer.appendChild(mobileCard);
+            });
+        }
+
+        // تحديث منصة المتصدرين Podium
+        function updatePodium(kpis) {
+            // ترتيب الموظفين حسب العقود المغلقة تنازلياً
+            const sorted = [...kpis].sort((a, b) => b.contractsClosed - a.contractsClosed);
+            
+            const container = document.getElementById('podiumContainer');
+            const empty = document.getElementById('podiumEmpty');
+            
+            // إخفاء كل العناصر أولاً
+            document.getElementById('podiumStep1').style.visibility = 'hidden';
+            document.getElementById('podiumStep2').style.visibility = 'hidden';
+            document.getElementById('podiumStep3').style.visibility = 'hidden';
+
+            const activeKpis = sorted.filter(kpi => kpi.contractsClosed > 0);
+
+            if (activeKpis.length === 0) {
+                container.style.display = 'none';
+                empty.style.display = 'block';
+                return;
+            }
+
+            container.style.display = 'flex';
+            empty.style.display = 'none';
+
+            // المركز الأول
+            if (activeKpis[0]) {
+                const step = document.getElementById('podiumStep1');
+                step.style.visibility = 'visible';
+                document.getElementById('podiumName1').textContent = activeKpis[0].fullName;
+                document.getElementById('podiumScore1').textContent = `${activeKpis[0].contractsClosed} صفقة`;
+                document.getElementById('podiumAvatar1').textContent = activeKpis[0].fullName.substring(0, 1).toUpperCase();
+            }
+
+            // المركز الثاني
+            if (activeKpis[1]) {
+                const step = document.getElementById('podiumStep2');
+                step.style.visibility = 'visible';
+                document.getElementById('podiumName2').textContent = activeKpis[1].fullName;
+                document.getElementById('podiumScore2').textContent = `${activeKpis[1].contractsClosed} صفقة`;
+                document.getElementById('podiumAvatar2').textContent = activeKpis[1].fullName.substring(0, 1).toUpperCase();
+            }
+
+            // المركز الثالث
+            if (activeKpis[2]) {
+                const step = document.getElementById('podiumStep3');
+                step.style.visibility = 'visible';
+                document.getElementById('podiumName3').textContent = activeKpis[2].fullName;
+                document.getElementById('podiumScore3').textContent = `${activeKpis[2].contractsClosed} صفقة`;
+                document.getElementById('podiumAvatar3').textContent = activeKpis[2].fullName.substring(0, 1).toUpperCase();
+            }
+        }
+
+        // تحديث الرسومات البيانية
+        function updateCharts(kpis) {
+            const ctx = document.getElementById('kpiBarChart').getContext('2d');
+            
+            const labels = kpis.map(k => k.fullName);
+            const revenues = kpis.map(k => k.revenue);
+            const contracts = kpis.map(k => k.contractsClosed);
+
+            if (kpiChart) {
+                kpiChart.destroy();
+            }
+
+            kpiChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'الإيرادات المحققة (جنيه)',
+                            data: revenues,
+                            backgroundColor: 'rgba(212, 175, 55, 0.7)',
+                            borderColor: '#d4af37',
+                            borderWidth: 1.5,
+                            borderRadius: 6,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'العقود المنفذة (عدد)',
+                            data: contracts,
+                            backgroundColor: 'rgba(22, 163, 74, 0.7)',
+                            borderColor: '#16a34a',
+                            borderWidth: 1.5,
+                            borderRadius: 6,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: 'الإيرادات (ج.م)',
+                                color: '#475569'
+                            },
+                            ticks: { color: '#475569' }
+                        },
+                        y1: {
+                            type: 'linear',
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: 'العقود المنفذة',
+                                color: '#475569'
+                            },
+                            grid: {
+                                drawOnChartArea: false // لا ترسم شبكة إضافية
+                            },
+                            ticks: { color: '#475569' }
+                        },
+                        x: {
+                            ticks: { color: '#475569' }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            labels: {
+                                font: {
+                                    family: 'Inter, sans-serif',
+                                    size: 12
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // تصدير ملف الإكسل
+        function exportExcel() {
+            const activeFilter = document.querySelector('input[name="kpiFilter"]:checked').value;
+            let queryParams = '';
+            
+            if (activeFilter === 'today') {
+                const today = new Date().toISOString().split('T')[0];
+                queryParams = `period=${today}&periodType=daily`;
+            } else if (activeFilter === 'month') {
+                const thisMonth = new Date().toISOString().substring(0, 7);
+                queryParams = `period=${thisMonth}&periodType=monthly`;
+            } else if (activeFilter === 'lastMonth') {
+                const lastMonthDate = new Date();
+                lastMonthDate.setMonth(lastMonthDate.getMonth() - 1);
+                const lastMonth = lastMonthDate.toISOString().substring(0, 7);
+                queryParams = `period=${lastMonth}&periodType=monthly`;
+            } else if (activeFilter === 'custom') {
+                const dateFrom = document.getElementById('dateFrom').value;
+                const dateTo = document.getElementById('dateTo').value;
+                if (!dateFrom || !dateTo) {
+                    alert('الرجاء اختيار التواريخ أولاً للتصدير المخصص.');
+                    return;
+                }
+                queryParams = `dateFrom=${dateFrom}&dateTo=${dateTo}`;
+            }
+
+            location.href = `/dashboard/kpi/export?` + queryParams;
+        }
+    </script>
+</body>
+
+</html>

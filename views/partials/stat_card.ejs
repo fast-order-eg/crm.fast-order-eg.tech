@@ -1,0 +1,40 @@
+<%
+const cardTitle = typeof title !== 'undefined' ? title : '';
+const cardValue = typeof value !== 'undefined' ? value : '0';
+const valId = typeof valueId !== 'undefined' ? valueId : '';
+const cardIcon = typeof icon !== 'undefined' ? icon : '';
+const colorTheme = typeof themeColor !== 'undefined' ? themeColor : 'var(--primary-color)';
+const colorThemeLight = typeof themeColorLight !== 'undefined' ? themeColorLight : 'rgba(212, 175, 55, 0.1)';
+const trText = typeof trendText !== 'undefined' ? trendText : '';
+const trIcon = typeof trendIcon !== 'undefined' ? trendIcon : '';
+const trColor = typeof trendColor !== 'undefined' ? trendColor : '';
+const dropHtml = typeof dropdownHtml !== 'undefined' ? dropdownHtml : '';
+const isFin = typeof isFinance !== 'undefined' ? isFinance : false;
+%>
+
+<div class="stat-card <%= isFin ? 'p-4' : 'p-3' %> h-100 dropdown" style="--theme-color: <%= colorTheme %>; --theme-color-light: <%= colorThemeLight %>;">
+    <div class="d-flex align-items-center justify-content-between">
+        <span class="text-secondary small fw-bold"><%= cardTitle %></span>
+        <div class="stat-icon" 
+             <% if (dropHtml) { %> 
+                style="cursor: pointer;" data-bs-toggle="dropdown" aria-expanded="false" 
+             <% } %>>
+            <i class="<%= cardIcon %>"></i>
+        </div>
+    </div>
+    
+    <h3 class="fw-extrabold text-dark mt-3 mb-1" <% if (valId) { %> id="<%= valId %>" <% } %>><%= cardValue %></h3>
+    
+    <% if (trText) { %>
+        <p class="<%= trColor %> small mb-0" <% if (dropHtml) { %> style="cursor: pointer;" data-bs-toggle="dropdown" aria-expanded="false" <% } %>>
+            <% if (trIcon) { %>
+                <i class="<%= trIcon %> me-1"></i>
+            <% } %>
+            <%= trText %>
+        </p>
+    <% } %>
+
+    <% if (dropHtml) { %>
+        <%- dropHtml %>
+    <% } %>
+</div>

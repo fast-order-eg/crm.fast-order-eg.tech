@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة التحكم | Bird-CRM</title>
+    <!-- CSS Dependencies -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Noto+Kufi+Arabic:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="/style.css" rel="stylesheet">
+    
+    <!-- JS Dependencies -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.4.4/build/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        :root {
+            --font-arabic: 'Noto Kufi Arabic', sans-serif;
+            --font-english: 'Outfit', sans-serif;
+            
+            --success-color: #10b981;
+            --danger-color: #ef4444;
+            --warning-color: #f59e0b;
+            --primary-color: #3b82f6;
+            --orange-color: #f97316;
+            --purple-color: #8b5cf6;
+            --gold-color: #d4af37;
+        }
+
+        body {
+            font-family: var(--font-arabic);
+            background-color: #f8fafc;
+            color: #1e293b;
+        }
+
+        .main-content {
+            margin-right: 110px;
+            width: calc(100% - 110px);
+            padding-top: 100px;
+            padding-bottom: 50px;
+            transition: all 0.5s ease;
+        }
+
+        @media (max-width: 992px) {
+            .main-content {
+                margin-right: 0;
+                width: 100%;
+                padding-top: 80px;
+                padding-bottom: 30px;
+            }
+        }
+
+        /* Stat Card Styles */
+        .stat-card {
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            border-radius: 16px;
+            background: #ffffff;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px -1px rgba(0, 0, 0, 0.01);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 20px -8px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 4px;
+            height: 100%;
+            background-color: var(--theme-color, #cbd5e1);
+        }
+
+        .stat-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--theme-color-light, #f1f5f9);
+            color: var(--theme-color, #64748b);
+            font-size: 1.25rem;
+        }
+
+        /* Glass Connection Card */
+        .connection-card {
+            border: 1px solid rgba(212, 175, 55, 0.15);
+            border-radius: 16px;
+            background: #ffffff;
+            box-shadow: 0 10px 25px -5px rgba(212, 175, 55, 0.05);
+        }
+
+        /* Table Styling */
+        .custom-table {
+            border-collapse: separate;
+            border-spacing: 0 8px;
+        }
+
+        .custom-table tr:not(thead tr) {
+            background-color: #ffffff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        .custom-table tr:not(thead tr):hover {
+            transform: scale(1.005);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.04);
+            background-color: #f8fafc;
+        }
+
+        .custom-table td, .custom-table th {
+            padding: 16px !important;
+            border: none !important;
+        }
+
+        .custom-table td:first-child {
+            border-top-right-radius: 8px;
+            border-bottom-right-radius: 8px;
+        }
+
+        .custom-table td:last-child {
+            border-top-left-radius: 8px;
+            border-bottom-left-radius: 8px;
+        }
+
+        /* Custom Badge Colors */
+        .bg-purple { background-color: var(--purple-color) !important; color: white !important; }
+        .bg-orange { background-color: var(--orange-color) !important; color: white !important; }
+        .text-gold { color: var(--gold-color) !important; }
+        .bg-gold-light { background-color: rgba(212, 175, 55, 0.1) !important; }
+
+        /* Animation */
+        .fade-in-up {
+            animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Navbar -->
+    <%- include('partials/navbar') %>
+
+    <!-- Sidebar -->
+    <%- include('partials/sidebar') %>
+
+    <div class="container-fluid main-content px-4 px-lg-5">
+        
+        <!-- Header -->
+        <div class="d-flex justify-content-between align-items-center mb-4 fade-in-up">
+            <div>
+                <h1 class="fw-extrabold text-dark m-0 fs-2">الرئيسية 🏠</h1>
+                <p class="text-secondary m-0 mt-1 small">لوحة تحكم إحصائيات النظام ومتابعة حالة اتصال الواتساب بوت</p>
+            </div>
+            <div class="small text-secondary fw-medium">
+                <i class="far fa-calendar-alt me-1"></i> <%= new Date().toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', numberingSystem: 'latn' }) %>
+            </div>
+        </div>
+
+        <% if (user.role !== 'sales') { %>
+        <!-- WhatsApp Bot Connection Accordion -->
+        <div class="card connection-card mb-4 border-0 fade-in-up" style="animation-delay: 0.1s;">
+            <div class="card-header bg-transparent border-0 p-4 d-flex justify-content-between align-items-center" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#connectionCollapse">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon bg-gold-light text-gold">
+                        <i class="fas fa-plug"></i>
+                    </div>
+                    <div>
+                        <h5 class="fw-bold m-0 text-dark">واتس اب 🔌</h5>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center gap-3">
+                    <span class="badge rounded-pill px-3 py-2 fs-6 d-flex align-items-center gap-2" id="header-status-badge" style="background: rgba(0,0,0,0.05); color: #1e293b;">
+                        <span id="header-status-dot" class="status-dot" style="width: 10px; height: 10px;"></span>
+                        <span id="header-status-text">جاري التحقق...</span>
+                    </span>
+                    <i class="fas fa-chevron-down text-secondary transition-all" id="header-chevron"></i>
+                </div>
+            </div>
+            
+            <div id="connectionCollapse" class="collapse <%= (status !== 'online' && status !== 'paused_manual') ? 'show' : '' %>">
+                <div class="card-body p-4 border-top border-light">
+                    <div class="row g-4 align-items-center">
+                        <div class="col-lg-6">
+                            <div class="p-4 rounded-4" style="background: #f8fafc; border: 1px solid rgba(0,0,0,0.03);">
+                                <div class="d-flex align-items-center justify-content-between mb-4">
+                                    <h6 class="m-0 fw-bold text-secondary">حالة الاتصال والبيانات</h6>
+                                    <span id="connected-phone" class="badge bg-gold-light text-gold font-monospace px-3 py-2 dir-ltr" style="font-size: 0.95rem;">
+                                        <%= typeof phone !== 'undefined' && phone ? '📞 ' + phone : 'غير مرتبط' %>
+                                    </span>
+                                </div>
+                                
+                                <div class="d-flex align-items-center gap-2 mb-3">
+                                    <span id="status-dot" class="status-dot <%= (status === 'online' || status === 'meta_online') ? 'status-online' : (status === 'paused' ? 'bg-warning' : (status === 'paused_manual' ? 'bg-orange' : 'status-offline')) %>" style="width: 14px; height: 14px;"></span>
+                                    <span id="status-text" class="fs-4 fw-extrabold text-dark">
+                                        <% if (status === 'online') { %> متصل
+                                        <% } else if (status === 'meta_online') { %> متصل عبر (WhatsApp Business API الأصلي) <% } else if (status === 'paused') { %> متوقف مؤقتاً
+                                        <% } else if (status === 'paused_manual') { %> متوقف يدوياً
+                                        <% } else { %> غير متصل <% } %>
+                                    </span>
+                                </div>
+
+                                <div class="text-secondary small mt-3">
+                                    <% if (user.expiry_date) { %>
+                                        ينتهي اشتراك الخدمة في: <span class="text-warning fw-bold"><%= user.expiry_date %></span>
+                                    <% } %>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-6">
+                            <% const todayStr = new Date().toISOString().split('T')[0];
+                               const isExpired = user.expiry_date && user.expiry_date < todayStr;
+                               const isActive = user.is_active && !isExpired; %>
+                            
+                            <% if (!isActive) { %>
+                                <div class="p-4 rounded-4 text-center border border-danger border-opacity-25" style="background: rgba(239, 68, 68, 0.05);">
+                                    <i class="fas fa-exclamation-triangle text-danger fs-1 mb-3"></i>
+                                    <h5 class="text-danger fw-bold mb-2">عذراً، انتهى اشتراكك!</h5>
+                                    <p class="text-secondary small mb-3">يرجى التواصل مع الإدارة لتجديد الاشتراك واستعادة الخدمة كاملة.</p>
+                                    <button id="logout-btn" class="btn btn-danger w-100 rounded-pill py-2.5 fw-bold">
+                                        <i class="fas fa-sign-out-alt me-1"></i> تسجيل خروج
+                                    </button>
+                                </div>
+                            <% } else { %>
+                                <div class="d-grid gap-3">
+                                    <div class="row g-2">
+                                        <div class="col-sm-6">
+                                            <button id="start-btn" class="btn btn-success w-100 rounded-pill py-3 fw-bold shadow-sm" <%= status === 'online' ? 'disabled' : '' %>>
+                                                <i class="fas fa-play me-1"></i> تشغيل / تحديث
+                                            </button>
+                                        </div>
+                                        <div class="col-sm-6">
+                                            <button id="pair-btn" class="btn btn-outline-primary w-100 rounded-pill py-3 fw-bold" <%= status === 'online' ? 'disabled' : '' %>>
+                                                <i class="fas fa-phone-alt me-1"></i> ربط برقم الهاتف
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="row g-2">
+                                        <div class="col-sm-6">
+                                            <button id="pause-btn" class="btn btn-warning text-white w-100 rounded-pill py-3 fw-bold" <%= (status !== 'online') ? 'disabled' : '' %>>
+                                                <i class="fas fa-pause me-1"></i> إيقاف مؤقت
+                                            </button>
+                                        </div>
+                                        <div class="col-sm-6">
+                                            <button id="logout-btn" class="btn btn-outline-danger w-100 rounded-pill py-3 fw-bold" <%= (status === 'not_registered') ? 'disabled' : '' %>>
+                                                <i class="fas fa-sign-out-alt me-1"></i> تسجيل خروج
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            <% } %>
+                        </div>
+                    </div>
+
+                    <!-- Loader & Dynamic Elements -->
+                    <div id="loader" class="mt-4 text-center d-none">
+                        <div class="spinner-border text-gold" role="status"></div>
+                        <p class="mt-2 text-secondary small">جاري إرسال الطلب ومعالجة الجلسة...</p>
+                    </div>
+
+                    <!-- QR Scanner -->
+                    <div id="qr-container" class="mt-4 d-flex flex-column align-items-center d-none">
+                        <div class="p-3 bg-white rounded-4 shadow-sm border border-light">
+                            <canvas id="qr-canvas"></canvas>
+                        </div>
+                        <div class="mt-4 w-100" style="max-width: 300px;">
+                            <div class="progress" style="height: 6px; background: rgba(0,0,0,0.05); border-radius: 3px;">
+                                <div id="qr-progress" class="progress-bar bg-gold progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
+                            </div>
+                            <div class="d-flex justify-content-between text-secondary mt-2 small">
+                                <span>تحديث الكود تلقائياً خلال</span>
+                                <span id="timer-text" class="fw-bold text-gold">40ث</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Pairing Code container -->
+                    <div id="pairing-container" class="mt-4 text-center d-none">
+                        <div class="p-4 rounded-4" style="background: #f8fafc; border: 1px solid rgba(0,0,0,0.03);">
+                            <h5 class="fw-bold mb-3">🔢 كود الربط الخاص بك</h5>
+                            <div id="pairing-code-display" class="font-monospace text-warning display-4 fw-bold mb-3">
+                                Loading...
+                             </div>
+                             <p class="text-secondary small">
+                                 افتح تطبيق واتساب على هاتفك > الأجهزة المرتبطة > ربط جهاز > "الربط برقم الهاتف بدلاً من ذلك" ثم أدخل هذا الكود.
+                             </p>
+                         </div>
+                     </div>
+ 
+                     <!-- Inactivity Toggle inside connection -->
+                     <div class="p-3 rounded-4 mt-4" style="background: rgba(212, 175, 55, 0.05); border: 1px solid rgba(212, 175, 55, 0.1);">
+                         <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+                             <div>
+                                 <h6 class="fw-bold text-dark mb-1">📋 ⁩ملخص المحادثة التلقائي</h6>
+                                 <p class="text-secondary small mb-0">بعد <strong class="text-gold">15 دقيقة</strong> من سكوت العميل، يرسل البوت ملخص آخر 20 رسالة لجروب التحكم تلقائياً.</p>
+                             </div>
+                             <div class="d-flex align-items-center gap-3">
+                                 <span id="summary-toggle-label" class="small fw-semibold <%= user.inactivity_summary ? 'text-success' : 'text-secondary' %>">
+                                     <%= user.inactivity_summary ? '✅ مفعّل' : '⏸ موقوف' %>
+                                 </span>
+                                 <div class="form-check form-switch m-0">
+                                     <input class="form-check-input" type="checkbox" role="switch" id="inactivity-summary-toggle" <%= user.inactivity_summary ? 'checked' : '' %> style="cursor: pointer; width: 2.8em; height: 1.4em;">
+                                 </div>
+                             </div>
+                         </div>
+                     </div>
+ 
+                 </div>
+             </div>
+         </div>
+         <% } %>
+
+        <!-- 6 Statistical Cards -->
+        <!-- 6 Statistical Cards -->
+        <div class="row g-3 mb-4 fade-in-up" style="animation-delay: 0.2s;">
+            <!-- Successful -->
+            <div class="col-xl-2 col-md-4 col-sm-6">
+                <%- include('partials/stat_card', {
+                    title: 'العملاء الناجحين',
+                    value: stats.successfulCount,
+                    icon: 'fas fa-check-circle',
+                    themeColor: 'var(--success-color)',
+                    themeColorLight: 'rgba(16, 185, 129, 0.1)',
+                    trendText: 'مبيعات مكتملة',
+                    trendIcon: 'fas fa-trending-up',
+                    trendColor: 'text-success'
+                }) %>
+            </div>
+
+            <!-- Not Interested -->
+            <div class="col-xl-2 col-md-4 col-sm-6">
+                <%- include('partials/stat_card', {
+                    title: 'غير المهتمين',
+                    value: stats.notInterestedCount,
+                    icon: 'fas fa-times-circle',
+                    themeColor: 'var(--danger-color)',
+                    themeColorLight: 'rgba(239, 110, 110, 0.1)',
+                    trendText: 'مستبعدين',
+                    trendIcon: 'fas fa-arrow-down',
+                    trendColor: 'text-danger'
+                }) %>
+            </div>
+
+            <!-- Awaiting Sales -->
+            <div class="col-xl-2 col-md-4 col-sm-6">
+                <%- include('partials/stat_card', {
+                    title: 'مع المبيعات',
+                    value: stats.awaitingSalesCount,
+                    icon: 'fas fa-user-tie',
+                    themeColor: 'var(--primary-color)',
+                    themeColorLight: 'rgba(59, 130, 246, 0.1)',
+                    trendText: 'قيد المتابعة',
+                    trendIcon: 'fas fa-clock',
+                    trendColor: 'text-primary'
+                }) %>
+            </div>
+
+            <!-- First Follow Up -->
+            <div class="col-xl-2 col-md-4 col-sm-6">
+                <%- include('partials/stat_card', {
+                    title: 'المتابعة الأولى',
+                    value: stats.firstFollowUpCount,
+                    icon: 'fas fa-hourglass-start',
+                    themeColor: 'var(--orange-color)',
+                    themeColorLight: 'rgba(249, 115, 22, 0.1)',
+                    trendText: 'خلال 24 ساعة',
+                    trendIcon: 'fas fa-history',
+                    trendColor: 'text-warning'
+                }) %>
+            </div>
+
+            <!-- Final Follow Up -->
+            <div class="col-xl-2 col-md-4 col-sm-6">
+                <%- include('partials/stat_card', {
+                    title: 'المتابعة النهائية',
+                    value: stats.finalFollowUpCount,
+                    icon: 'fas fa-hourglass-end',
+                    themeColor: 'var(--warning-color)',
+                    themeColorLight: 'rgba(245, 158, 11, 0.1)',
+                    trendText: 'فرصة العرض والخصم',
+                    trendIcon: 'fas fa-percentage',
+                    trendColor: 'text-warning'
+                }) %>
+            </div>
+
+            <!-- Scheduled Follow Up -->
+            <div class="col-xl-2 col-md-4 col-sm-6">
+                <%- include('partials/stat_card', {
+                    title: 'متابعة بتاريخ',
+                    value: stats.scheduledFollowUpCount,
+                    icon: 'fas fa-calendar-check',
+                    themeColor: 'var(--purple-color)',
+                    themeColorLight: 'rgba(139, 92, 246, 0.1)',
+                    trendText: 'مواعيد مجدولة',
+                    trendIcon: 'fas fa-bell',
+                    trendColor: 'text-purple'
+                }) %>
+            </div>
+        </div>
+
+        <!-- Sales Employees Activity Section (Admin only) -->
+        <% if (user.role !== 'sales' && typeof employeesStats !== 'undefined' && employeesStats && employeesStats.length > 0) { %>
+            <div class="row g-3 mb-4 fade-in-up" style="animation-delay: 0.25s;">
+                <div class="col-12">
+                    <div class="card stat-card p-4 border-0">
+                        <h5 class="fw-bold mb-3 text-dark d-flex align-items-center gap-2">
+                            <i class="fas fa-users text-primary"></i>
+                            توزيع عملاء المبيعات قيد المتابعة
+                        </h5>
+                        <div class="row g-3">
+                            <% employeesStats.forEach(emp => { %>
+                                <div class="col-xl-3 col-md-4 col-sm-6">
+                                    <div class="p-3 rounded-4 border border-light bg-light d-flex justify-content-between align-items-center">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <div class="rounded-circle d-flex align-items-center justify-content-center" style="width: 36px; height: 36px; background: rgba(59, 130, 246, 0.1); color: var(--primary-color);">
+                                                <i class="fas fa-user-tie"></i>
+                                            </div>
+                                            <span class="fw-semibold text-dark"><%= emp.fullName %></span>
+                                        </div>
+                                        <span class="badge bg-primary rounded-pill px-3 py-2 fs-6"><%= emp.count %> عميل</span>
+                                    </div>
+                                </div>
+                            <% }) %>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        <% } %>
+
+        <!-- Charts and Conversion Row -->
+        <div class="row g-4 mb-4 fade-in-up" style="animation-delay: 0.3s;">
+            <!-- Conversion Card -->
+            <div class="col-lg-4">
+                <div class="card stat-card p-4 h-100 border-0">
+                    <h5 class="fw-bold mb-3 text-dark">📈 نسبة التحويل العامة</h5>
+                    <div class="d-flex flex-column justify-content-center align-items-center my-auto">
+                        <div class="position-relative d-flex align-items-center justify-content-center" style="width: 140px; height: 140px;">
+                            <!-- Simple ring simulation -->
+                            <div class="position-absolute w-100 h-100 rounded-circle border border-5 border-light"></div>
+                            <div class="position-absolute w-100 h-100 rounded-circle border border-5 border-success" style="clip-path: polygon(0 0, 100% 0, 100% <%= conversionRate %>%, 0 <%= conversionRate %>%);"></div>
+                            <div class="text-center">
+                                <h1 class="fw-extrabold text-success m-0" style="font-size: 2.2rem;"><%= conversionRate %>%</h1>
+                                <span class="small text-secondary fw-semibold">كفاءة الفانل</span>
+                            </div>
+                        </div>
+                        <p class="text-secondary small text-center mt-3 mb-0">نسبة العملاء الذين تم إتمام مبيعات ناجحة معهم من إجمالي عملاء النظام.</p>
+                    </div>
+                    
+                    <div class="border-top border-light pt-3 mt-3 d-flex justify-content-between text-secondary small">
+                        <span>الناجحين: <strong class="text-success"><%= stats.successfulCount %></strong></span>
+                        <span>إجمالي العملاء: <strong class="text-dark"><%= stats.totalCount %></strong></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- New Customers Chart -->
+            <div class="col-lg-8">
+                <div class="card stat-card p-4 h-100 border-0">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="fw-bold m-0 text-dark">📊 العملاء الجدد (آخر 7 أيام)</h5>
+                        <span class="badge bg-gold-light text-gold px-3 py-1.5 rounded-pill small"><i class="fas fa-user-plus me-1"></i> إجمالي: <%= chartData.reduce((a, b) => a + b, 0) %> ليد</span>
+                    </div>
+                    <div class="chart-container" style="position: relative; height: 220px; width: 100%;">
+                        <canvas id="newCustomersChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Last 5 Customers & Connection Status -->
+        <div class="row g-4 fade-in-up" style="animation-delay: 0.4s;">
+            <!-- Last 5 Customers Table -->
+            <div class="col-12">
+                <div class="card stat-card p-4 border-0">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="fw-bold m-0 text-dark">👤 آخر 5 عملاء مستلمين</h5>
+                        <a href="/dashboard/customers" class="btn btn-sm btn-link text-gold fw-bold text-decoration-none">عرض كل العملاء <i class="fas fa-arrow-left ms-1"></i></a>
+                    </div>
+                    
+                    <div class="table-responsive">
+                        <table class="table custom-table align-middle m-0">
+                            <thead>
+                                <tr class="text-secondary small">
+                                    <th>الاسم</th>
+                                    <th class="text-center" style="text-align: center !important;">رقم الهاتف</th>
+                                    <th>تاريخ الانضمام</th>
+                                    <th>المسؤول</th>
+
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% if (last5Customers && last5Customers.length > 0) { %>
+                                    <% last5Customers.forEach(cust => { %>
+                                        <tr>
+                                            <td class="fw-bold text-dark">
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <div class="rounded-circle d-flex align-items-center justify-content-center bg-gold-light text-gold" style="width: 32px; height: 32px; font-size: 0.85rem;">
+                                                        <%= (cust.customerName || 'ع').charAt(0).toUpperCase() %>
+                                                    </div>
+                                                    <span><%= cust.customerName || 'عميل واتساب' %></span>
+                                                </div>
+                                            </td>
+                                            <td class="font-monospace text-secondary text-center" dir="ltr" style="text-align: center !important;"><%= cust.phoneNumber %></td>
+                                            <td class="text-secondary small">
+                                                <%= new Date(cust.firstContactAt).toLocaleString('en-US', { hour12: true, dateStyle: 'medium', timeStyle: 'short' }) %>
+                                            </td>
+                                            <td class="text-secondary fw-medium">
+                                                <%= cust.assignedTo ? cust.assignedTo.fullName : 'غير مخصص' %>
+                                            </td>
+
+                                        </tr>
+                                    <% }) %>
+                                <% } else { %>
+                                    <tr>
+                                        <td colspan="4" class="text-center text-secondary py-5">
+                                            <i class="fas fa-users-slash d-block fs-1 mb-2 opacity-50"></i>
+                                            لا يوجد أي عملاء متاحين حالياً في النظام.
+                                        </td>
+                                    </tr>
+                                <% } %>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+
+        </div>
+        
+    </div>
+
+    <!-- Phone Pairing Modal -->
+    <div class="modal fade" id="pairModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+                <div class="modal-header border-light p-4 d-flex justify-content-between align-items-center">
+                    <h5 class="modal-title fw-bold text-dark m-0"><i class="fas fa-mobile-alt me-1 text-gold"></i> الربط برقم الهاتف</h5>
+                    <button type="button" class="btn-close m-0" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <form id="pairForm">
+                        <div class="mb-4">
+                            <label class="form-label text-secondary fw-semibold mb-2">أدخل رقم الهاتف مع كود الدولة</label>
+                            <div class="row g-2" dir="ltr">
+                                <div class="col-4">
+                                    <select class="form-select form-select-lg bg-light text-dark border-0 text-center fw-bold" id="countryCode" style="height: 50px;">
+                                        <option value="20" selected>+20</option>
+                                        <option value="966">+966</option>
+                                        <option value="971">+971</option>
+                                        <option value="965">+965</option>
+                                        <option value="974">+974</option>
+                                        <option value="968">+968</option>
+                                        <option value="973">+973</option>
+                                        <option value="962">+962</option>
+                                        <option value="">أخرى</option>
+                                    </select>
+                                </div>
+                                <div class="col-8">
+                                    <input type="tel" id="phoneNumberInput" class="form-control form-control-lg bg-light text-dark border-0 text-start fw-bold" placeholder="10xxxxxxxx" required dir="ltr" style="height: 50px;">
+                                </div>
+                            </div>
+                            <div class="form-text text-secondary mt-2 small">اكتب الرقم بدون الصفر الأول (مثال: اكتب 10xxxxxxx بدلاً من 010xxxxxxx).</div>
+                        </div>
+                        <button type="submit" class="btn btn-warning text-white w-100 rounded-pill py-2.5 fw-bold shadow-sm">
+                            <i class="fas fa-key me-1"></i> احصل على كود الربط
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chart rendering script -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const ctx = document.getElementById('newCustomersChart').getContext('2d');
+            
+            // Premium Chart.js Gradient Fill
+            const gradient = ctx.createLinearGradient(0, 0, 0, 200);
+            gradient.addColorStop(0, 'rgba(212, 175, 55, 0.2)');
+            gradient.addColorStop(1, 'rgba(212, 175, 55, 0.0)');
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: <%- JSON.stringify(chartLabels) %>,
+                    datasets: [{
+                        label: 'العملاء الجدد',
+                        data: <%- JSON.stringify(chartData) %>,
+                        borderColor: '#d4af37',
+                        backgroundColor: gradient,
+                        borderWidth: 3,
+                        tension: 0.4,
+                        fill: true,
+                        pointBackgroundColor: '#d4af37',
+                        pointBorderColor: '#ffffff',
+                        pointBorderWidth: 2,
+                        pointRadius: 5,
+                        pointHoverRadius: 7
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            backgroundColor: '#1e293b',
+                            titleFont: { family: 'Noto Kufi Arabic', size: 12 },
+                            bodyFont: { family: 'Noto Kufi Arabic', size: 12 },
+                            padding: 10,
+                            rtl: true
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1,
+                                color: '#64748b',
+                                font: { family: 'Outfit', size: 11 }
+                            },
+                            grid: {
+                                color: '#f1f5f9'
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                color: '#64748b',
+                                font: { family: 'Noto Kufi Arabic', size: 10 }
+                            },
+                            grid: {
+                                display: false
+                            }
+                        }
+                    }
+                }
+            });
+        });
+    </script>
+
+    <!-- Sockets and interaction logic -->
+    <script>
+        const userRole = "<%= user.role %>";
+        if (userRole !== 'sales') {
+            const socket = io();
+            const userId = "<%= user.id %>";
+
+            socket.emit('join_room', `user_${userId}`);
+
+            const startBtn = document.getElementById('start-btn');
+            const pairBtn = document.getElementById('pair-btn');
+            const pauseBtn = document.getElementById('pause-btn');
+            const logoutBtn = document.getElementById('logout-btn');
+
+            const qrContainer = document.getElementById('qr-container');
+            const pairingContainer = document.getElementById('pairing-container');
+            const loader = document.getElementById('loader');
+
+            const statusText = document.getElementById('status-text');
+            const statusDot = document.getElementById('status-dot');
+            const connectedPhone = document.getElementById('connected-phone');
+
+            // Header status elements
+            const headerStatusText = document.getElementById('header-status-text');
+            const headerStatusDot = document.getElementById('header-status-dot');
+            const headerStatusBadge = document.getElementById('header-status-badge');
+            const headerChevron = document.getElementById('header-chevron');
+            const connectionCollapse = document.getElementById('connectionCollapse');
+
+            // Rotate chevron on collapse toggle
+            if (connectionCollapse) {
+                connectionCollapse.addEventListener('show.bs.collapse', function () {
+                    headerChevron.style.transform = 'rotate(180deg)';
+                });
+                connectionCollapse.addEventListener('hide.bs.collapse', function () {
+                    headerChevron.style.transform = 'rotate(0deg)';
+                });
+            }
+
+            const qrCanvas = document.getElementById('qr-canvas');
+            const qrProgress = document.getElementById('qr-progress');
+            const timerText = document.getElementById('timer-text');
+            const pairingCodeDisplay = document.getElementById('pairing-code-display');
+
+            let timerInterval;
+            let isPairingFlow = false;
+
+            function startQrTimer() {
+                clearInterval(timerInterval);
+                let timeLeft = 40;
+                if (qrProgress) qrProgress.style.width = '100%';
+
+                timerInterval = setInterval(() => {
+                    timeLeft--;
+                    const percentage = (timeLeft / 40) * 100;
+                    if (qrProgress) qrProgress.style.width = percentage + '%';
+                    if (timerText) timerText.innerText = timeLeft + 'ث';
+
+                    if (timeLeft <= 0) {
+                        clearInterval(timerInterval);
+                        if (timerText) timerText.innerText = 'جاري التحديث...';
+                    }
+                }, 1000);
+            }
+
+            // Set status UI helper
+            function updateStatusUI(status, phoneText = '') {
+                if (phoneText) {
+                    connectedPhone.innerText = `📞 ${phoneText}`;
+                    connectedPhone.classList.remove('d-none');
+                } else if (!phoneText && connectedPhone.innerText === 'غير مرتبط') {
+                    // Keep it
+                } else {
+                    connectedPhone.innerText = 'غير مرتبط';
+                }
+
+                // Status details
+                let label = 'غير متصل';
+                let dotClass = 'bg-danger';
+                let headerClass = 'bg-danger text-white';
+
+                if (status === 'online') {
+                    label = 'متصل';
+                    dotClass = 'bg-success';
+                    headerClass = 'bg-success text-white';
+                    
+                    qrContainer.classList.add('d-none');
+                    pairingContainer.classList.add('d-none');
+                    loader.classList.add('d-none');
+                    clearInterval(timerInterval);
+                    isPairingFlow = false;
+
+                    startBtn.disabled = true;
+                    if (pairBtn) pairBtn.disabled = true;
+                    pauseBtn.disabled = false;
+                    logoutBtn.disabled = false;
+                } else if (status === 'meta_online') {
+                    label = 'متصل عبر WhatsApp Business API ✅';
+                    dotClass = 'bg-success';
+                    headerClass = 'bg-success text-white';
+                    
+                    qrContainer.classList.add('d-none');
+                    pairingContainer.classList.add('d-none');
+                    loader.classList.add('d-none');
+                    clearInterval(timerInterval);
+                    isPairingFlow = false;
+
+                    startBtn.disabled = true;
+                    if (pairBtn) pairBtn.disabled = true;
+                    pauseBtn.disabled = false;
+                    logoutBtn.disabled = false;
+                } else if (status === 'paused') {
+                    label = 'متوقف مؤقتاً';
+                    dotClass = 'bg-warning';
+                    headerClass = 'bg-warning text-dark';
+
+                    loader.classList.add('d-none');
+                    startBtn.innerText = '▶ تشغيل البوت';
+                    startBtn.disabled = false;
+                    if (pairBtn) pairBtn.disabled = true;
+                    pauseBtn.disabled = true;
+                    logoutBtn.disabled = false;
+                } else if (status === 'paused_manual') {
+                    label = 'متوقف يدوياً';
+                    dotClass = 'bg-orange';
+                    headerClass = 'bg-warning text-dark';
+
+                    loader.classList.add('d-none');
+                    startBtn.innerText = '▶ تشغيل البوت';
+                    startBtn.disabled = false;
+                    if (pairBtn) pairBtn.disabled = true;
+                    pauseBtn.disabled = true;
+                    logoutBtn.disabled = false;
+                } else if (status === 'connecting') {
+                    label = 'جاري الاتصال...';
+                    dotClass = 'bg-info';
+                    headerClass = 'bg-info text-dark';
+                    loader.classList.remove('d-none');
+                } else {
+                    label = 'غير متصل';
+                    dotClass = 'bg-danger';
+                    headerClass = 'bg-danger text-white';
+
+                    loader.classList.add('d-none');
+                    startBtn.innerText = '🔄 تشغيل / تحديث';
+                    startBtn.disabled = false;
+                    if (pairBtn) pairBtn.disabled = false;
+                    pauseBtn.disabled = true;
+                    logoutBtn.disabled = true;
+                    isPairingFlow = false;
+                }
+
+                // Apply styles to elements
+                statusText.innerText = label;
+                statusDot.className = `status-dot ${dotClass}`;
+                headerStatusText.innerText = label;
+                headerStatusDot.className = `status-dot ${dotClass}`;
+                headerStatusBadge.style.backgroundColor = dotClass === 'bg-success' ? 'rgba(16, 185, 129, 0.1)' : (dotClass === 'bg-danger' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(245, 158, 11, 0.1)');
+                headerStatusBadge.style.color = dotClass === 'bg-success' ? 'var(--success-color)' : (dotClass === 'bg-danger' ? 'var(--danger-color)' : 'var(--warning-color)');
+            }
+
+            // Initialize status on load
+            updateStatusUI("<%= status %>", "<%= phone %>");
+
+            // --- Socket Listeners ---
+            socket.on('status', (data) => {
+                console.log('Status update received:', data);
+                let status = typeof data === 'string' ? data : data.status;
+                let phone = data.phone || '';
+                updateStatusUI(status, phone);
+            });
+
+            socket.on('qr_code', (qr) => {
+                if (statusText.innerText.includes('متصل')) return;
+                if (isPairingFlow || !pairingContainer.classList.contains('d-none')) {
+                    console.log('Ignoring QR code because pairing flow is active');
+                    return;
+                }
+
+                console.log('Rendering QR Code canvas');
+                loader.classList.add('d-none');
+                pairingContainer.classList.add('d-none');
+                qrContainer.classList.remove('d-none');
+
+                startQrTimer();
+
+                if (typeof QRCode !== 'undefined') {
+                    QRCode.toCanvas(qrCanvas, qr, { width: 220, margin: 2 }, function (error) {
+                        if (error) console.error(error);
+                    });
+                }
+            });
+
+            window.copyPairingCode = function (code) {
+                if (navigator && navigator.clipboard) {
+                    navigator.clipboard.writeText(code).then(() => {
+                        if (window.showToast) window.showToast('تم نسخ الرقم بنجاح!');
+                        const btn = document.querySelector('.btn-copy-code');
+                        if (btn) {
+                            const originalHTML = btn.innerHTML;
+                            btn.innerHTML = '<i class="fas fa-check me-1"></i> تم النسخ';
+                            btn.classList.replace('btn-outline-warning', 'btn-success');
+                            setTimeout(() => {
+                                btn.innerHTML = originalHTML;
+                                btn.classList.replace('btn-success', 'btn-outline-warning');
+                            }, 2000);
+                        }
+                    });
+                } else {
+                    const input = document.createElement('input');
+                    input.value = code;
+                    document.body.appendChild(input);
+                    input.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(input);
+                    alert('تم نسخ الكود للذاكرة بنجاح!');
+                }
+            };
+
+            socket.on('pairing_code', (code) => {
+                if (statusText.innerText.includes('متصل')) return;
+
+                loader.classList.add('d-none');
+                qrContainer.classList.add('d-none');
+                pairingContainer.classList.remove('d-none');
+
+                if (code && code.length >= 8) {
+                    const p1 = code.slice(0, 4);
+                    const p2 = code.slice(4);
+                    pairingCodeDisplay.innerHTML = `
+                        <div class="d-flex flex-column align-items-center justify-content-center" dir="ltr">
+                            <div class="d-flex align-items-center gap-3 display-4 fw-extrabold text-warning">
+                                <span>${p1}</span>
+                                <span>-</span>
+                                <span>${p2}</span>
+                            </div>
+                            <button onclick="copyPairingCode('${code}')" class="btn btn-outline-warning btn-md rounded-pill px-4 py-2 mt-3 btn-copy-code">
+                                <i class="far fa-copy me-1"></i> نسخ الكود
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    pairingCodeDisplay.innerText = code;
+                }
+            });
+
+            socket.on('pairing_error', (err) => {
+                loader.classList.add('d-none');
+                alert('حدث خطأ أثناء الربط: ' + err);
+                isPairingFlow = false;
+            });
+
+            // --- Buttons Interaction ---
+            const pairModalElement = document.getElementById('pairModal');
+            const pairModal = pairModalElement ? new bootstrap.Modal(pairModalElement) : null;
+            const pairForm = document.getElementById('pairForm');
+
+            if (pairBtn && pairModal) {
+                pairBtn.addEventListener('click', () => {
+                    pairModal.show();
+                });
+            }
+
+            if (pairForm) {
+                pairForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const code = document.getElementById('countryCode').value;
+                    let number = document.getElementById('phoneNumberInput').value.trim();
+                    
+                    if (number.startsWith('0')) {
+                        number = number.substring(1);
+                    }
+
+                    const phoneNumber = code + number;
+                    if (pairModal) pairModal.hide();
+
+                    isPairingFlow = true;
+                    loader.classList.remove('d-none');
+                    qrContainer.classList.add('d-none');
+                    pairingContainer.classList.add('d-none');
+                    statusText.innerText = 'جاري طلب كود الربط...';
+
+                    try {
+                        await fetch('/dashboard/pair-bot', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ phoneNumber })
+                        });
+                    } catch (err) {
+                        console.error(err);
+                        alert("فشل في طلب الكود. يرجى التحقق من الاتصال.");
+                        loader.classList.add('d-none');
+                        isPairingFlow = false;
+                    }
+                });
+            }
+
+            if (startBtn) {
+                startBtn.addEventListener('click', async () => {
+                    isPairingFlow = false;
+                    loader.classList.remove('d-none');
+                    startBtn.disabled = true;
+
+                    qrContainer.classList.add('d-none');
+                    pairingContainer.classList.add('d-none');
+
+                    try {
+                        const response = await fetch('/dashboard/start-bot', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+                        if (!response.ok) throw new Error('فشل التشغيل');
+                    } catch (err) {
+                        console.error(err);
+                        loader.classList.add('d-none');
+                        startBtn.disabled = false;
+                    }
+                });
+            }
+
+            if (pauseBtn) {
+                pauseBtn.addEventListener('click', async () => {
+                    if (confirm('هل أنت متأكد من إيقاف البوت مؤقتاً؟\n(لن يرد البوت على رسائل العملاء، لكنه سيظل متصلاً بالواتساب)')) {
+                        try {
+                            const response = await fetch('/dashboard/stop-bot', { method: 'POST' });
+                            if (!response.ok) throw new Error('فشل إيقاف البوت');
+                        } catch (err) {
+                            alert(err.message);
+                        }
+                    }
+                });
+            }
+
+            if (logoutBtn) {
+                logoutBtn.addEventListener('click', async () => {
+                    if (confirm('هل أنت متأكد من تسجيل الخروج وحذف جلسة الاتصال بالواتساب نهائياً؟\n(ستحتاج لإعادة مسح كود QR للربط مرة أخرى)')) {
+                        try {
+                            loader.classList.remove('d-none');
+                            const response = await fetch('/dashboard/logout-bot', { method: 'POST' });
+                            if (!response.ok) throw new Error('فشل تسجيل الخروج');
+
+                            updateStatusUI('not_registered', '');
+                            location.reload();
+                        } catch (err) {
+                            alert(err.message);
+                        }
+                    }
+                });
+            }
+
+            // --- Inactivity Summary Toggle ---
+            const summaryToggle = document.getElementById('inactivity-summary-toggle');
+            const summaryLabel = document.getElementById('summary-toggle-label');
+            if (summaryToggle) {
+                summaryToggle.addEventListener('change', async () => {
+                    const enabled = summaryToggle.checked;
+                    try {
+                        const res = await fetch('/dashboard/toggle-inactivity-summary', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ enabled })
+                        });
+                        if (!res.ok) throw new Error('فشل');
+                        summaryLabel.textContent = enabled ? '✅ مفعّل' : '⏸ موقوف';
+                        summaryLabel.className = `small fw-semibold ${enabled ? 'text-success' : 'text-secondary'}`;
+                    } catch (e) {
+                        alert('حدث خطأ أثناء حفظ الإعداد');
+                        summaryToggle.checked = !enabled;
+                    }
+                });
+            }
+        }
+    </script>
+</body>
+
+</html>

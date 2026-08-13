@@ -1,0 +1,10 @@
+node_modules/
+.env
+*.zip
+*.sql
+*.backup_*
+project-*.json
+public/uploads/
+sessions/
+logs/
+.DS_Store

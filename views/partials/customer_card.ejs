@@ -1,0 +1,53 @@
+`
+<div class="customer-card-mobile animate-fade-in mb-3 p-3 bg-white rounded-3 shadow-sm border" id="card-${cust.id}">
+    <div class="d-flex justify-content-between align-items-start border-bottom pb-2 mb-2">
+        <div>
+            <h6 class="fw-bold text-dark mb-0">${cust.customerName || 'عميل واتساب'}</h6>
+            <code class="text-secondary small">${cust.phoneNumber}</code>
+        </div>
+        <div>
+            <a href="https://wa.me/${cust.phoneNumber}" target="_blank" class="btn btn-sm btn-outline-success px-2 py-1 rounded me-1" title="محادثة واتساب">
+                <i class="bi bi-whatsapp"></i>
+            </a>
+            <button class="btn btn-sm btn-outline-info px-2 py-1 rounded" onclick="showCustomerDetails(${cust.id}, ${serialNum})" title="عرض التفاصيل">
+                <i class="bi bi-person-lines-fill"></i>
+            </button>
+        </div>
+    </div>
+    <div class="row g-2 small">
+        ${assigneeSelect}
+
+        <div class="col-6 mb-2">
+            <strong class="small text-secondary d-block">الحالة:</strong>
+            <select class="status-select status-${cust.status} form-select-sm mt-1 w-100 border-0 shadow-sm" onchange="updateStatus(${cust.id}, this.value)">
+                ${statusOptions}
+            </select>
+        </div>
+
+        ${(() => {
+                if (cust.scheduledFollowUpAt) {
+                    const formatted = formatDateTime(cust.scheduledFollowUpAt);
+                    if (cust.status === 'scheduled_follow_up') {
+                        return `<div class="col-12 small text-muted mb-2"><i class="bi bi-clock me-1 text-primary"></i> ${formatted}</div>`;
+                    } else if (cust.status === 'first_follow_up') {
+                        return `<div class="col-12 small text-muted mb-2"><i class="bi bi-clock me-1 text-warning"></i> ${formatted}</div>`;
+                    } else if (cust.status === 'final_follow_up') {
+                        return `<div class="col-12 small text-muted mb-2"><i class="bi bi-clock me-1 text-danger"></i> ${formatted}</div>`;
+                    }
+                }
+                return '';
+            })()}
+
+        <div class="col-12 border-top pt-2">
+            <strong class="small text-secondary d-block mb-1"><i class="bi bi-sticky text-primary me-1"></i>الملاحظات:</strong>
+            <div class="p-2 rounded bg-light border cursor-pointer" 
+                 onclick="openEditNoteModal(${cust.id})"
+                 title="اضغط للتعديل أو العرض الكامل">
+                <div class="text-dark small text-truncate" style="max-height: 40px; overflow: hidden;">
+                    ${cust.notes ? (cust.notes.length > 40 ? cust.notes.substring(0, 40) + '...' : cust.notes) : '<em class="text-muted">انقر لإضافة ملاحظة...</em>'}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+`

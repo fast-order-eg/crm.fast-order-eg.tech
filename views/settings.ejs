@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>إعدادات المتابعة والتوقيتات - Bird-CRM</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="/style.css?v=<%= Date.now() %>" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Modern Premium Tabs Styling */
+        #settingsTabs {
+            background: rgba(0, 0, 0, 0.03);
+            padding: 8px;
+            border-radius: 16px;
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+
+        #settingsTabs .nav-link {
+            color: var(--text-secondary);
+            font-weight: 600;
+            border-radius: 12px;
+            padding: 12px 20px;
+            transition: all 0.3s ease;
+            border: 1px solid transparent;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        #settingsTabs .nav-link.active {
+            background-color: var(--primary-color) !important;
+            color: #000 !important;
+            box-shadow: 0 4px 12px rgba(212, 175, 55, 0.2);
+        }
+
+        #settingsTabs .nav-link:hover:not(.active) {
+            background-color: rgba(0, 0, 0, 0.05);
+            color: var(--text-color);
+        }
+
+        .tab-content {
+            margin-top: 24px;
+        }
+
+        textarea.form-control {
+            background-color: #ffffff;
+            border: 1px solid #cbd5e1;
+            color: #0f172a;
+            resize: vertical;
+            min-height: 120px;
+        }
+
+        textarea.form-control:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.15);
+        }
+
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--text-color);
+            border-bottom: 2px solid var(--primary-color);
+            padding-bottom: 8px;
+            margin-bottom: 20px;
+            display: inline-block;
+        }
+    </style>
+</head>
+
+<body>
+    <%- include('partials/navbar') %>
+    <%- include('partials/sidebar') %>
+
+    <div class="container-fluid main-content px-4 px-lg-5">
+        <div class="glass-card p-4 p-md-5 animate-fade-in">
+            <h2 class="mb-4 fw-bold d-flex align-items-center gap-2 text-dark">
+                <i class="bi bi-gear-wide-connected text-warning"></i>
+                إعدادات المتابعة والتوقيتات
+            </h2>
+
+            <!-- Success/Error Flash Alerts -->
+            <% if (typeof success_msg !== 'undefined' && success_msg && success_msg.length > 0) { %>
+                <div class="alert alert-success alert-dismissible fade show d-flex align-items-center mb-4" role="alert" style="background: rgba(22, 163, 74, 0.1); border-color: rgba(22, 163, 74, 0.2); color: #16a34a;">
+                    <i class="bi bi-check-circle-fill me-2 fs-5"></i>
+                    <div><%= success_msg %></div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            <% } %>
+
+            <% if (typeof error_msg !== 'undefined' && error_msg && error_msg.length > 0) { %>
+                <div class="alert alert-danger alert-dismissible fade show d-flex align-items-center mb-4" role="alert" style="background: rgba(220, 38, 38, 0.1); border-color: rgba(220, 38, 38, 0.2); color: #dc2626;">
+                    <i class="bi bi-exclamation-triangle-fill me-2 fs-5"></i>
+                    <div><%= error_msg %></div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            <% } %>
+
+            <!-- Navigation Pills Tabs -->
+            <ul class="nav nav-pills mb-4" id="settingsTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="messages-tab" data-bs-toggle="pill" data-bs-target="#messages-pane" type="button" role="tab" aria-controls="messages-pane" aria-selected="true">
+                        <i class="bi bi-chat-left-text"></i>
+                        رسائل المتابعة
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="timers-tab" data-bs-toggle="pill" data-bs-target="#timers-pane" type="button" role="tab" aria-controls="timers-pane" aria-selected="false">
+                        <i class="bi bi-hourglass-split"></i>
+                        التوقيتات والمدد
+                    </button>
+                </li>
+            </ul>
+
+            <!-- Unified Form for all settings -->
+            <form action="/dashboard/settings/update" method="POST">
+                <!-- Tabs Content -->
+                <div class="tab-content" id="settingsTabsContent">
+                    
+                    <!-- 1. Follow-up Messages Tab -->
+                    <div class="tab-pane fade show active" id="messages-pane" role="tabpanel" aria-labelledby="messages-tab">
+                        <h5 class="section-title">رسائل المتابعة التلقائية للعملاء</h5>
+                        
+                        <div class="row g-4">
+                            <!-- First Follow-up Section -->
+                            <div class="col-md-6">
+                                <div class="card border-0 shadow-sm p-4 rounded-4 bg-light mb-3">
+                                    <h6 class="fw-bold mb-3 text-dark"><i class="bi bi-chat-dots text-primary me-1"></i> المتابعة الأولى</h6>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold text-secondary small">نوع المتابعة الأولى</label>
+                                        <select name="first_followup_type" class="form-select border-0 shadow-sm py-2.5 rounded-3 fw-medium">
+                                            <option value="static" <%= settings.first_followup_type === 'static' ? 'selected' : '' %>>ثابتة (إرسال الرسالة النموذجية كما هي)</option>
+                                            <option value="dynamic" <%= settings.first_followup_type === 'dynamic' ? 'selected' : '' %>>متغيرة بالذكاء الاصطناعي (ذكية بناءً على سياق الدردشة)</option>
+                                        </select>
+                                        <div class="form-text text-muted small mt-1">الرسالة المتغيرة تحمي رقمك من الحظر عن طريق عدم تكرار نفس الرسالة النصية للجميع.</div>
+                                    </div>
+
+                                    <div class="mb-0">
+                                        <label class="form-label fw-bold text-secondary small">نص الرسالة النموذجية (أو السياق الأساسي للمتابعة)</label>
+                                        <textarea name="first_followup_message" class="form-control rounded-3" rows="5" required><%= settings.first_followup_message %></textarea>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Final Follow-up Section -->
+                            <div class="col-md-6">
+                                <div class="card border-0 shadow-sm p-4 rounded-4 bg-light mb-3">
+                                    <h6 class="fw-bold mb-3 text-dark"><i class="bi bi-chat-heart text-danger me-1"></i> المتابعة النهائية</h6>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold text-secondary small">نوع المتابعة النهائية</label>
+                                        <select name="final_followup_type" class="form-select border-0 shadow-sm py-2.5 rounded-3 fw-medium">
+                                            <option value="static" <%= settings.final_followup_type === 'static' ? 'selected' : '' %>>ثابتة (إرسال الرسالة النموذجية كما هي)</option>
+                                            <option value="dynamic" <%= settings.final_followup_type === 'dynamic' ? 'selected' : '' %>>متغيرة بالذكاء الاصطناعي (ذكية بناءً على سياق الدردشة)</option>
+                                        </select>
+                                        <div class="form-text text-muted small mt-1">يصيغها الذكاء الاصطناعي بناءً على اهتمامات العميل وسجل الدردشة.</div>
+                                    </div>
+
+                                    <div class="mb-0">
+                                        <label class="form-label fw-bold text-secondary small">نص الرسالة النموذجية أو السياق الأساسي للمتابعة</label>
+                                        <textarea name="final_followup_message" class="form-control rounded-3" rows="5" required><%= settings.final_followup_message %></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 2. Timings Tab -->
+                    <div class="tab-pane fade" id="timers-pane" role="tabpanel" aria-labelledby="timers-tab">
+                        <h5 class="section-title">⏱️ مدد الانتظار وجدولة المتابعات</h5>
+                        
+                        <div class="row g-4">
+                            <div class="col-md-6">
+                                <div class="card border-0 shadow-sm p-4 rounded-4 bg-light h-100">
+                                    <h6 class="fw-bold mb-3 text-dark"><i class="bi bi-clock text-warning me-1"></i> تأخير المتابعات</h6>
+                                    
+                                    <div class="mb-4">
+                                        <label class="form-label fw-bold text-secondary small">تأخير المتابعة الأولى</label>
+                                        <div class="input-group shadow-sm rounded-3 overflow-hidden">
+                                            <input type="number" name="first_followup_delay" class="form-control border-0 bg-white py-2.5 px-3" value="<%= settings.first_followup_delay %>" required min="1">
+                                            <select name="first_followup_delay_unit" class="form-select border-0 bg-white text-center fw-medium py-2.5" style="max-width: 120px; border-inline-start: 1px solid #cbd5e1 !important;">
+                                                <option value="hours" <%= settings.first_followup_delay_unit === 'hours' ? 'selected' : '' %>>ساعة</option>
+                                                <option value="minutes" <%= settings.first_followup_delay_unit === 'minutes' ? 'selected' : '' %>>دقيقة</option>
+                                            </select>
+                                        </div>
+                                        <div class="alert alert-info border-0 shadow-sm mt-3 mb-0 py-2.5 px-3 rounded-3 small">
+                                            <i class="bi bi-info-circle-fill me-1 text-info"></i>
+                                            <span>بمجرد تغيير حالة العميل إلى "المتابعة الأولى" (يدوياً بواسطة السيلز أو تلقائياً بواسطة البوت عند سكون العميل)، سيتم الانتظار لمدة </span>
+                                            <strong id="first_followup_explain_val" class="text-dark"><%= settings.first_followup_delay %> <%= settings.first_followup_delay_unit === 'hours' ? 'ساعة' : 'دقيقة' %></strong>
+                                            <span> ثم إرسال رسالة المتابعة الأولى تلقائياً.</span>
+                                        </div>
+                                    </div>
+
+
+
+                                    <div class="mb-0">
+                                        <label class="form-label fw-bold text-secondary small">تأخير المتابعة النهائية</label>
+                                        <div class="input-group shadow-sm rounded-3 overflow-hidden">
+                                            <input type="number" name="final_followup_delay" class="form-control border-0 bg-white py-2.5 px-3" value="<%= settings.final_followup_delay %>" required min="1">
+                                            <select name="final_followup_delay_unit" class="form-select border-0 bg-white text-center fw-medium py-2.5" style="max-width: 120px; border-inline-start: 1px solid #cbd5e1 !important;">
+                                                <option value="hours" <%= settings.final_followup_delay_unit === 'hours' ? 'selected' : '' %>>ساعة</option>
+                                                <option value="minutes" <%= settings.final_followup_delay_unit === 'minutes' ? 'selected' : '' %>>دقيقة</option>
+                                            </select>
+                                        </div>
+                                        <div class="alert alert-info border-0 shadow-sm mt-3 mb-0 py-2.5 px-3 rounded-3 small">
+                                            <i class="bi bi-info-circle-fill me-1 text-info"></i>
+                                            <span>بعد إرسال رسالة المتابعة الأولى بنجاح، سيتم الانتظار لمدة </span>
+                                            <strong id="final_followup_explain_val" class="text-dark"><%= settings.final_followup_delay %> <%= settings.final_followup_delay_unit === 'hours' ? 'ساعة' : 'دقيقة' %></strong>
+                                            <span> ثم إرسال رسالة المتابعة النهائية (العرض) تلقائياً للعميل.</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="card border-0 shadow-sm p-4 rounded-4 bg-light h-100">
+                                    <h6 class="fw-bold mb-3 text-dark"><i class="bi bi-gear text-secondary me-1"></i> إعدادات وخصائص إضافية</h6>
+
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold text-secondary small">تحويل العميل للمبيعات تلقائياً (بالدقائق)</label>
+                                        <input type="number" name="no_action_timeout" class="form-control rounded-3" value="<%= settings.no_action_timeout %>" required min="1">
+                                        <div class="form-text text-muted">المدة بالدقائق التي ينتظرها البوت دون تفاعل من العميل قبل تحويل المحادثة لمندوب المبيعات تلقائياً.</div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold text-secondary small"><i class="bi bi-telephone-outbound text-primary me-1"></i> رقم واتساب الأدمن الرئيسي للإشعارات</label>
+                                        <input type="text" name="admin_notification_phone" class="form-control rounded-3 py-2 px-3" value="<%= settings.admin_notification_phone || '201092308465' %>" placeholder="مثال: 201092308465">
+                                        <div class="form-text text-muted small">الرقم الذي تصله كافة الإشعارات والملخصات لجميع العملاء بالنظام.</div>
+                                    </div>
+
+                                    <div class="form-check form-switch d-flex align-items-center justify-content-between p-3 border rounded-3 bg-white shadow-sm mb-3" style="direction: rtl;">
+                                        <div>
+                                            <label class="form-check-label fw-bold text-dark small mb-1" for="enable_whatsapp_notifications" style="cursor: pointer;">تفعيل إرسال الإشعارات والملخصات على الواتساب</label>
+                                            <div class="form-text text-muted small">عند تفعيله، يتم إرسال إشعارات التحويل وملخصات الـ 15 دقيقة على الواتساب للأدمن وللموظفين.</div>
+                                        </div>
+                                        <input class="form-check-input ms-0" type="checkbox" role="switch" id="enable_whatsapp_notifications" name="enable_whatsapp_notifications" value="true" <%= settings.enable_whatsapp_notifications ? 'checked' : '' %> style="cursor: pointer; width: 2.8em; height: 1.4em;">
+                                    </div>
+
+                                    <div class="form-check form-switch d-flex align-items-center justify-content-between p-3 border rounded-3 bg-white shadow-sm mb-0" style="direction: rtl;">
+                                        <div>
+                                            <label class="form-check-label fw-bold text-dark small mb-1" for="sales_view_own_chats_only" style="cursor: pointer;">كل موظف يرى محادثاته فقط</label>
+                                            <div class="form-text text-muted small">عند تفعيله، سيتمكن موظفو المبيعات (Sales) من رؤية المحادثات المخصصة لهم فقط. عند تعطيله، يرى الجميع كافة المحادثات.</div>
+                                        </div>
+                                        <input class="form-check-input ms-0" type="checkbox" role="switch" id="sales_view_own_chats_only" name="sales_view_own_chats_only" value="true" <%= settings.sales_view_own_chats_only ? 'checked' : '' %> style="cursor: pointer; width: 2.8em; height: 1.4em;">
+                                    </div>
+
+                                    <div class="mb-0 mt-4 p-4 border rounded-4 bg-white shadow-sm position-relative">
+                                        <div class="d-flex align-items-center mb-3">
+                                            <div class="bg-success bg-opacity-10 p-2 rounded-circle me-3 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                                <i class="bi bi-whatsapp text-success fs-5"></i>
+                                            </div>
+                                            <h6 class="fw-bold mb-0 text-dark">مجموعة تحويل الاستفسارات</h6>
+                                        </div>
+                                        <p class="text-muted small mb-3 lh-lg">
+                                            يتم تحويل استفسارات العملاء التي تتطلب تدخل بشري إلى جروب واتساب مخصص. يجب إنشاء جروب بهذا الاسم الدقيق:
+                                        </p>
+                                        <div class="d-flex align-items-center justify-content-between bg-light rounded-3 p-3 mb-4 border">
+                                            <strong class="text-dark fs-5 font-monospace" style="letter-spacing: 1px;">Bird CRM</strong>
+                                            <button type="button" class="btn btn-light border shadow-sm py-1 px-2 transition-all hover-scale" onclick="copyGroupName(this)" title="نسخ اسم الجروب">
+                                                <i class="far fa-copy text-secondary"></i>
+                                            </button>
+                                        </div>
+                                        
+                                        <button type="button" id="checkGroupBtn" class="btn btn-primary w-100 fw-bold rounded-3 py-2 shadow-sm transition-all">
+                                            <i class="bi bi-search me-1"></i> فحص حالة الجروب
+                                        </button>
+                                        <div id="checkGroupResult" class="mt-3 small rounded-3" style="display: none;"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Unified Save Button -->
+                <div class="d-flex justify-content-end mt-4">
+                    <button type="submit" class="btn btn-warning text-dark px-5 py-3 rounded-pill fw-bold shadow-sm">
+                        <i class="fas fa-save me-2"></i>
+                        حفظ جميع الإعدادات
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Persistence of active Bootstrap tab across reloads/redirects -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Restore active tab
+            const activeTabId = localStorage.getItem('activeSettingsTab');
+            if (activeTabId) {
+                const tabEl = document.querySelector(`#settingsTabs button[id="${activeTabId}"]`);
+                if (tabEl) {
+                    const tabTrigger = new bootstrap.Tab(tabEl);
+                    tabTrigger.show();
+                }
+            }
+
+            // Save active tab on click
+            const tabButtons = document.querySelectorAll('#settingsTabs button[data-bs-toggle="pill"]');
+            tabButtons.forEach(btn => {
+                btn.addEventListener('shown.bs.tab', (e) => {
+                    localStorage.setItem('activeSettingsTab', e.target.id);
+                });
+            });
+
+            // --- تفاعل التوقيت والوحدات ديناميكياً ---
+            const firstDelayInput = document.querySelector('input[name="first_followup_delay"]');
+            const firstUnitSelect = document.querySelector('select[name="first_followup_delay_unit"]');
+            const firstExplainVal = document.getElementById('first_followup_explain_val');
+
+            const finalDelayInput = document.querySelector('input[name="final_followup_delay"]');
+            const finalUnitSelect = document.querySelector('select[name="final_followup_delay_unit"]');
+            const finalExplainVal = document.getElementById('final_followup_explain_val');
+
+            if (firstUnitSelect) firstUnitSelect.dataset.prev = firstUnitSelect.value;
+            if (finalUnitSelect) finalUnitSelect.dataset.prev = finalUnitSelect.value;
+
+            function updateFirstExplain() {
+                if (!firstDelayInput || !firstUnitSelect || !firstExplainVal) return;
+                const val = firstDelayInput.value || 0;
+                const unitText = firstUnitSelect.value === 'hours' ? 'ساعة' : 'دقيقة';
+                firstExplainVal.textContent = `${val} ${unitText}`;
+            }
+
+            function updateFinalExplain() {
+                if (!finalDelayInput || !finalUnitSelect || !finalExplainVal) return;
+                const val = finalDelayInput.value || 0;
+                const unitText = finalUnitSelect.value === 'hours' ? 'ساعة' : 'دقيقة';
+                finalExplainVal.textContent = `${val} ${unitText}`;
+            }
+
+            if (firstDelayInput) {
+                firstDelayInput.addEventListener('input', updateFirstExplain);
+            }
+            if (firstUnitSelect) {
+                firstUnitSelect.addEventListener('change', (e) => {
+                    const currentUnit = e.target.value;
+                    const prevUnit = e.target.dataset.prev;
+                    let val = parseFloat(firstDelayInput.value) || 0;
+
+                    if (currentUnit !== prevUnit) {
+                        if (currentUnit === 'minutes' && prevUnit === 'hours') {
+                            firstDelayInput.value = Math.round(val * 60);
+                        } else if (currentUnit === 'hours' && prevUnit === 'minutes') {
+                            firstDelayInput.value = Math.max(1, Math.round(val / 60));
+                        }
+                        e.target.dataset.prev = currentUnit;
+                        updateFirstExplain();
+                    }
+                });
+            }
+
+            if (finalDelayInput) {
+                finalDelayInput.addEventListener('input', updateFinalExplain);
+            }
+            if (finalUnitSelect) {
+                finalUnitSelect.addEventListener('change', (e) => {
+                    const currentUnit = e.target.value;
+                    const prevUnit = e.target.dataset.prev;
+                    let val = parseFloat(finalDelayInput.value) || 0;
+
+                    if (currentUnit !== prevUnit) {
+                        if (currentUnit === 'minutes' && prevUnit === 'hours') {
+                            finalDelayInput.value = Math.round(val * 60);
+                        } else if (currentUnit === 'hours' && prevUnit === 'minutes') {
+                            finalDelayInput.value = Math.max(1, Math.round(val / 60));
+                        }
+                        e.target.dataset.prev = currentUnit;
+                        updateFinalExplain();
+                    }
+                });
+            }
+
+            // --- فحص الجروب ---
+            const checkGroupBtn = document.getElementById('checkGroupBtn');
+            const checkGroupResult = document.getElementById('checkGroupResult');
+            if (checkGroupBtn) {
+                checkGroupBtn.addEventListener('click', async () => {
+                    checkGroupBtn.disabled = true;
+                    checkGroupBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> جاري الفحص...';
+                    checkGroupResult.style.display = 'none';
+                    checkGroupResult.className = 'mt-2 small p-2 rounded';
+                    
+                    try {
+                        const response = await fetch('/dashboard/settings/check-group');
+                        const data = await response.json();
+                        
+                        checkGroupResult.style.display = 'block';
+                        if (data.status === 'disconnected') {
+                            checkGroupResult.classList.add('bg-danger', 'text-white');
+                            checkGroupResult.innerHTML = '<i class="bi bi-x-circle me-1"></i> الواتس غير متصل';
+                        } else if (data.status === 'not_found') {
+                            checkGroupResult.classList.add('bg-warning', 'text-dark', 'p-3');
+                            checkGroupResult.innerHTML = `
+                                <div class="d-flex align-items-center mb-2">
+                                    <i class="bi bi-exclamation-triangle fs-5 me-2"></i> 
+                                    <strong>الجروب غير موجود!</strong>
+                                </div>
+                                <div class="mb-2">برجاء إنشاء الجروب بالاسم: <strong class="mx-1">Bird CRM</strong> 
+                                <button type="button" class="btn btn-sm btn-light border py-0 px-1 mx-1" onclick="copyGroupName(this)" title="نسخ"><i class="far fa-copy"></i></button></div>
+                                <small class="text-muted d-block mt-2 border-top border-warning pt-2"><i class="bi bi-info-circle me-1"></i> تأكد من إضافة رقم البوت داخل الجروب كمسؤول.</small>
+                            `;
+                        } else if (data.status === 'found') {
+                            checkGroupResult.classList.add('bg-success', 'bg-opacity-10', 'text-success', 'border', 'border-success', 'p-3');
+                            checkGroupResult.innerHTML = '<div class="d-flex align-items-center fw-bold"><i class="bi bi-check-circle-fill fs-5 me-2"></i> تم فحص الجروب بنجاح (البوت متصل بالجروب).</div>';
+                        }
+                    } catch (error) {
+                        checkGroupResult.style.display = 'block';
+                        checkGroupResult.classList.add('bg-danger', 'text-white');
+                        checkGroupResult.innerHTML = 'حدث خطأ أثناء الفحص.';
+                    } finally {
+                        checkGroupBtn.disabled = false;
+                        checkGroupBtn.innerHTML = '<i class="bi bi-search me-1"></i> فحص الجروب';
+                    }
+                });
+            }
+        });
+
+        // Copy Group Name function
+        function copyGroupName(btn) {
+            navigator.clipboard.writeText('Bird CRM').then(() => {
+                const originalHtml = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-check text-success"></i>';
+                
+                // Show floating notification
+                const toast = document.createElement('div');
+                toast.className = 'position-fixed bottom-0 start-50 translate-middle-x p-3';
+                toast.style.zIndex = '1050';
+                toast.innerHTML = `
+                    <div class="toast align-items-center text-white bg-success border-0 show shadow-lg" role="alert" aria-live="assertive" aria-atomic="true">
+                        <div class="d-flex">
+                            <div class="toast-body fw-bold">
+                                <i class="bi bi-check-circle me-2"></i> تم نسخ اسم الجروب
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(toast);
+                
+                setTimeout(() => {
+                    btn.innerHTML = originalHtml;
+                    toast.classList.add('fade');
+                    setTimeout(() => document.body.removeChild(toast), 300);
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy: ', err);
+            });
+        }
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>رسائل جماعية — Bird-CRM</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="/style.css" rel="stylesheet">
+    <style>
+        body { background-color: #f3f4f6; color: #1e293b; font-family: 'Inter', sans-serif; }
+        .bc-wrapper .glass-card { max-width: 100% !important; margin: 0 !important; }
+
+        .stat-card {
+            background: #ffffff; border: 1px solid rgba(0,0,0,0.06);
+            border-radius: 14px; padding: 18px 20px;
+            display: flex; align-items: center; gap: 14px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.02);
+        }
+        .stat-icon { width:46px; height:46px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
+        .stat-value { font-size:1.7rem; font-weight:800; color:#1e293b; line-height:1; }
+        .stat-label { font-size:11px; color:#64748b; margin-top:4px; }
+
+        .campaign-card {
+            background: #ffffff;
+            border: 1px solid rgba(0,0,0,0.06);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+            transition: all 0.2s;
+        }
+        .campaign-card:hover { background: #f8fafc; border-color: rgba(0,0,0,0.1); transform: translateY(-2px); }
+        .cmp-title { font-weight: 600; font-size: 14.5px; color: #1e293b; }
+        .cmp-date { font-size: 11px; color: #64748b; }
+        .cmp-msg { font-size: 12px; color: #475569; margin-top: 8px; white-space: pre-wrap; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+        
+        .prog-bar { height: 6px; background: rgba(0,0,0,0.05); border-radius: 4px; overflow: hidden; margin-top: 12px; }
+        .prog-fill { height: 100%; background: #4f46e5; border-radius: 4px; transition: width 0.3s; }
+        
+        .badge-status-pending { background: rgba(245,158,11,0.15); color: #d97706; border: 1px solid rgba(245,158,11,0.3); }
+        .badge-status-running { background: rgba(59,130,246,0.15); color: #2563eb; border: 1px solid rgba(59,130,246,0.3); }
+        .badge-status-completed { background: rgba(16,185,129,0.15); color: #059669; border: 1px solid rgba(16,185,129,0.3); }
+        .badge-status-failed { background: rgba(239,68,68,0.15); color: #dc2626; border: 1px solid rgba(239,68,68,0.3); }
+        .badge-status-cancelled { background: rgba(100,116,139,0.15); color: #475569; border: 1px solid rgba(100,116,139,0.3); }
+        
+        .cmp-metrics { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; font-size: 11.5px; }
+        .cmp-metric { display: flex; align-items: center; gap: 4px; padding: 2px 6px; background: #f1f5f9; border-radius: 6px; }
+
+        .modal-content { background: #ffffff; border: 1px solid rgba(0,0,0,0.1); border-radius: 16px; color: #1e293b; }
+        .modal-header { border-bottom: 1px solid rgba(0,0,0,0.05); }
+        .modal-footer { border-top: 1px solid rgba(0,0,0,0.05); }
+        .form-label { font-weight: 500; color: #475569; }
+    </style>
+</head>
+<body>
+    <%- include('partials/navbar') %>
+    <%- include('partials/sidebar', { handoffCount: handoffCount || 0 }) %>
+
+    <div class="container-fluid main-content px-4 px-lg-5 pb-5 animate-fade-in bc-wrapper">
+        <div class="d-flex flex-wrap align-items-center justify-content-between mb-4 gap-3">
+            <div>
+                <h5 class="fw-bold text-dark m-0"><i class="bi bi-megaphone-fill me-2 text-primary"></i>رسائل جماعية (Broadcast)</h5>
+                <p class="text-secondary small m-0">إرسال العروض والتحديثات لعملائك بنظام الاستهداف المتقدم والجدولة</p>
+            </div>
+            <button class="btn btn-primary fw-semibold" style="font-size:13px; border-radius:8px;" data-bs-toggle="modal" data-bs-target="#newCampaignModal">
+                <i class="bi bi-plus-lg me-1"></i>حملة جديدة
+            </button>
+        </div>
+
+        <div class="row g-3 mb-4">
+            <div class="col-md-6 col-lg-4">
+                <div class="stat-card">
+                    <div class="stat-icon" style="background:rgba(79,70,229,.15);">👥</div>
+                    <div>
+                        <div class="stat-value"><%= targetCount %></div>
+                        <div class="stat-label">إجمالي العملاء المتاحين</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-4">
+                <div class="stat-card">
+                    <div class="stat-icon" style="background:rgba(16,185,129,.15);">🚀</div>
+                    <div>
+                        <div class="stat-value"><%= campaigns.length %></div>
+                        <div class="stat-label">إجمالي الحملات</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card p-4 shadow-sm border-0" style="border-radius:16px;">
+            <h6 class="fw-bold mb-4 text-dark"><i class="bi bi-clock-history me-1 text-primary"></i>سجل الحملات</h6>
+            
+            <% if (campaigns.length === 0) { %>
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-rocket-takeoff" style="font-size:3rem; opacity:0.3; display:block; margin-bottom:10px;"></i>
+                    <p style="font-size:14px;">لا توجد حملات سابقة. ابدأ بإرسال حملتك الأولى!</p>
+                </div>
+            <% } else { %>
+                <div class="row">
+                    <% campaigns.forEach(cmp => { 
+                        const pct = cmp.targetCount > 0 ? Math.round(((cmp.sentCount+cmp.failedCount) / cmp.targetCount) * 100) : 0;
+                        let badgeCls = 'badge-status-pending';
+                        let statTxt = 'معلقة';
+                        if(cmp.status === 'running') { badgeCls = 'badge-status-running'; statTxt = 'جاري الإرسال'; }
+                        else if(cmp.status === 'completed') { badgeCls = 'badge-status-completed'; statTxt = 'مكتملة'; }
+                        else if(cmp.status === 'failed') { badgeCls = 'badge-status-failed'; statTxt = 'فشلت'; }
+                        else if(cmp.status === 'cancelled') { badgeCls = 'badge-status-cancelled'; statTxt = 'ملغاة'; }
+                    %>
+                    <div class="col-lg-6" id="campaign-card-<%= cmp.id %>">
+                        <div class="campaign-card">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <div class="cmp-title">
+                                        <% if(cmp.platform === 'messenger') { %>
+                                            <i class="bi bi-messenger text-primary me-1"></i>
+                                        <% } else { %>
+                                            <i class="bi bi-whatsapp text-success me-1"></i>
+                                        <% } %>
+                                        <%= cmp.name %>
+                                        
+                                        <!-- نوع الميديا -->
+                                        <% if(cmp.contentType === 'image') { %>
+                                            <span class="badge bg-info text-white ms-1" style="font-size:9px;">صورة</span>
+                                        <% } else if(cmp.contentType === 'video') { %>
+                                            <span class="badge bg-warning text-dark ms-1" style="font-size:9px;">فيديو</span>
+                                        <% } else if(cmp.contentType === 'link') { %>
+                                            <span class="badge bg-secondary text-white ms-1" style="font-size:9px;">رابط</span>
+                                        <% } %>
+                                    </div>
+                                    <div class="cmp-date mt-1">
+                                        <i class="bi bi-calendar3 me-1"></i><%= cmp.createdAt.toLocaleString('en-US', { hour12: true }) %>
+                                        <% if(cmp.scheduledAt) { %>
+                                            <span class="text-primary ms-2"><i class="bi bi-clock me-1"></i>مجدولة لـ: <%= cmp.scheduledAt.toLocaleString('en-US', { hour12: true }) %></span>
+                                        <% } %>
+                                    </div>
+                                </div>
+                                <span class="badge rounded-pill <%= badgeCls %>" style="font-size:11px; padding: 5px 10px;" id="badge-status-<%= cmp.id %>"><%= statTxt %></span>
+                            </div>
+                            <div class="cmp-msg"><%= cmp.message %></div>
+                            
+                            <div class="prog-bar">
+                                <div class="prog-fill" id="prog-fill-<%= cmp.id %>" style="width: <%= pct %>%"></div>
+                            </div>
+                            
+                            <!-- عداد الانتظار أو التجميد التنازلي -->
+                            <div id="campaign-countdown-<%= cmp.id %>" class="small mt-2 text-primary fw-semibold" style="display: none;"></div>
+
+                            <div class="cmp-metrics text-muted">
+                                <div class="cmp-metric"><i class="bi bi-people text-dark"></i> المستهدفين: <span class="metric-target"><%= cmp.targetCount %></span></div>
+                                <div class="cmp-metric text-primary"><i class="bi bi-send"></i> المرسلة: <span class="metric-sent"><%= cmp.sentCount %></span></div>
+                                <div class="cmp-metric text-success"><i class="bi bi-check2-circle"></i> المسلمة: <span class="metric-delivered"><%= cmp.deliveredCount || 0 %></span></div>
+                                <div class="cmp-metric text-info"><i class="bi bi-eye"></i> المقروءة: <span class="metric-read"><%= cmp.readCount || 0 %></span></div>
+                                <div class="cmp-metric text-warning"><i class="bi bi-reply-all"></i> الردود: <span class="metric-replied"><%= cmp.repliedCount || 0 %></span></div>
+                                <div class="cmp-metric text-danger metric-failed-wrapper <%= cmp.failedCount > 0 ? '' : 'd-none' %>">
+                                    <i class="bi bi-exclamation-octagon"></i> الفشل: <span class="metric-failed"><%= cmp.failedCount %></span>
+                                </div>
+                            </div>
+
+                            <!-- أزرار الإجراءات -->
+                            <div class="d-flex gap-2 mt-3">
+                                <button class="btn btn-sm btn-outline-primary fw-semibold" style="font-size:12px; border-radius:6px;" onclick="showRecipientsModal(<%= cmp.id %>, '<%= cmp.name %>')">
+                                    <i class="bi bi-info-circle me-1"></i>تفاصيل المستلمين
+                                </button>
+                                <% if(cmp.status === 'running' || cmp.status === 'pending') { %>
+                                    <button class="btn btn-sm btn-outline-danger fw-semibold" id="btn-cancel-<%= cmp.id %>" style="font-size:12px; border-radius:6px;" onclick="cancelCampaign(<%= cmp.id %>)">
+                                        <i class="bi bi-x-circle me-1"></i>إلغاء الحملة
+                                    </button>
+                                <% } %>
+                            </div>
+                        </div>
+                    </div>
+                    <% }) %>
+                </div>
+            <% } %>
+        </div>
+    </div>
+
+    <!-- New Campaign Modal -->
+    <div class="modal fade" id="newCampaignModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h6 class="modal-title fw-bold text-dark"><i class="bi bi-rocket-takeoff-fill me-2 text-primary"></i>إنشاء حملة إرسال جماعي جديدة</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <form id="campaignForm">
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <label class="form-label small">اسم الحملة (داخلي)</label>
+                                <input type="text" class="form-control" id="cmpName" placeholder="مثال: عرض الصيف للألماني" required>
+                            </div>
+                            <!-- Platform fixed to WhatsApp -->
+                            <input type="hidden" id="cmpPlatform" value="whatsapp">
+                        </div>
+
+                        <!-- فلاتر الاستهداف الذكي -->
+                        <div class="card p-3 mb-3 bg-light border-0">
+                            <h7 class="fw-bold mb-2 text-secondary small d-block"><i class="bi bi-funnel-fill me-1 text-primary"></i>فلتر استهداف الجمهور الذكي</h7>
+                            
+                            <div class="row">
+                                <div class="col-md-6 mb-2">
+                                    <div id="cmpStatuses" class="d-none"></div>
+                                </div>
+
+                                <!-- آخر تفاعل: تاريخ بداية ونهاية مع عداد -->
+                                <div class="col-md-6 mb-2">
+                                    <label class="form-label small mb-1">آخر تفاعل — نطاق التاريخ</label>
+                                    <div class="d-flex flex-column gap-2">
+                                        <div>
+                                            <label class="form-label small text-secondary mb-1">من تاريخ</label>
+                                            <input type="date" class="form-control form-control-sm" id="cmpTargetDateFrom" onchange="updateTargetCount()">
+                                        </div>
+                                        <div>
+                                            <label class="form-label small text-secondary mb-1">إلى تاريخ</label>
+                                            <input type="date" class="form-control form-control-sm" id="cmpTargetDateTo" onchange="updateTargetCount()">
+                                        </div>
+                                        <div id="targetCountBadge" class="d-none">
+                                            <span class="badge bg-primary rounded-pill px-3 py-2" style="font-size:12px;">
+                                                <i class="bi bi-people-fill me-1"></i>
+                                                سيتم الإرسال لـ <span id="targetCountNum" class="fw-bold">0</span> عميل
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- نوع المحتوى والمرفقات -->
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label small">نوع المحتوى</label>
+                                <select class="form-select" id="cmpContentType" onchange="toggleContentInputs()">
+                                    <option value="text">نص فقط (Text)</option>
+                                    <option value="image">نص وصورة (Text + Image)</option>
+                                </select>
+                            </div>
+                            
+                            <div class="col-md-8" id="mediaUrlGroup" style="display: none;">
+                                <label class="form-label small" id="mediaUrlLabel">رابط الميديا</label>
+                                <input type="text" class="form-control" id="cmpMediaUrl" placeholder="أدخل رابط الميديا هنا أو ارفع الملف بالجانب">
+                            </div>
+
+                            <div class="col-md-8" id="mediaUploadGroup" style="display: none;">
+                                <label class="form-label small">رفع ملف الميديا من جهازك</label>
+                                <div class="input-group">
+                                    <input type="file" class="form-control" id="mediaFileInput" onchange="uploadMediaFile()">
+                                    <span class="input-group-text" id="uploadStatus"><i class="bi bi-cloud-upload"></i></span>
+                                </div>
+                                <div class="form-text small text-muted" id="uploadProgress">الحد الأقصى لرفع الملفات 20 ميجابايت.</div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label small">رسالة الحملة</label>
+                            <textarea class="form-control" id="cmpMsg" rows="4" placeholder="اكتب رسالتك هنا لعملائك..." required></textarea>
+                            <div class="form-text text-muted small mt-1">ملاحظة: يمكنك استخدام تنسيقات الواتساب النجمية *غامق* والشرطة السفلية _مائل_</div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label small">جدولة الإرسال لوقت لاحق (اختياري)</label>
+                                <input type="datetime-local" class="form-control" id="cmpScheduledAt">
+                                <div class="form-text text-muted small">اتركه فارغاً للإرسال الفوري فوراً.</div>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small">الانتظار الأدنى (ثانية)</label>
+                                <input type="number" class="form-control" id="cmpMinDelay" value="30" min="1" required>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small">الانتظار الأقصى (ثانية)</label>
+                                <input type="number" class="form-control" id="cmpMaxDelay" value="60" min="1" required>
+                            </div>
+                        </div>
+
+                        <!-- خيارات تجميد الإرسال للتبريد -->
+                        <div class="row mb-3 bg-light p-3 rounded mx-0 border" style="border-radius:10px !important;">
+                            <h7 class="fw-bold mb-2 text-secondary small d-block" style="font-size:12px;"><i class="bi bi-snow text-info me-1"></i>وضع تجميد الإرسال لتفادي حظر الرقم (اختياري)</h7>
+                            <div class="col-md-6 mb-2 mb-md-0">
+                                <label class="form-label small text-muted">تجميد الإرسال بعد كل (عدد رسائل)</label>
+                                <input type="number" class="form-control form-control-sm" id="cmpFreezeAfter" value="0" min="0" placeholder="مثال: 10 (0 للإلغاء)">
+                                <div class="form-text text-muted small" style="font-size:10px;">سيتم إيقاف الإرسال مؤقتاً للاستراحة بعد إرسال هذا العدد.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small text-muted">مدة تجميد الإرسال (بالثواني)</label>
+                                <input type="number" class="form-control form-control-sm" id="cmpFreezeDuration" value="0" min="0" placeholder="مثال: 120 (0 للإلغاء)">
+                                <div class="form-text text-muted small" style="font-size:10px;">المدة بالثواني التي ينتظرها البوت خلال فترة التجميد للاستراحة.</div>
+                            </div>
+                        </div>
+
+                        <div class="alert alert-warning p-3 mt-3 mb-0" style="font-size:12px; border-radius: 8px;">
+                            <i class="bi bi-exclamation-triangle-fill me-2 text-warning"></i>
+                            <strong>ملاحظة هامة جداً:</strong> لضمان حماية خطك من الحظر من قبل واتساب، نوصي بوضع فاصل زمني لا يقل عن <b>30 إلى 60 ثانية</b> بين كل رسالة، وتفادي الإرسال المفرط.
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" style="font-size:13px;">تراجع</button>
+                    <button type="button" class="btn btn-primary fw-semibold" id="btnSend" onclick="submitCampaign()" style="font-size:13px;">
+                        <i class="bi bi-send-fill me-1"></i>تأكيد وبدء البث
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function toggleContentInputs() {
+            const type = document.getElementById('cmpContentType').value;
+            const urlGroup = document.getElementById('mediaUrlGroup');
+            const uploadGroup = document.getElementById('mediaUploadGroup');
+            const urlLabel = document.getElementById('mediaUrlLabel');
+
+            if (type === 'text') {
+                urlGroup.style.display = 'none';
+                uploadGroup.style.display = 'none';
+            } else if (type === 'link') {
+                urlGroup.style.display = 'block';
+                uploadGroup.style.display = 'none';
+                urlLabel.innerText = 'رابط الويب المستهدف';
+            } else { // image or video
+                urlGroup.style.display = 'block';
+                uploadGroup.style.display = 'block';
+                urlLabel.innerText = 'رابط الميديا المباشر (أو اتركه ليتم ملؤه بالرفع)';
+            }
+        }
+
+        async function uploadMediaFile() {
+            const fileInput = document.getElementById('mediaFileInput');
+            const statusIcon = document.getElementById('uploadStatus');
+            const progressText = document.getElementById('uploadProgress');
+            
+            if (fileInput.files.length === 0) return;
+            
+            const file = fileInput.files[0];
+            const formData = new FormData();
+            formData.append('mediaFile', file);
+
+            statusIcon.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+            progressText.innerText = 'جاري رفع الملف إلى الخادم...';
+            
+            try {
+                const res = await fetch('/dashboard/broadcast/upload-media', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    document.getElementById('cmpMediaUrl').value = data.mediaUrl;
+                    statusIcon.innerHTML = '<i class="bi bi-check-circle-fill text-success"></i>';
+                    progressText.innerText = 'تم رفع الملف بنجاح وحفظه على الخادم!';
+                } else {
+                    alert('❌ فشل الرفع: ' + data.error);
+                    statusIcon.innerHTML = '<i class="bi bi-x-circle-fill text-danger"></i>';
+                    progressText.innerText = 'فشل الرفع، يرجى المحاولة مجدداً.';
+                }
+            } catch (err) {
+                console.error(err);
+                alert('❌ حدث خطأ غير متوقع أثناء الرفع');
+                statusIcon.innerHTML = '<i class="bi bi-x-circle-fill text-danger"></i>';
+                progressText.innerText = 'خطأ اتصال بالخادم.';
+            }
+        }
+
+        // حساب عدد العملاء المستهدفين بناءً على نطاق التاريخ
+        async function updateTargetCount() {
+            const dateFrom = document.getElementById('cmpTargetDateFrom').value;
+            const dateTo = document.getElementById('cmpTargetDateTo').value;
+            const badge = document.getElementById('targetCountBadge');
+            const countEl = document.getElementById('targetCountNum');
+            
+            if (!dateFrom && !dateTo) {
+                badge.classList.add('d-none');
+                return;
+            }
+            
+            try {
+                const statuses = [];
+                document.querySelectorAll('#cmpStatuses input[type="checkbox"]:checked').forEach(cb => statuses.push(cb.value));
+                
+                let url = `/dashboard/broadcast/target-count?dateFrom=${dateFrom}&dateTo=${dateTo}`;
+                if (statuses.length > 0) url += `&statuses=${statuses.join(',')}`;
+                
+                const res = await fetch(url);
+                const data = await res.json();
+                
+                if (data.success) {
+                    countEl.textContent = data.count;
+                    badge.classList.remove('d-none');
+                }
+            } catch (err) {
+                console.error('Error fetching target count:', err);
+            }
+        }
+
+        async function submitCampaign() {
+            const name = document.getElementById('cmpName').value.trim();
+            const msg = document.getElementById('cmpMsg').value.trim();
+            const platform = document.getElementById('cmpPlatform').value;
+            const contentType = document.getElementById('cmpContentType').value;
+            const mediaUrl = document.getElementById('cmpMediaUrl') ? document.getElementById('cmpMediaUrl').value.trim() : '';
+            const scheduledAt = document.getElementById('cmpScheduledAt').value;
+            const minDelay = parseInt(document.getElementById('cmpMinDelay').value, 10) || 30;
+            const maxDelay = parseInt(document.getElementById('cmpMaxDelay').value, 10) || 60;
+            const freezeAfter = parseInt(document.getElementById('cmpFreezeAfter').value, 10) || 0;
+            const freezeDuration = parseInt(document.getElementById('cmpFreezeDuration').value, 10) || 0;
+
+            if (!name || !msg) return alert('يرجى ملء جميع الحقول المطلوبة (الاسم والرسالة)');
+            if (minDelay > maxDelay) return alert('الحد الأدنى للانتظار لا يمكن أن يكون أكبر من الحد الأقصى');
+
+            // تجميع فلاتر الاستهداف
+            const statuses = [];
+            document.querySelectorAll('#cmpStatuses input[type="checkbox"]:checked').forEach(cb => {
+                statuses.push(cb.value);
+            });
+
+            // نطاق تاريخ آخر تفاعل
+            const targetDateFrom = document.getElementById('cmpTargetDateFrom').value;
+            const targetDateTo = document.getElementById('cmpTargetDateTo').value;
+
+            const targetFilter = {
+                status: statuses,
+                leadTemperature: [], // removed from UI
+                filterDays: 0,       // replaced by date range
+                lastReplyFrom: targetDateFrom || null,
+                lastReplyTo: targetDateTo || null
+            };
+
+            const btn = document.getElementById('btnSend');
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>جاري المعالجة...';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/dashboard/broadcast/send', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        name, 
+                        message: msg, 
+                        platform, 
+                        contentType, 
+                        mediaUrl, 
+                        scheduledAt, 
+                        targetFilter, 
+                        minDelay, 
+                        maxDelay,
+                        freezeAfter,
+                        freezeDuration
+                    })
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    alert('✅ ' + data.message);
+                    window.location.reload();
+                } else {
+                    alert('❌ خطأ: ' + (data.error || 'فشلت عملية إنشاء البث'));
+                    btn.innerHTML = '<i class="bi bi-send-fill me-1"></i>تأكيد وبدء البث';
+                    btn.disabled = false;
+                }
+            } catch (err) {
+                console.error(err);
+                alert('❌ حدث خطأ اتصال بالخادم');
+                btn.innerHTML = '<i class="bi bi-send-fill me-1"></i>تأكيد وبدء البث';
+                btn.disabled = false;
+            }
+        }
+    </script>
+
+    <!-- نافذة تفاصيل المستلمين Modal -->
+    <div class="modal fade" id="recipientsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h6 class="modal-title fw-bold text-dark"><i class="bi bi-people-fill me-2 text-primary"></i>تفاصيل المستلمين للحملة: <span id="modalCampaignName" class="text-primary"></span></h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="d-flex gap-2 mb-3 align-items-center">
+                        <input type="text" id="recipientSearchInput" class="form-control form-control-sm flex-grow-1" placeholder="بحث بالاسم أو الرقم..." onkeyup="filterRecipientsTable()">
+                        
+                        <!-- أيقونة الفلتر المنسدلة -->
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-outline-secondary d-flex align-items-center justify-content-center" type="button" id="statusFilterDropdownBtn" data-bs-toggle="dropdown" aria-expanded="false" style="width: 32px; height: 32px; border-radius: 6px;" title="تصفية الحالات">
+                                <i class="bi bi-funnel"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end shadow-sm" aria-labelledby="statusFilterDropdownBtn" id="statusFilterDropdownMenu">
+                                <li><a class="dropdown-item active" href="#" onclick="selectStatusFilter('', 'كل الحالات', event)">كل الحالات</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="selectStatusFilter('sent', 'تم الإرسال', event)">تم الإرسال</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="selectStatusFilter('delivered', 'تم التوصيل', event)">تم التوصيل</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="selectStatusFilter('read', 'تمت القراءة', event)">تمت القراءة</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="selectStatusFilter('replied', 'تم الرد', event)">تم الرد</a></li>
+                            </ul>
+                        </div>
+                        
+                        <!-- زر تحميل Excel كأيقونة -->
+                        <button class="btn btn-sm btn-success d-flex align-items-center justify-content-center" style="width: 32px; height: 32px; border-radius: 6px;" onclick="downloadRecipientsExcel()" title="تحميل شيت إكسيل بالتفاصيل المفلترة">
+                            <i class="bi bi-file-earmark-excel-fill" style="font-size: 14px;"></i>
+                        </button>
+                    </div>
+                    <div class="table-responsive" style="max-height: 400px; border-radius: 8px;">
+                        <table class="table table-hover align-middle small mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>الاسم</th>
+                                    <th class="text-center">رقم الهاتف</th>
+                                    <th>الحالة</th>
+                                    <th>تاريخ الإرسال</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recipientsTableBody">
+                                <tr>
+                                    <td colspan="4" class="text-center py-4 text-muted">جاري تحميل البيانات...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">إغلاق</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allRecipients = [];
+        let activeCampaignIdForModal = null;
+        let currentStatusFilter = '';
+
+        // فتح مودال تفاصيل المستلمين وجلب البيانات من الـ API
+        async function showRecipientsModal(campaignId, campaignName) {
+            document.getElementById('modalCampaignName').textContent = campaignName;
+            activeCampaignIdForModal = campaignId;
+            currentStatusFilter = '';
+
+            // إعادة تعيين شكل وقيمة الفلتر
+            const items = document.querySelectorAll('#statusFilterDropdownMenu .dropdown-item');
+            items.forEach(item => {
+                if (item.getAttribute('onclick').includes("''")) {
+                    item.classList.add('active');
+                } else {
+                    item.classList.remove('active');
+                }
+            });
+            const filterBtn = document.getElementById('statusFilterDropdownBtn');
+            if (filterBtn) {
+                filterBtn.className = 'btn btn-sm btn-outline-secondary d-flex align-items-center justify-content-center';
+                filterBtn.innerHTML = `<i class="bi bi-funnel"></i>`;
+            }
+            
+            const modalElement = document.getElementById('recipientsModal');
+            const modal = new bootstrap.Modal(modalElement);
+            modal.show();
+
+            const tbody = document.getElementById('recipientsTableBody');
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="4" class="text-center py-4 text-muted">
+                        <div class="spinner-border spinner-border-sm me-2 text-primary" role="status"></div>
+                        جاري تحميل تفاصيل المستلمين...
+                    </td>
+                </tr>
+            `;
+
+            document.getElementById('recipientSearchInput').value = '';
+
+            // عند إغلاق المودال، نقوم بتفريغ الـ activeCampaignIdForModal
+            modalElement.addEventListener('hidden.bs.modal', function onModalClose() {
+                activeCampaignIdForModal = null;
+                modalElement.removeEventListener('hidden.bs.modal', onModalClose);
+            });
+
+            try {
+                const res = await fetch(`/dashboard/broadcast/campaign/${campaignId}/recipients`);
+                const data = await res.json();
+                
+                if (data.success) {
+                    allRecipients = data.recipients;
+                    renderRecipients(allRecipients);
+                } else {
+                    tbody.innerHTML = `<tr><td colspan="4" class="text-center text-danger">❌ فشل تحميل البيانات: ${data.error}</td></tr>`;
+                }
+            } catch (err) {
+                console.error(err);
+                tbody.innerHTML = `<tr><td colspan="4" class="text-center text-danger">❌ خطأ في الاتصال بالخادم</td></tr>`;
+            }
+        }
+
+        // تحديث جدول المستلمين بصمت دون إظهار مؤشر التحميل
+        async function refreshRecipientsTableSilently(campaignId) {
+            try {
+                const res = await fetch(`/dashboard/broadcast/campaign/${campaignId}/recipients`);
+                const data = await res.json();
+                
+                if (data.success) {
+                    allRecipients = data.recipients;
+                    filterRecipientsTable();
+                }
+            } catch (err) {
+                console.error('Silent refresh failed:', err);
+            }
+        }
+
+        // نسخ الرقم إلى الحافظة
+        function copyToClipboard(text, btn) {
+            navigator.clipboard.writeText(text).then(() => {
+                if (window.showToast) window.showToast('تم نسخ الرقم بنجاح!');
+                const icon = btn.querySelector('i');
+                const originalClass = icon.className;
+                icon.className = 'bi bi-check-lg text-success';
+                setTimeout(() => {
+                    icon.className = originalClass;
+                }, 1500);
+            }).catch(err => {
+                console.error('Failed to copy text: ', err);
+            });
+        }
+
+        // اختيار فلترة الحالة وتغيير مظهر الأيقونة
+        function selectStatusFilter(statusVal, statusText, event) {
+            if (event) event.preventDefault();
+            currentStatusFilter = statusVal;
+
+            // تحديث التحديد النشط في القائمة المنسدلة
+            const items = document.querySelectorAll('#statusFilterDropdownMenu .dropdown-item');
+            items.forEach(item => {
+                if (item.getAttribute('onclick').includes(`'${statusVal}'`)) {
+                    item.classList.add('active');
+                } else {
+                    item.classList.remove('active');
+                }
+            });
+
+            // تحديث مظهر زر الفلترة للإشارة إلى التفعيل
+            const filterBtn = document.getElementById('statusFilterDropdownBtn');
+            if (filterBtn) {
+                if (statusVal) {
+                    filterBtn.className = 'btn btn-sm btn-primary d-flex align-items-center justify-content-center';
+                    filterBtn.innerHTML = `<i class="bi bi-funnel-fill"></i>`;
+                } else {
+                    filterBtn.className = 'btn btn-sm btn-outline-secondary d-flex align-items-center justify-content-center';
+                    filterBtn.innerHTML = `<i class="bi bi-funnel"></i>`;
+                }
+            }
+
+            // إعادة فلترة الجدول
+            filterRecipientsTable();
+        }
+
+        // تحميل شيت إكسيل بتفاصيل مستلمي الحملة الحالية المفلترة
+        function downloadRecipientsExcel() {
+            if (!activeCampaignIdForModal) return alert('برجاء فتح حملة أولاً للتحميل');
+            
+            const search = document.getElementById('recipientSearchInput').value.trim();
+            const status = currentStatusFilter;
+
+            let url = `/dashboard/broadcast/campaign/${activeCampaignIdForModal}/export-excel`;
+            const params = [];
+            if (search) params.push(`search=${encodeURIComponent(search)}`);
+            if (status) params.push(`status=${encodeURIComponent(status)}`);
+            
+            if (params.length > 0) {
+                url += `?${params.join('&')}`;
+            }
+
+            window.location.href = url;
+        }
+
+        // رندر صفوف الجدول
+        function renderRecipients(recipients) {
+            const tbody = document.getElementById('recipientsTableBody');
+            if (recipients.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="text-center py-4 text-muted">لا توجد سجلات مطابقة.</td></tr>`;
+                return;
+            }
+            
+            tbody.innerHTML = recipients.map(r => {
+                let statusBadge = '';
+                if (r.replied) {
+                    statusBadge = '<span class="badge bg-warning text-dark"><i class="bi bi-reply-all-fill me-1"></i>تم الرد</span>';
+                } else if (r.status === 'read') {
+                    statusBadge = '<span class="badge bg-info text-white"><i class="bi bi-eye-fill me-1"></i>تمت القراءة</span>';
+                } else if (r.status === 'delivered') {
+                    statusBadge = '<span class="badge bg-success text-white"><i class="bi bi-check2-circle-fill me-1"></i>تم التوصيل</span>';
+                } else {
+                    statusBadge = '<span class="badge bg-secondary text-white"><i class="bi bi-send-fill me-1"></i>تم الإرسال</span>';
+                }
+                
+                const dateStr = new Date(r.sentAt).toLocaleString('en-US', { hour12: true });
+                
+                return `
+                    <tr>
+                        <td class="fw-bold">${escapeHtml(r.name)}</td>
+                        <td class="text-center">
+                            <div class="d-flex justify-content-center align-items-center gap-2" dir="ltr">
+                                <span class="text-monospace fw-semibold">${escapeHtml(r.phone)}</span>
+                                <button class="btn btn-link p-0 text-secondary border-0" onclick="copyToClipboard('${escapeHtml(r.phone)}', this)" title="نسخ الرقم" style="box-shadow: none; text-decoration: none;">
+                                    <i class="bi bi-copy" style="font-size: 12px; cursor: pointer;"></i>
+                                </button>
+                                <a href="https://wa.me/${escapeHtml(r.phone)}" target="_blank" class="text-success" title="فتح في واتساب" style="text-decoration: none;">
+                                    <i class="bi bi-whatsapp" style="font-size: 13px;"></i>
+                                </a>
+                            </div>
+                        </td>
+                        <td>${statusBadge}</td>
+                        <td class="text-secondary" style="font-size: 11px;">${dateStr}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // فلترة المستلمين في الجدول
+        function filterRecipientsTable() {
+            const query = document.getElementById('recipientSearchInput').value.toLowerCase().trim();
+            const statusVal = currentStatusFilter;
+            
+            const filtered = allRecipients.filter(r => {
+                const matchesQuery = r.name.toLowerCase().includes(query) || r.phone.includes(query);
+                let matchesStatus = true;
+                if (statusVal === 'replied') {
+                    matchesStatus = r.replied;
+                } else if (statusVal) {
+                    matchesStatus = r.status === statusVal && !r.replied;
+                }
+                return matchesQuery && matchesStatus;
+            });
+            
+            renderRecipients(filtered);
+        }
+
+        // إلغاء الحملة الجارية
+        async function cancelCampaign(campaignId) {
+            if (!confirm('هل أنت متأكد من رغبتك في إلغاء هذه الحملة وإيقاف الإرسال فوراً؟')) return;
+            
+            const btn = document.getElementById(`btn-cancel-${campaignId}`);
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>جاري الإلغاء...';
+            }
+
+            try {
+                const res = await fetch(`/dashboard/broadcast/campaign/${campaignId}/cancel`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    alert('✅ ' + data.message);
+                } else {
+                    alert('❌ خطأ: ' + data.error);
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="bi bi-x-circle me-1"></i>إلغاء الحملة';
+                    }
+                }
+            } catch (err) {
+                console.error(err);
+                alert('❌ حدث خطأ أثناء الاتصال بالخادم');
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="bi bi-x-circle me-1"></i>إلغاء الحملة';
+                }
+            }
+        }
+
+        // الاستماع لتحديثات الحملات عبر Socket.IO
+        function listenToCampaignUpdates() {
+            const socket = window.socket || (typeof io !== 'undefined' ? io() : null);
+            if (!socket) {
+                setTimeout(listenToCampaignUpdates, 500);
+                return;
+            }
+            
+            console.log('🔌 Campaign socket listener registered successfully.');
+            
+            socket.on('campaign_progress', (data) => {
+                console.log('📈 Received campaign progress update:', data);
+                
+                const card = document.getElementById(`campaign-card-${data.campaignId}`);
+                if (!card) return;
+                
+                const badge = document.getElementById(`badge-status-${data.campaignId}`);
+                const fill = document.getElementById(`prog-fill-${data.campaignId}`);
+                const countdown = document.getElementById(`campaign-countdown-${data.campaignId}`);
+                
+                // تحديث الأرقام المعروضة في الكارت
+                const targetEl = card.querySelector('.metric-target');
+                const sentEl = card.querySelector('.metric-sent');
+                const failedEl = card.querySelector('.metric-failed');
+                const failedWrapper = card.querySelector('.metric-failed-wrapper');
+                
+                if (targetEl && data.targetCount !== undefined) targetEl.textContent = data.targetCount;
+                if (sentEl && data.sentCount !== undefined) sentEl.textContent = data.sentCount;
+                if (failedEl && data.failedCount !== undefined) failedEl.textContent = data.failedCount;
+                
+                if (failedWrapper && data.failedCount !== undefined) {
+                    if (data.failedCount > 0) failedWrapper.classList.remove('d-none');
+                    else failedWrapper.classList.add('d-none');
+                }
+                
+                // تحديث شريط التقدم
+                if (fill && data.targetCount > 0) {
+                    const pct = Math.round(((data.sentCount + data.failedCount) / data.targetCount) * 100);
+                    fill.style.width = `${pct}%`;
+                }
+                
+                // تحديث الشارة (Badge) وحالة الحملة
+                if (badge) {
+                    badge.className = 'badge rounded-pill';
+                    if (data.status === 'running' || data.status === 'waiting_next' || data.status === 'freezing') {
+                        badge.classList.add('badge-status-running');
+                        badge.textContent = 'جاري الإرسال';
+                    } else if (data.status === 'completed') {
+                        badge.classList.add('badge-status-completed');
+                        badge.textContent = 'مكتملة';
+                        if (countdown) countdown.style.display = 'none';
+                        const cancelBtn = document.getElementById(`btn-cancel-${data.campaignId}`);
+                        if (cancelBtn) cancelBtn.remove();
+                    } else if (data.status === 'failed') {
+                        badge.classList.add('badge-status-failed');
+                        badge.textContent = 'فشلت';
+                        if (countdown) countdown.style.display = 'none';
+                        const cancelBtn = document.getElementById(`btn-cancel-${data.campaignId}`);
+                        if (cancelBtn) cancelBtn.remove();
+                    } else if (data.status === 'cancelled') {
+                        badge.classList.add('badge-status-cancelled');
+                        badge.textContent = 'ملغاة';
+                        if (countdown) countdown.style.display = 'none';
+                        const cancelBtn = document.getElementById(`btn-cancel-${data.campaignId}`);
+                        if (cancelBtn) cancelBtn.remove();
+                    }
+                }
+                
+                // تحديث نص العداد التنازلي التفاعلي بالثواني
+                if (countdown) {
+                    if (data.status === 'waiting_next' && data.nextMessageIn) {
+                        countdown.style.display = 'block';
+                        countdown.innerHTML = `<i class="bi bi-hourglass-split me-1 text-primary animate-pulse"></i> الانتظار قبل إرسال الرسالة التالية: <span class="text-danger fw-bold fs-6">${data.nextMessageIn}</span> ثانية`;
+                    } else if (data.status === 'freezing' && data.freezeRemaining) {
+                        countdown.style.display = 'block';
+                        countdown.innerHTML = `<i class="bi bi-snow text-info me-1 animate-spin" style="display:inline-block;"></i> فترة تجميد الإرسال (تبريد لتفادي الحظر): متبقي <span class="text-info fw-bold fs-6">${data.freezeRemaining}</span> ثانية`;
+                    } else if (data.status === 'running') {
+                        countdown.style.display = 'block';
+                        countdown.innerHTML = `<i class="bi bi-send-fill me-1 text-primary"></i> جاري إرسال الرسائل...`;
+                    } else {
+                        countdown.style.display = 'none';
+                    }
+                }
+
+                // تحديث نافذة التفاصيل بصمت إذا كانت مفتوحة لهذه الحملة حالياً
+                if (activeCampaignIdForModal === data.campaignId) {
+                    refreshRecipientsTableSilently(data.campaignId);
+                }
+            });
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            listenToCampaignUpdates();
+        });
+    </script>
+</body>
+</html>
