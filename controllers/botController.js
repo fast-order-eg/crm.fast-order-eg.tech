@@ -3676,9 +3676,17 @@ export async function sendManualMessage(userId, remoteJid, text, senderName = nu
         sessions.delete(parseInt(userId, 10));
         sessions.delete(String(userId));
         
-        // Wait up to 6 seconds for existing reconnect to finish before giving up
+        if (typeof startSession === 'function') {
+            try {
+                startSession(userId, io);
+            } catch (err) {
+                console.error(`[sendManualMessage] Error starting session for User ${userId}:`, err);
+            }
+        }
+
+        // Wait up to 10 seconds for session to connect
         for (let i = 0; i < 20; i++) {
-            await new Promise(r => setTimeout(r, 300));
+            await new Promise(r => setTimeout(r, 500));
             sock = sessions.get(parseInt(userId, 10)) || sessions.get(String(userId)) || sessions.get(userId);
             if (sock && sock.user) {
                 console.log(`[sendManualMessage] Socket reconnected successfully for User ${userId}!`);
@@ -3692,6 +3700,9 @@ export async function sendManualMessage(userId, remoteJid, text, senderName = nu
     }
     
     let targetJid = remoteJid;
+    if (targetJid && !targetJid.includes('@')) {
+        targetJid = `${targetJid}@s.whatsapp.net`;
+    }
     if (remoteJid && remoteJid.endsWith('@lid')) {
         if (lidPhoneMap.has(remoteJid)) {
             targetJid = `${lidPhoneMap.get(remoteJid)}@s.whatsapp.net`;

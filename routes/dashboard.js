@@ -1134,23 +1134,28 @@ router.post(['/livechat/send', '/livechat/:remoteJid/send'], async (req, res) =>
         const text = req.body.text;
         if (!remoteJid || !text) return res.status(400).json({ error: 'remoteJid and text required' });
         
-        // جلب العميل للتأكد من وجوده ومعرفة المالك الفعلي للجلسة
-        const customer = await Customer.findOne({ where: { remoteJid } });
+        const owner = await getOwnerUser(req.user);
+        let customer = await Customer.findOne({ where: { remoteJid } });
         if (!customer) {
-            return res.status(404).json({ error: 'العميل غير موجود' });
+            const phone = remoteJid.split('@')[0];
+            customer = await Customer.findOne({ where: { phoneNumber: phone } });
         }
+
+        const sessionUserId = customer ? (customer.UserId || owner.id) : owner.id;
 
         // إرسال الرسالة باستخدام معرف مالك الجلسة و SocketIO
         const io = req.app.get('socketio');
         const senderName = req.user.fullName || req.user.username;
-        const savedMsg = await sendManualMessage(customer.UserId, remoteJid, text, senderName, io);
+        const savedMsg = await sendManualMessage(sessionUserId, remoteJid, text, senderName, io);
         
         // تسجيل رد الموظف وسرعة الاستجابة في نظام الـ KPI تلقائياً
-        try {
-            const { recordResponse } = await import('../services/kpiService.js');
-            await recordResponse(req.user.id, customer.id);
-        } catch (kpiErr) {
-            console.error('Error recording KPI response in /livechat/send:', kpiErr);
+        if (customer) {
+            try {
+                const { recordResponse } = await import('../services/kpiService.js');
+                await recordResponse(req.user.id, customer.id);
+            } catch (kpiErr) {
+                console.error('Error recording KPI response in /livechat/send:', kpiErr);
+            }
         }
 
         res.json({ success: true, message: savedMsg });

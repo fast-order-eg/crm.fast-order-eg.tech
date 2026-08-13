@@ -313,9 +313,10 @@
             margin-top: 4px;
             display: flex;
             align-items: center;
-            justify-content: flex-end;
-            gap: 2px;
+            justify-content: flex-start;
+            gap: 4px;
             direction: ltr;
+            text-align: left;
         }
         .tick-read {
             color: #53bdeb !important;
@@ -758,10 +759,10 @@
 
         let statusHtml = '';
         if (!isUser) {
-            statusHtml = `<span id="status-${messageId || ''}">${getStatusIcon(status || 'read')}</span>`;
+            statusHtml = `<span id="status-${messageId || ''}" class="d-inline-flex align-items-center">${getStatusIcon(status || 'read')}</span>`;
         }
 
-        div.innerHTML = `${contentHtml}<div class="bbl-t"><span>${ts}</span>${statusHtml}</div>`;
+        div.innerHTML = `${contentHtml}<div class="bbl-t">${statusHtml}<span>${ts}</span></div>`;
         msgsEl.appendChild(div);
         msgsEl.scrollTop = msgsEl.scrollHeight;
     }
@@ -814,16 +815,33 @@
         if(!txt || !curJid) return;
         document.getElementById('lcIn').value='';
         
-        addBbl(txt, false, new Date(), null, null, 'sent');
+        const tempMsgId = 'temp-' + Date.now();
+        addBbl(txt, false, new Date(), null, tempMsgId, 'pending');
 
         try {
-            await fetch('/dashboard/livechat/' + encodeURIComponent(curJid) + '/send', {
+            const r = await fetch('/dashboard/livechat/' + encodeURIComponent(curJid) + '/send', {
                 method:'POST',
                 headers:{'Content-Type':'application/json'},
                 body: JSON.stringify({ remoteJid: curJid, text: txt })
             });
+            const data = await r.json();
+            const tempEl = document.getElementById(`status-${tempMsgId}`);
+            if (data.success && data.message) {
+                if (tempEl) {
+                    if (data.message.messageId) {
+                        tempEl.id = `status-${data.message.messageId}`;
+                    }
+                    tempEl.innerHTML = getStatusIcon(data.message.status || 'sent');
+                }
+            } else if (data.error) {
+                alert('⚠️ لم يتم إرسال الرسالة: ' + data.error);
+                if (tempEl) {
+                    tempEl.innerHTML = '<i class="bi bi-exclamation-triangle-fill text-danger me-1" title="فشل الإرسال"></i>';
+                }
+            }
         } catch(e) {
             console.error('Send error:', e);
+            alert('⚠️ حدث خطأ في الاتصال أثناء إرسال الرسالة');
         }
     }
 
