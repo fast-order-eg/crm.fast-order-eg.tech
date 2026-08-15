@@ -229,12 +229,6 @@
                                         <div class="form-text text-muted">المدة بالدقائق التي ينتظرها البوت دون تفاعل من العميل قبل تحويل المحادثة لمندوب المبيعات تلقائياً.</div>
                                     </div>
 
-                                    <div class="mb-3">
-                                        <label class="form-label fw-bold text-secondary small"><i class="bi bi-telephone-outbound text-primary me-1"></i> رقم واتساب الأدمن الرئيسي لاستقبال الإشعارات والتقارير</label>
-                                        <input type="text" name="admin_notification_phone" class="form-control rounded-3 py-2 px-3" value="<%= settings.admin_notification_phone || '201092308465' %>" placeholder="مثال: 201092308465">
-                                        <div class="form-text text-muted small">الرقم الشخصي للأدمن الذي تصله كافة الإشعارات والملخصات لجميع العملاء بالنظام (يتم إرسالها فوراً بواسطة بوت الإشعارات الثانوي Baileys).</div>
-                                    </div>
-
                                     <div class="form-check form-switch d-flex align-items-center justify-content-between p-3 border rounded-3 bg-white shadow-sm mb-3" style="direction: rtl;">
                                         <div>
                                             <label class="form-check-label fw-bold text-dark small mb-1" for="enable_whatsapp_notifications" style="cursor: pointer;">تفعيل إرسال الإشعارات والملخصات على الواتساب</label>

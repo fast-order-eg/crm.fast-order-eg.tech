@@ -14,8 +14,8 @@ function toCleanWhatsAppPhone(raw) {
 }
 
 /**
- * Unified notification dispatcher for Hybrid Mode (Baileys for Reports/Notifications + Meta Cloud API Fallback)
- * Handles Admin notifications + Sales Employee specific notifications + Control Group alerts
+ * Unified notification dispatcher for Hybrid Mode
+ * Routes ALL system notifications, handoffs, inactivity summaries, and reports exclusively to the Bird CRM Control Group via Baileys
  */
 export async function sendSystemNotification({ userId, assignedToUserId = null, message, type = 'general' }) {
     try {
@@ -28,39 +28,10 @@ export async function sendSystemNotification({ userId, assignedToUserId = null, 
             return false;
         }
 
-        const rawAdminPhone = await getSetting('admin_notification_phone', userId) || '201092308465';
-        const adminPhone = toCleanWhatsAppPhone(rawAdminPhone);
-
-        // Collect target WhatsApp numbers to receive this notification
-        const targetPhones = new Set();
-
-        // Admin always receives all notifications
-        if (adminPhone) {
-            targetPhones.add(adminPhone);
-            console.log(`👑 [NotificationDispatcher] Included Admin phone: ${adminPhone}`);
-        }
-
-        // If assigned to a specific sales employee, also include the employee's notification/regular phone
-        if (assignedToUserId) {
-            try {
-                const employee = await User.findByPk(assignedToUserId);
-                if (employee && employee.enableNotifications !== false) {
-                    const rawEmpPhone = employee.notificationPhone || employee.phone;
-                    const empPhone = toCleanWhatsAppPhone(rawEmpPhone);
-                    if (empPhone) {
-                        targetPhones.add(empPhone);
-                        console.log(`📱 [NotificationDispatcher] Included sales employee ${employee.fullName || employee.username} (${empPhone})`);
-                    }
-                }
-            } catch (empErr) {
-                console.error('Error fetching employee notification phone:', empErr);
-            }
-        }
-
-        // 2. Hybrid Dispatcher Mode (Prefer Baileys for Internal Alerts & Reports to avoid 24h Meta limit)
+        // 2. Dispatch Exclusively to Bird CRM Control Group via Baileys Socket
         let sock = sessions.get(parseInt(userId, 10)) || sessions.get(String(userId)) || sessions.get(userId);
 
-        // Fallback: If target user's Baileys session is not active, try any connected Baileys session
+        // Fallback: search any active Baileys socket in sessions
         if (!sock || !sock.user) {
             for (const [sKey, sVal] of sessions.entries()) {
                 if (sVal && sVal.user) {
@@ -72,9 +43,6 @@ export async function sendSystemNotification({ userId, assignedToUserId = null, 
         }
 
         if (sock && sock.user) {
-            // === MODE A: Baileys Group & Direct (Free-Form 24/7 Internal Notifications) ===
-            console.log(`🚀 [NotificationDispatcher] Sending via Baileys socket to Control Group & ${targetPhones.size} recipient(s)...`);
-
             const userObj = await User.findByPk(userId);
             let targetGroupJid = userObj?.control_group_jid;
 
@@ -97,42 +65,19 @@ export async function sendSystemNotification({ userId, assignedToUserId = null, 
             if (targetGroupJid) {
                 try {
                     await sock.sendMessage(targetGroupJid, { text: message });
-                    console.log(`✅ [NotificationDispatcher] Sent notification to Baileys Control Group (${targetGroupJid})`);
+                    console.log(`✅ [NotificationDispatcher] Delivered notification to Bird CRM Control Group (${targetGroupJid})`);
+                    return true;
                 } catch (grpSendErr) {
                     console.error(`❌ [NotificationDispatcher] Failed to send to group ${targetGroupJid}:`, grpSendErr.message);
                 }
-            }
-
-            // Send direct 1-on-1 to Admin & Sales Employee via Baileys
-            for (const phone of targetPhones) {
-                const jid = `${phone}@s.whatsapp.net`;
-                try {
-                    await sock.sendMessage(jid, { text: message });
-                    console.log(`✅ [NotificationDispatcher] Sent Baileys 1-on-1 notification to ${jid}`);
-                } catch (bErr) {
-                    console.error(`Failed sending Baileys 1-on-1 to ${jid}:`, bErr.message);
-                }
-            }
-            return true;
-        } else {
-            // === MODE B: Meta WhatsApp Cloud API Fallback ===
-            const isMetaActive = process.env.META_PHONE_NUMBER_ID && process.env.META_ACCESS_TOKEN;
-            if (isMetaActive) {
-                console.log(`🚀 [NotificationDispatcher] Baileys inactive. Fallback: Sending via Meta Cloud API to ${targetPhones.size} recipient(s)...`);
-                for (const phone of targetPhones) {
-                    try {
-                        await sendMetaMessage(phone, message);
-                        console.log(`✅ [NotificationDispatcher] Delivered Meta API notification to ${phone}`);
-                    } catch (metaErr) {
-                        console.error(`❌ [NotificationDispatcher] Failed to send to ${phone} via Meta API:`, metaErr.message);
-                    }
-                }
-                return true;
             } else {
-                console.log('⚠️ [NotificationDispatcher] Neither Baileys nor Meta API active for notifications.');
-                return false;
+                console.log('⚠️ [NotificationDispatcher] Bird CRM Control Group not found on Baileys socket.');
             }
+        } else {
+            console.log('⚠️ [NotificationDispatcher] Baileys socket not connected for sending group notifications.');
         }
+
+        return false;
     } catch (err) {
         console.error('❌ [NotificationDispatcher] Global error:', err);
         return false;
