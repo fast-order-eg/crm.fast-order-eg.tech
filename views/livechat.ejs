@@ -727,13 +727,13 @@
             const windowBadge = document.getElementById('lcWindowBadge');
             if (windowBadge) {
                 if (data.windowActive) {
-                    windowBadge.className = 'badge bg-success-subtle text-success border border-success ms-1';
+                    windowBadge.className = 'badge bg-success-subtle text-success border border-success ms-1 fw-bold';
                     windowBadge.style.display = 'inline-block';
-                    windowBadge.innerHTML = `<i class="bi bi-clock-history me-1"></i>نافذة 24 س (نشطة - متبقي ~${data.remainingHours}س)`;
+                    windowBadge.innerHTML = `<i class="bi bi-clock-history me-1"></i>${data.remainingHours}س`;
                 } else if (data.lastUserMsgTime) {
-                    windowBadge.className = 'badge bg-danger-subtle text-danger border border-danger ms-1';
+                    windowBadge.className = 'badge bg-danger-subtle text-danger border border-danger ms-1 fw-bold';
                     windowBadge.style.display = 'inline-block';
-                    windowBadge.innerHTML = `<i class="bi bi-exclamation-triangle me-1"></i>انتهت نافذة الـ 24 س (يلزم قالب Meta)`;
+                    windowBadge.innerHTML = `<i class="bi bi-exclamation-circle me-1"></i>منتهي`;
                 } else {
                     windowBadge.style.display = 'none';
                 }
