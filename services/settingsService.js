@@ -24,8 +24,14 @@ export const defaultSettingsMeta = {
     first_followup_type: {
         type: 'text',
         category: 'messages',
-        label: 'نوع المتابعة الأولى (static/dynamic)',
+        label: 'نوع المتابعة الأولى (static/dynamic/meta_template)',
         defaultValue: 'static'
+    },
+    first_followup_template_name: {
+        type: 'text',
+        category: 'messages',
+        label: 'اسم قالب ميتا المعتمد للمتابعة الأولى',
+        defaultValue: 'followup_3days'
     },
     final_followup_message: {
         type: 'text',
@@ -36,8 +42,14 @@ export const defaultSettingsMeta = {
     final_followup_type: {
         type: 'text',
         category: 'messages',
-        label: 'نوع المتابعة النهائية (static/dynamic)',
+        label: 'نوع المتابعة النهائية (static/dynamic/meta_template)',
         defaultValue: 'static'
+    },
+    final_followup_template_name: {
+        type: 'text',
+        category: 'messages',
+        label: 'اسم قالب ميتا المعتمد للمتابعة النهائية',
+        defaultValue: 'followup_3days'
     },
     course_details: {
         type: 'text',

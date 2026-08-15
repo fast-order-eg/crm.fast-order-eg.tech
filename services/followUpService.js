@@ -8,6 +8,7 @@ import Conversation from '../models/Conversation.js';
 import { getSetting as getSystemSetting } from './settingsService.js';
 import * as notificationService from './notificationService.js';
 import { sessions, generateDynamicFollowUpMessage } from '../controllers/botController.js';
+import { sendMetaMessage } from '../controllers/metaCloudController.js';
 
 export const checkPendingFollowUps = async (io) => {
     try {
@@ -107,11 +108,29 @@ export const checkPendingFollowUps = async (io) => {
                         const firstFollowupType = await getSystemSetting('first_followup_type', userId) || 'static';
 
                         let customerFirstMsg = firstFollowupMessage;
-                        if (firstFollowupType === 'dynamic') {
-                            customerFirstMsg = await generateDynamicFollowUpMessage(customer.id, userId, firstFollowupMessage);
+                        if (firstFollowupType === 'meta_template') {
+                            const templateName = await getSystemSetting('first_followup_template_name', userId) || 'followup_3days';
+                            customerFirstMsg = `[قالب ميتا المعتمد: ${templateName}]`;
+                            await sendMetaMessage(customer.phoneNumber, '', {
+                                template: {
+                                    name: templateName,
+                                    language: { code: 'ar' },
+                                    components: [
+                                        {
+                                            type: 'body',
+                                            parameters: [
+                                                { type: 'text', text: customer.customerName || 'عميلنا العزيز' }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            });
+                        } else {
+                            if (firstFollowupType === 'dynamic') {
+                                customerFirstMsg = await generateDynamicFollowUpMessage(customer.id, userId, firstFollowupMessage);
+                            }
+                            await sock.sendMessage(customer.remoteJid, { text: customerFirstMsg });
                         }
-
-                        await sock.sendMessage(customer.remoteJid, { text: customerFirstMsg });
 
                         await Message.create({
                             UserId: userId,
@@ -153,7 +172,7 @@ export const checkPendingFollowUps = async (io) => {
 
                         await ChangeLog.create({
                             action: 'follow_up',
-                            description: `حان موعد المتابعة الأولى. تم إرسال رسالة المتابعة الأولى وتغيير الحالة إلى "متابعة نهائية" مع جدولة الموعد.`,
+                            description: `حان موعد المتابعة الأولى. تم إرسال المتابعة الأولى وتغيير الحالة إلى "متابعة نهائية".`,
                             oldValue: oldStatus,
                             newValue: 'final_follow_up',
                             CustomerId: customer.id,
@@ -178,11 +197,29 @@ export const checkPendingFollowUps = async (io) => {
                         const finalFollowupType = await getSystemSetting('final_followup_type', userId) || 'static';
 
                         let customerFinalMsg = finalFollowupMessage;
-                        if (finalFollowupType === 'dynamic') {
-                            customerFinalMsg = await generateDynamicFollowUpMessage(customer.id, userId, finalFollowupMessage);
+                        if (finalFollowupType === 'meta_template') {
+                            const templateName = await getSystemSetting('final_followup_template_name', userId) || 'followup_3days';
+                            customerFinalMsg = `[قالب ميتا المعتمد: ${templateName}]`;
+                            await sendMetaMessage(customer.phoneNumber, '', {
+                                template: {
+                                    name: templateName,
+                                    language: { code: 'ar' },
+                                    components: [
+                                        {
+                                            type: 'body',
+                                            parameters: [
+                                                { type: 'text', text: customer.customerName || 'عميلنا العزيز' }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            });
+                        } else {
+                            if (finalFollowupType === 'dynamic') {
+                                customerFinalMsg = await generateDynamicFollowUpMessage(customer.id, userId, finalFollowupMessage);
+                            }
+                            await sock.sendMessage(customer.remoteJid, { text: customerFinalMsg });
                         }
-
-                        await sock.sendMessage(customer.remoteJid, { text: customerFinalMsg });
 
                         await Message.create({
                             UserId: userId,
