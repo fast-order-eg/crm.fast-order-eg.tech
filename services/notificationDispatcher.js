@@ -14,8 +14,8 @@ function toCleanWhatsAppPhone(raw) {
 }
 
 /**
- * Unified notification dispatcher for Meta WhatsApp Cloud API and Baileys
- * Handles Admin notifications + Sales Employee specific notifications
+ * Unified notification dispatcher for Hybrid Mode (Baileys for Reports/Notifications + Meta Cloud API Fallback)
+ * Handles Admin notifications + Sales Employee specific notifications + Control Group alerts
  */
 export async function sendSystemNotification({ userId, assignedToUserId = null, message, type = 'general' }) {
     try {
@@ -57,30 +57,24 @@ export async function sendSystemNotification({ userId, assignedToUserId = null, 
             }
         }
 
-        // 2. Determine Connection Mode (Meta API vs Baileys)
-        const isMetaActive = process.env.META_PHONE_NUMBER_ID && process.env.META_ACCESS_TOKEN;
+        // 2. Hybrid Dispatcher Mode (Prefer Baileys for Internal Alerts & Reports to avoid 24h Meta limit)
+        let sock = sessions.get(parseInt(userId, 10)) || sessions.get(String(userId)) || sessions.get(userId);
 
-        if (isMetaActive) {
-            // === MODE A: Meta WhatsApp Cloud API (1-on-1 Direct Notification) ===
-            console.log(`🚀 [NotificationDispatcher] Sending via Meta API to ${targetPhones.size} recipient(s)...`);
-            for (const phone of targetPhones) {
-                try {
-                    await sendMetaMessage(phone, message);
-                    console.log(`✅ [NotificationDispatcher] Delivered notification to ${phone}`);
-                } catch (metaErr) {
-                    console.error(`❌ [NotificationDispatcher] Failed to send to ${phone} via Meta API:`, metaErr.message);
+        // Fallback: If target user's Baileys session is not active, try any connected Baileys session
+        if (!sock || !sock.user) {
+            for (const [sKey, sVal] of sessions.entries()) {
+                if (sVal && sVal.user) {
+                    sock = sVal;
+                    console.log(`🔄 [NotificationDispatcher] Using active Baileys session (User ${sKey}) for system notification.`);
+                    break;
                 }
             }
-            return true;
-        } else {
-            // === MODE B: Baileys (Group & Direct fallback) ===
-            const sock = sessions.get(userId);
-            if (!sock || !sock.user) {
-                console.log(`⚠️ [NotificationDispatcher] Baileys socket not connected for user ${userId}`);
-                return false;
-            }
+        }
 
-            // Check for control group
+        if (sock && sock.user) {
+            // === MODE A: Baileys Group & Direct (Free-Form 24/7 Internal Notifications) ===
+            console.log(`🚀 [NotificationDispatcher] Sending via Baileys socket to Control Group & ${targetPhones.size} recipient(s)...`);
+
             const userObj = await User.findByPk(userId);
             let targetGroupJid = userObj?.control_group_jid;
 
@@ -96,25 +90,48 @@ export async function sendSystemNotification({ userId, assignedToUserId = null, 
                         }
                     }
                 } catch (gErr) {
-                    console.error('Error fetching Baileys group:', gErr);
+                    console.error('Error fetching Baileys control group:', gErr);
                 }
             }
 
             if (targetGroupJid) {
-                await sock.sendMessage(targetGroupJid, { text: message });
-                console.log(`✅ [NotificationDispatcher] Sent notification to Baileys group ${targetGroupJid}`);
+                try {
+                    await sock.sendMessage(targetGroupJid, { text: message });
+                    console.log(`✅ [NotificationDispatcher] Sent notification to Baileys Control Group (${targetGroupJid})`);
+                } catch (grpSendErr) {
+                    console.error(`❌ [NotificationDispatcher] Failed to send to group ${targetGroupJid}:`, grpSendErr.message);
+                }
             }
 
-            // Also send direct 1-on-1 to sales employee if notification phone exists
+            // Send direct 1-on-1 to Admin & Sales Employee via Baileys
             for (const phone of targetPhones) {
                 const jid = `${phone}@s.whatsapp.net`;
                 try {
                     await sock.sendMessage(jid, { text: message });
+                    console.log(`✅ [NotificationDispatcher] Sent Baileys 1-on-1 notification to ${jid}`);
                 } catch (bErr) {
                     console.error(`Failed sending Baileys 1-on-1 to ${jid}:`, bErr.message);
                 }
             }
             return true;
+        } else {
+            // === MODE B: Meta WhatsApp Cloud API Fallback ===
+            const isMetaActive = process.env.META_PHONE_NUMBER_ID && process.env.META_ACCESS_TOKEN;
+            if (isMetaActive) {
+                console.log(`🚀 [NotificationDispatcher] Baileys inactive. Fallback: Sending via Meta Cloud API to ${targetPhones.size} recipient(s)...`);
+                for (const phone of targetPhones) {
+                    try {
+                        await sendMetaMessage(phone, message);
+                        console.log(`✅ [NotificationDispatcher] Delivered Meta API notification to ${phone}`);
+                    } catch (metaErr) {
+                        console.error(`❌ [NotificationDispatcher] Failed to send to ${phone} via Meta API:`, metaErr.message);
+                    }
+                }
+                return true;
+            } else {
+                console.log('⚠️ [NotificationDispatcher] Neither Baileys nor Meta API active for notifications.');
+                return false;
+            }
         }
     } catch (err) {
         console.error('❌ [NotificationDispatcher] Global error:', err);
