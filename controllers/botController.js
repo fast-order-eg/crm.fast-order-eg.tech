@@ -1329,17 +1329,12 @@ export const startSession = async (userId, io, phoneNumber = null) => {
     if (user.connection_status === 'paused_manual' || user.pause_until) {
         console.log(`[Dashboard] Resuming manual pause for User ${userId}`);
 
-        // Notify Control Group
-        if (user.control_group_jid && sessions.has(userId)) {
-            const sock = sessions.get(userId);
-            if (sock.user) {
-                try {
-                    await sock.sendMessage(user.control_group_jid, { text: '✅ تم تشغيل البوت من لوحة التحكم.' });
-                } catch (e) {
-                    console.error("Error notifying control group:", e);
-                }
-            }
-        }
+        // Notify Control Group via Anti-Ban Queue
+        await sendSystemNotification({
+            userId,
+            message: '✅ تم تشغيل البوت من لوحة التحكم.',
+            type: 'status_update'
+        });
     }
 
     await User.update({ auto_reply: true, connection_status: 'online', pause_until: null }, { where: { id: userId } });
@@ -2868,17 +2863,12 @@ export const checkPauseTimer = async (io) => {
                 user.pause_until = null;
                 await user.save();
 
-                // Notify in Control Group if exists
-                if (user.control_group_jid) {
-                    try {
-                        const sock = sessions.get(user.id);
-                        if (sock) {
-                            await sock.sendMessage(user.control_group_jid, { text: '✅ انتهت مدة الانتظار. تم استئناف الرد التلقائي.' });
-                        }
-                    } catch (err) {
-                        console.error(`[Pause Timer] Error sending resume notification for user ${user.id}:`, err);
-                    }
-                }
+                // Notify in Control Group if exists via Anti-Ban Queue
+                await sendSystemNotification({
+                    userId: user.id,
+                    message: '✅ انتهت مدة الانتظار. تم استئناف الرد التلقائي.',
+                    type: 'status_update'
+                });
             }
         }
     } catch (error) {
@@ -4057,7 +4047,7 @@ export const generateDailyKPI = async () => {
 
             if (salesKpis.length === 0) {
                 const emptyMsg = `📊 *تقرير الأداء اليومي للعمليات (${yesterdayStr})* 📊\n\nلم يتم تسجيل أي نشاط لموظفي المبيعات بالأمس.`;
-                await sock.sendMessage(userObj.control_group_jid, { text: emptyMsg });
+                await sendSystemNotification({ userId: ownerId, message: emptyMsg, type: 'daily_kpi' });
                 continue;
             }
 
@@ -4086,7 +4076,7 @@ export const generateDailyKPI = async () => {
                 employeeReport +
                 ``;
 
-            await sock.sendMessage(userObj.control_group_jid, { text: summaryMsg });
+            await sendSystemNotification({ userId: ownerId, message: summaryMsg, type: 'daily_kpi' });
             console.log(`[DailyKPIJob] Sent daily KPI report for user ${ownerId} to control group.`);
         }
     } catch (error) {
