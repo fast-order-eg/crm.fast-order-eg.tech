@@ -230,15 +230,15 @@
                                     </div>
 
                                     <div class="mb-3">
-                                        <label class="form-label fw-bold text-secondary small"><i class="bi bi-telephone-outbound text-primary me-1"></i> رقم واتساب الأدمن الرئيسي للإشعارات</label>
+                                        <label class="form-label fw-bold text-secondary small"><i class="bi bi-telephone-outbound text-primary me-1"></i> رقم واتساب الأدمن الرئيسي لاستقبال الإشعارات والتقارير</label>
                                         <input type="text" name="admin_notification_phone" class="form-control rounded-3 py-2 px-3" value="<%= settings.admin_notification_phone || '201092308465' %>" placeholder="مثال: 201092308465">
-                                        <div class="form-text text-muted small">الرقم الذي تصله كافة الإشعارات والملخصات لجميع العملاء بالنظام.</div>
+                                        <div class="form-text text-muted small">الرقم الشخصي للأدمن الذي تصله كافة الإشعارات والملخصات لجميع العملاء بالنظام (يتم إرسالها فوراً بواسطة بوت الإشعارات الثانوي Baileys).</div>
                                     </div>
 
                                     <div class="form-check form-switch d-flex align-items-center justify-content-between p-3 border rounded-3 bg-white shadow-sm mb-3" style="direction: rtl;">
                                         <div>
                                             <label class="form-check-label fw-bold text-dark small mb-1" for="enable_whatsapp_notifications" style="cursor: pointer;">تفعيل إرسال الإشعارات والملخصات على الواتساب</label>
-                                            <div class="form-text text-muted small">عند تفعيله، يتم إرسال إشعارات التحويل وملخصات الـ 15 دقيقة على الواتساب للأدمن وللموظفين.</div>
+                                            <div class="form-text text-muted small">عند تفعيله، يتم إرسال إشعارات التحويل وملخصات الـ 15 دقيقة عبر بوت الإشعارات إلى الواتساب للأدمن وللموظفين.</div>
                                         </div>
                                         <input class="form-check-input ms-0" type="checkbox" role="switch" id="enable_whatsapp_notifications" name="enable_whatsapp_notifications" value="true" <%= settings.enable_whatsapp_notifications ? 'checked' : '' %> style="cursor: pointer; width: 2.8em; height: 1.4em;">
                                     </div>
@@ -399,8 +399,8 @@
                         
                         checkGroupResult.style.display = 'block';
                         if (data.status === 'disconnected') {
-                            checkGroupResult.classList.add('bg-danger', 'text-white');
-                            checkGroupResult.innerHTML = '<i class="bi bi-x-circle me-1"></i> الواتس غير متصل';
+                            checkGroupResult.classList.add('bg-danger', 'text-white', 'p-3');
+                            checkGroupResult.innerHTML = '<i class="bi bi-x-circle me-1"></i> بوت واتساب الإشعارات الثانوي (Baileys) غير متصل، يرجى مسح كود الـ QR وتوصيله أولاً من الرئيسية.';
                         } else if (data.status === 'not_found') {
                             checkGroupResult.classList.add('bg-warning', 'text-dark', 'p-3');
                             checkGroupResult.innerHTML = `
@@ -410,11 +410,11 @@
                                 </div>
                                 <div class="mb-2">برجاء إنشاء الجروب بالاسم: <strong class="mx-1">Bird CRM</strong> 
                                 <button type="button" class="btn btn-sm btn-light border py-0 px-1 mx-1" onclick="copyGroupName(this)" title="نسخ"><i class="far fa-copy"></i></button></div>
-                                <small class="text-muted d-block mt-2 border-top border-warning pt-2"><i class="bi bi-info-circle me-1"></i> تأكد من إضافة رقم البوت داخل الجروب كمسؤول.</small>
+                                <small class="text-muted d-block mt-2 border-top border-warning pt-2"><i class="bi bi-info-circle me-1"></i> تأكد من إضافة رقم بوت الإشعارات الثانوي كمسؤول (Admin) داخل الجروب.</small>
                             `;
                         } else if (data.status === 'found') {
                             checkGroupResult.classList.add('bg-success', 'bg-opacity-10', 'text-success', 'border', 'border-success', 'p-3');
-                            checkGroupResult.innerHTML = '<div class="d-flex align-items-center fw-bold"><i class="bi bi-check-circle-fill fs-5 me-2"></i> تم فحص الجروب بنجاح (البوت متصل بالجروب).</div>';
+                            checkGroupResult.innerHTML = '<div class="d-flex align-items-center fw-bold"><i class="bi bi-check-circle-fill fs-5 me-2"></i> تم فحص الجروب بنجاح (بوت الإشعارات متصل بجروب Bird CRM بنجاح).</div>';
                         }
                     } catch (error) {
                         checkGroupResult.style.display = 'block';
