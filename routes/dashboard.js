@@ -258,9 +258,8 @@ router.get('/', async (req, res) => {
             ]
         });
 
-        const baileysSock = sessions.get(req.user.id);
-        const baileysOnline = !!(baileysSock && baileysSock.user);
-        const baileysPhone = baileysOnline ? (baileysSock.user.id.split(':')[0].split('@')[0]) : '';
+        const baileysOnline = statusResult.baileysOnline || false;
+        const baileysPhone = statusResult.baileysPhone || req.user.notificationPhone || '';
 
         res.render('user_dashboard', {
             user: req.user,

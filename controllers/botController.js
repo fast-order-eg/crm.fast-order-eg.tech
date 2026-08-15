@@ -1500,14 +1500,36 @@ export const startSession = async (userId, io, phoneNumber = null) => {
                 }
             }
         } else if (connection === 'open') {
-            console.log(`User ${userId} connected`);
+            console.log(`User ${userId} connected via Baileys`);
             const id = sock.user.id.split(':')[0].split('@')[0];
             const name = sock.user.name || "My Bot";
 
-            // SAVE PHONE and STATUS TO DB
-            await User.update({ linked_phone_number: id, connection_status: 'online', auto_reply: true }, { where: { id: userId } });
+            const isMetaActive = !!(process.env.META_PHONE_NUMBER_ID && process.env.META_ACCESS_TOKEN);
 
-            if (io) io.to(`user_${userId}`).emit('status', { status: 'online', phone: id, name: name });
+            if (isMetaActive) {
+                // Hybrid Mode: Preserve Meta Cloud API primary status and save Baileys phone as notificationPhone
+                await User.update({ notificationPhone: id, auto_reply: true }, { where: { id: userId } });
+                if (io) {
+                    io.to(`user_${userId}`).emit('status', { 
+                        status: 'meta_online', 
+                        phone: '201105757366', 
+                        name: name,
+                        baileysOnline: true,
+                        baileysPhone: id
+                    });
+                }
+            } else {
+                await User.update({ linked_phone_number: id, connection_status: 'online', auto_reply: true }, { where: { id: userId } });
+                if (io) {
+                    io.to(`user_${userId}`).emit('status', { 
+                        status: 'online', 
+                        phone: id, 
+                        name: name,
+                        baileysOnline: true,
+                        baileysPhone: id
+                    });
+                }
+            }
         }
     });
 
@@ -2646,61 +2668,63 @@ export const restoreSessions = async (io) => {
 };
 
 export const getStatus = async (userId) => {
-    if (process.env.META_PHONE_NUMBER_ID && process.env.META_ACCESS_TOKEN) {
-        return {
-            status: 'meta_online',
-            phone: '+201105757366',
-            name: 'Fast Order (Meta API)',
-            mode: 'meta'
-        };
-    }
     try {
         const user = await User.findByPk(userId);
+        const isMetaActive = !!(process.env.META_PHONE_NUMBER_ID && process.env.META_ACCESS_TOKEN);
+
+        const sock = sessions.get(userId) || sessions.get(parseInt(userId, 10)) || sessions.get(String(userId));
+        const baileysOnline = !!(sock && sock.user);
+        const baileysPhone = baileysOnline ? (sock.user.id.split(':')[0].split('@')[0]) : (user?.notificationPhone || '');
+
+        if (isMetaActive) {
+            return {
+                status: 'meta_online',
+                phone: '201105757366',
+                name: 'Fast Order (Meta API)',
+                mode: 'meta',
+                baileysOnline,
+                baileysPhone: baileysPhone || user?.notificationPhone || ''
+            };
+        }
 
         // 1. Check active session (Real-time connection)
-        if (sessions.has(userId)) {
-            const sock = sessions.get(userId);
-
+        if (sock) {
             if (sock.user) {
                 const id = sock.user.id.split(':')[0].split('@')[0];
                 const name = sock.user.name || "My Bot";
 
-                // Update DB just in case
-                if (user.linked_phone_number !== id) {
+                if (user && user.linked_phone_number !== id) {
                     await User.update({ linked_phone_number: id }, { where: { id: userId } });
                 }
 
-                // Check for Manual Pause (Highest Priority)
-                if (user.connection_status === 'paused_manual') {
-                    return { status: 'paused_manual', phone: id, name: name, pause_until: user.pause_until };
+                if (user && user.connection_status === 'paused_manual') {
+                    return { status: 'paused_manual', phone: id, name: name, pause_until: user.pause_until, baileysOnline: true, baileysPhone: id };
                 }
 
-                // If auto_reply is disabled, return PAUSED
-                if (!user.auto_reply) {
-                    return { status: 'paused', phone: id, name: name };
+                if (user && !user.auto_reply) {
+                    return { status: 'paused', phone: id, name: name, baileysOnline: true, baileysPhone: id };
                 }
 
-                return { status: 'online', phone: id, name: name };
+                return { status: 'online', phone: id, name: name, baileysOnline: true, baileysPhone: id };
             }
-            return { status: 'connecting' };
+            return { status: 'connecting', baileysOnline: false, baileysPhone: '' };
         }
 
         // 2. Check DB for previous connection (Offline but Registered)
         if (user && user.linked_phone_number) {
-            // Return the stored status if available, else offline
             return {
                 status: user.connection_status || 'offline',
                 phone: user.linked_phone_number,
-                pause_until: user.pause_until
+                pause_until: user.pause_until,
+                baileysOnline: false,
+                baileysPhone: user.notificationPhone || ''
             };
         }
 
-        // 3. No session and no history (Not Registered)
-        return { status: 'not_registered' };
-
-    } catch (error) {
-        console.error("Error checking user status:", error);
-        return { status: 'offline' };
+        return { status: 'not_registered', baileysOnline: false, baileysPhone: user?.notificationPhone || '' };
+    } catch (err) {
+        console.error('Error in getStatus:', err);
+        return { status: 'offline', baileysOnline: false, baileysPhone: '' };
     }
 };
 
