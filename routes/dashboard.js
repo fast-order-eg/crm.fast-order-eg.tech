@@ -156,7 +156,7 @@ router.get('/', async (req, res) => {
                         UserId: ownerId,
                         assignedToUserId: emp.id,
                         status: {
-                            [Op.notIn]: ['successful', 'not_interested']
+                            [Op.in]: ['awaiting_sales', 'new', 'in_funnel', 'awaiting_payment']
                         }
                     }
                 });
