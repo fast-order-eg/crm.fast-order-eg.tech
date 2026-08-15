@@ -2,7 +2,7 @@ import express from 'express';
 import fs from 'fs';
 import path from 'path';
 import multer from 'multer';
-import { startSession, stopSession, logoutSession, getStatus, getGroups, sendManualMessage, generateCustomerSummary, checkBirdCrmGroup } from '../controllers/botController.js';
+import { startSession, stopSession, logoutSession, getStatus, getGroups, sendManualMessage, generateCustomerSummary, checkBirdCrmGroup, sessions } from '../controllers/botController.js';
 import User from '../models/User.js';
 import Message from '../models/Message.js';
 import Customer from '../models/Customer.js';
