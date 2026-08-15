@@ -10,9 +10,12 @@ const trIcon = typeof trendIcon !== 'undefined' ? trendIcon : '';
 const trColor = typeof trendColor !== 'undefined' ? trendColor : '';
 const dropHtml = typeof dropdownHtml !== 'undefined' ? dropdownHtml : '';
 const isFin = typeof isFinance !== 'undefined' ? isFinance : false;
+const link = typeof linkUrl !== 'undefined' ? linkUrl : '';
 %>
 
-<div class="stat-card <%= isFin ? 'p-4' : 'p-3' %> h-100 dropdown" style="--theme-color: <%= colorTheme %>; --theme-color-light: <%= colorThemeLight %>;">
+<div class="stat-card <%= isFin ? 'p-4' : 'p-3' %> h-100 dropdown <%= link ? 'transition-all hover-scale' : '' %>" 
+     style="--theme-color: <%= colorTheme %>; --theme-color-light: <%= colorThemeLight %>; <%= link ? 'cursor: pointer;' : '' %>"
+     <% if (link) { %> onclick="window.location.href='<%= link %>'" <% } %>>
     <div class="d-flex align-items-center justify-content-between">
         <span class="text-secondary small fw-bold"><%= cardTitle %></span>
         <div class="stat-icon" 

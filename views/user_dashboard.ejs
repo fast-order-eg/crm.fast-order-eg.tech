@@ -348,7 +348,6 @@
          <% } %>
 
         <!-- 6 Statistical Cards -->
-        <!-- 6 Statistical Cards -->
         <div class="row g-3 mb-4 fade-in-up" style="animation-delay: 0.2s;">
             <!-- Successful -->
             <div class="col-xl-2 col-md-4 col-sm-6">
@@ -360,7 +359,8 @@
                     themeColorLight: 'rgba(16, 185, 129, 0.1)',
                     trendText: 'مبيعات مكتملة',
                     trendIcon: 'fas fa-trending-up',
-                    trendColor: 'text-success'
+                    trendColor: 'text-success',
+                    linkUrl: '/dashboard/customers?status=successful'
                 }) %>
             </div>
 
@@ -374,7 +374,8 @@
                     themeColorLight: 'rgba(239, 110, 110, 0.1)',
                     trendText: 'مستبعدين',
                     trendIcon: 'fas fa-arrow-down',
-                    trendColor: 'text-danger'
+                    trendColor: 'text-danger',
+                    linkUrl: '/dashboard/customers?status=not_interested'
                 }) %>
             </div>
 
@@ -388,7 +389,8 @@
                     themeColorLight: 'rgba(59, 130, 246, 0.1)',
                     trendText: 'قيد المتابعة',
                     trendIcon: 'fas fa-clock',
-                    trendColor: 'text-primary'
+                    trendColor: 'text-primary',
+                    linkUrl: '/dashboard/customers?status=awaiting_sales'
                 }) %>
             </div>
 
@@ -402,7 +404,8 @@
                     themeColorLight: 'rgba(249, 115, 22, 0.1)',
                     trendText: 'خلال 24 ساعة',
                     trendIcon: 'fas fa-history',
-                    trendColor: 'text-warning'
+                    trendColor: 'text-warning',
+                    linkUrl: '/dashboard/customers?status=first_follow_up'
                 }) %>
             </div>
 
@@ -416,7 +419,8 @@
                     themeColorLight: 'rgba(245, 158, 11, 0.1)',
                     trendText: 'فرصة العرض والخصم',
                     trendIcon: 'fas fa-percentage',
-                    trendColor: 'text-warning'
+                    trendColor: 'text-warning',
+                    linkUrl: '/dashboard/customers?status=final_follow_up'
                 }) %>
             </div>
 
@@ -430,7 +434,8 @@
                     themeColorLight: 'rgba(139, 92, 246, 0.1)',
                     trendText: 'مواعيد مجدولة',
                     trendIcon: 'fas fa-bell',
-                    trendColor: 'text-purple'
+                    trendColor: 'text-purple',
+                    linkUrl: '/dashboard/customers?status=scheduled_follow_up'
                 }) %>
             </div>
         </div>
@@ -447,7 +452,7 @@
                         <div class="row g-3">
                             <% employeesStats.forEach(emp => { %>
                                 <div class="col-xl-3 col-md-4 col-sm-6">
-                                    <div class="p-3 rounded-4 border border-light bg-light d-flex justify-content-between align-items-center">
+                                    <div class="p-3 rounded-4 border border-light bg-light d-flex justify-content-between align-items-center transition-all hover-scale" style="cursor: pointer;" onclick="window.location.href='/dashboard/customers?employeeId=<%= emp.id %>&status=awaiting_sales'" title="عرض عملاء <%= emp.fullName %>">
                                         <div class="d-flex align-items-center gap-2">
                                             <div class="rounded-circle d-flex align-items-center justify-content-center" style="width: 36px; height: 36px; background: rgba(59, 130, 246, 0.1); color: var(--primary-color);">
                                                 <i class="fas fa-user-tie"></i>

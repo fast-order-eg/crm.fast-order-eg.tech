@@ -168,7 +168,18 @@
                             <input type="text" id="filterSearch" class="form-control form-control-sm" placeholder="ابحث هنا...">
                         </div>
                     </div>
-                    <input type="hidden" id="filterStatus" value="all">
+                    <div class="col-md-2">
+                        <label class="form-label small fw-bold text-secondary">حالة العميل</label>
+                        <select id="filterStatus" class="form-select form-select-sm" onchange="loadData(1)">
+                            <option value="all">الكل</option>
+                            <option value="awaiting_sales">مع المبيعات</option>
+                            <option value="first_follow_up">المتابعة الأولى</option>
+                            <option value="final_follow_up">المتابعة النهائية</option>
+                            <option value="scheduled_follow_up">متابعة بتاريخ</option>
+                            <option value="successful">العملاء الناجحين</option>
+                            <option value="not_interested">غير المهتمين</option>
+                        </select>
+                    </div>
 
                     <% if (user.role === 'super_admin' || user.role === 'admin') { %>
                     <div class="col-md-2">
@@ -635,6 +646,17 @@
 
         // Initialize view on load
         document.addEventListener("DOMContentLoaded", () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const statusParam = urlParams.get('status');
+            const employeeIdParam = urlParams.get('employeeId');
+
+            if (statusParam && document.getElementById('filterStatus')) {
+                document.getElementById('filterStatus').value = statusParam;
+            }
+            if (employeeIdParam && document.getElementById('filterEmployee')) {
+                document.getElementById('filterEmployee').value = employeeIdParam;
+            }
+
             applyViewMode();
             loadData();
         });
