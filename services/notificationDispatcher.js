@@ -1,25 +1,62 @@
 import { getSetting } from './settingsService.js';
-import { sendMetaMessage } from '../controllers/metaCloudController.js';
 import User from '../models/User.js';
 import { sessions } from '../controllers/botController.js';
 
-function toCleanWhatsAppPhone(raw) {
-    if (!raw) return null;
-    let digits = String(raw).replace(/[^0-9]/g, '');
-    if (!digits) return null;
-    if (digits.startsWith('01') && digits.length === 11) {
-        digits = '20' + digits.substring(1);
-    }
-    return digits;
+// In-Memory Anti-Ban Queue for Group WhatsApp Notifications
+const notificationQueue = [];
+let isProcessingQueue = false;
+
+/**
+ * Generate a random human-like delay between minSeconds and maxSeconds in ms
+ */
+function getRandomAntiBanDelay(minSeconds = 6, maxSeconds = 12) {
+    const seconds = Math.floor(Math.random() * (maxSeconds - minSeconds + 1)) + minSeconds;
+    return seconds * 1000;
 }
 
 /**
- * Unified notification dispatcher for Hybrid Mode
+ * Queue Consumer: Sends group notifications with strict Anti-Ban pacing
+ */
+async function processNotificationQueue() {
+    if (isProcessingQueue) return;
+    isProcessingQueue = true;
+
+    while (notificationQueue.length > 0) {
+        const item = notificationQueue.shift();
+        const { sock, targetGroupJid, message, resolve, type } = item;
+
+        try {
+            if (sock && sock.user && targetGroupJid) {
+                await sock.sendMessage(targetGroupJid, { text: message });
+                console.log(`✅ [Anti-Ban Queue] Delivered "${type}" notification to Bird CRM Group (${targetGroupJid}). Remaining queued: ${notificationQueue.length}`);
+                if (resolve) resolve(true);
+            } else {
+                console.warn(`⚠️ [Anti-Ban Queue] Socket or targetGroupJid missing for queued notification.`);
+                if (resolve) resolve(false);
+            }
+        } catch (err) {
+            console.error(`❌ [Anti-Ban Queue] Error sending queued notification:`, err?.message || err);
+            if (item.resolve) item.resolve(false);
+        }
+
+        // Apply strict Anti-Ban delay before sending the next queued message
+        if (notificationQueue.length > 0) {
+            const delayMs = getRandomAntiBanDelay(6, 12);
+            console.log(`🛡️ [Anti-Ban Queue] Waiting ${(delayMs / 1000).toFixed(1)}s before sending next group notification...`);
+            await new Promise(r => setTimeout(r, delayMs));
+        }
+    }
+
+    isProcessingQueue = false;
+}
+
+/**
+ * Unified notification dispatcher with Anti-Ban Queue
  * Routes ALL system notifications, handoffs, inactivity summaries, and reports exclusively to the Bird CRM Control Group via Baileys
  */
 export async function sendSystemNotification({ userId, assignedToUserId = null, message, type = 'general' }) {
     try {
-        console.log(`🔔 [NotificationDispatcher] Processing notification type "${type}" for owner ${userId}...`);
+        console.log(`🔔 [NotificationDispatcher] Queueing notification type "${type}" for owner ${userId}...`);
 
         // 1. Get Global Notification Settings
         const enableNotifications = await getSetting('enable_whatsapp_notifications', userId);
@@ -28,10 +65,9 @@ export async function sendSystemNotification({ userId, assignedToUserId = null, 
             return false;
         }
 
-        // 2. Dispatch Exclusively to Bird CRM Control Group via Baileys Socket
+        // 2. Locate active Baileys socket
         let sock = sessions.get(parseInt(userId, 10)) || sessions.get(String(userId)) || sessions.get(userId);
 
-        // Fallback: search any active Baileys socket in sessions
         if (!sock || !sock.user) {
             for (const [sKey, sVal] of sessions.entries()) {
                 if (sVal && sVal.user) {
@@ -63,13 +99,16 @@ export async function sendSystemNotification({ userId, assignedToUserId = null, 
             }
 
             if (targetGroupJid) {
-                try {
-                    await sock.sendMessage(targetGroupJid, { text: message });
-                    console.log(`✅ [NotificationDispatcher] Delivered notification to Bird CRM Control Group (${targetGroupJid})`);
-                    return true;
-                } catch (grpSendErr) {
-                    console.error(`❌ [NotificationDispatcher] Failed to send to group ${targetGroupJid}:`, grpSendErr.message);
-                }
+                return new Promise((resolve) => {
+                    notificationQueue.push({
+                        sock,
+                        targetGroupJid,
+                        message,
+                        type,
+                        resolve
+                    });
+                    processNotificationQueue();
+                });
             } else {
                 console.log('⚠️ [NotificationDispatcher] Bird CRM Control Group not found on Baileys socket.');
             }
