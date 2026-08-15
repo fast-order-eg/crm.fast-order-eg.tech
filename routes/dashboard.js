@@ -141,7 +141,7 @@ router.get('/', async (req, res) => {
             whereClause.UserId = ownerId;
         }
 
-        // Detailed employees stats (Admin only) - computed first to sum awaitingSalesCount
+        // Detailed employees stats (Admin only) - computed for sales employees
         const employeesStats = [];
         if (req.user.role !== 'sales') {
             const employees = await User.findAll({
@@ -153,7 +153,7 @@ router.get('/', async (req, res) => {
             for (const emp of employees) {
                 const count = await Customer.count({
                     where: {
-                        UserId: req.user.id,
+                        UserId: ownerId,
                         assignedToUserId: emp.id,
                         status: {
                             [Op.notIn]: ['successful', 'not_interested']
@@ -175,21 +175,14 @@ router.get('/', async (req, res) => {
         const notInterestedCount = await Customer.count({
             where: { ...whereClause, status: 'not_interested' }
         });
-
-        // "مع المبيعات" represents the sum of all clients in follow-up across sales team (or assigned to this sales user)
-        let awaitingSalesCount = 0;
-        if (req.user.role !== 'sales') {
-            awaitingSalesCount = employeesStats.reduce((sum, emp) => sum + emp.count, 0);
-        } else {
-            awaitingSalesCount = await Customer.count({
-                where: {
-                    assignedToUserId: req.user.id,
-                    status: {
-                        [Op.notIn]: ['successful', 'not_interested']
-                    }
+        const awaitingSalesCount = await Customer.count({
+            where: {
+                ...whereClause,
+                status: {
+                    [Op.in]: ['awaiting_sales', 'new', 'in_funnel', 'awaiting_payment']
                 }
-            });
-        }
+            }
+        });
 
         const firstFollowUpCount = await Customer.count({
             where: { ...whereClause, status: 'first_follow_up' }
