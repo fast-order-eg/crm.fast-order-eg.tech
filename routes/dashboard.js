@@ -258,10 +258,16 @@ router.get('/', async (req, res) => {
             ]
         });
 
+        const baileysSock = sessions.get(req.user.id);
+        const baileysOnline = !!(baileysSock && baileysSock.user);
+        const baileysPhone = baileysOnline ? (baileysSock.user.id.split(':')[0].split('@')[0]) : '';
+
         res.render('user_dashboard', {
             user: req.user,
             status: statusResult.status || 'offline',
             phone: statusResult.phone || '',
+            baileysOnline,
+            baileysPhone,
             page: 'home',
             stats: {
                 successfulCount,

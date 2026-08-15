@@ -247,25 +247,25 @@
                                 <div class="d-grid gap-3">
                                     <div class="row g-2">
                                         <div class="col-sm-6">
-                                            <button id="start-btn" class="btn btn-success w-100 rounded-pill py-3 fw-bold shadow-sm" <%= status === 'online' ? 'disabled' : '' %>>
-                                                <i class="fas fa-play me-1"></i> تشغيل / تحديث
+                                            <button id="start-btn" class="btn btn-success w-100 rounded-pill py-3 fw-bold shadow-sm">
+                                                <i class="fas fa-qrcode me-1"></i> مسح كود QR (للرقم الثانوي)
                                             </button>
                                         </div>
                                         <div class="col-sm-6">
-                                            <button id="pair-btn" class="btn btn-outline-primary w-100 rounded-pill py-3 fw-bold" <%= status === 'online' ? 'disabled' : '' %>>
-                                                <i class="fas fa-phone-alt me-1"></i> ربط برقم الهاتف
+                                            <button id="pair-btn" class="btn btn-outline-primary w-100 rounded-pill py-3 fw-bold">
+                                                <i class="fas fa-phone-alt me-1"></i> ربط برقم الهاتف (الثانوي)
                                             </button>
                                         </div>
                                     </div>
                                     <div class="row g-2">
                                         <div class="col-sm-6">
-                                            <button id="pause-btn" class="btn btn-warning text-white w-100 rounded-pill py-3 fw-bold" <%= (status !== 'online') ? 'disabled' : '' %>>
+                                            <button id="pause-btn" class="btn btn-warning text-white w-100 rounded-pill py-3 fw-bold">
                                                 <i class="fas fa-pause me-1"></i> إيقاف مؤقت
                                             </button>
                                         </div>
                                         <div class="col-sm-6">
                                             <button id="logout-btn" class="btn btn-outline-danger w-100 rounded-pill py-3 fw-bold" <%= (status === 'not_registered') ? 'disabled' : '' %>>
-                                                <i class="fas fa-sign-out-alt me-1"></i> تسجيل خروج
+                                                <i class="fas fa-sign-out-alt me-1"></i> تسجيل خروج / فصل
                                             </button>
                                         </div>
                                     </div>
@@ -760,18 +760,15 @@
                     pauseBtn.disabled = false;
                     logoutBtn.disabled = false;
                 } else if (status === 'meta_online') {
-                    label = 'متصل عبر WhatsApp Business API ✅';
+                    label = 'متصل عبر WhatsApp Business API (المحادثات الرئيسية) ✅';
                     dotClass = 'bg-success';
                     headerClass = 'bg-success text-white';
                     
-                    qrContainer.classList.add('d-none');
-                    pairingContainer.classList.add('d-none');
                     loader.classList.add('d-none');
                     clearInterval(timerInterval);
-                    isPairingFlow = false;
 
-                    startBtn.disabled = true;
-                    if (pairBtn) pairBtn.disabled = true;
+                    startBtn.disabled = false;
+                    if (pairBtn) pairBtn.disabled = false;
                     pauseBtn.disabled = false;
                     logoutBtn.disabled = false;
                 } else if (status === 'paused') {
@@ -836,7 +833,6 @@
             });
 
             socket.on('qr_code', (qr) => {
-                if (statusText.innerText.includes('متصل')) return;
                 if (isPairingFlow || !pairingContainer.classList.contains('d-none')) {
                     console.log('Ignoring QR code because pairing flow is active');
                     return;
