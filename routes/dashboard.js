@@ -2643,7 +2643,11 @@ router.get('/customers/data', async (req, res) => {
         }
         
         if (status && status !== 'all') {
-            whereClause.status = status;
+            if (status === 'awaiting_sales') {
+                whereClause.status = { [Op.in]: ['awaiting_sales', 'new', 'in_funnel', 'awaiting_payment'] };
+            } else {
+                whereClause.status = status;
+            }
         }
         
         if (dateFrom || dateTo) {
@@ -3246,7 +3250,11 @@ router.get('/customers/export', async (req, res) => {
         }
 
         if (status && status !== 'all' && todayFollowUps !== 'true') {
-            whereClause.status = status;
+            if (status === 'awaiting_sales') {
+                whereClause.status = { [Op.in]: ['awaiting_sales', 'new', 'in_funnel', 'awaiting_payment'] };
+            } else {
+                whereClause.status = status;
+            }
         }
 
         if (dateFrom || dateTo) {
