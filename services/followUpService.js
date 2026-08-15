@@ -102,15 +102,22 @@ export const checkPendingFollowUps = async (io) => {
                         }
                     });
 
+                    // حساب ساعات الانقضاء على آخر تفاعل من العميل
+                    const lastCustomerActivity = customer.lastReplyAt || customer.updatedAt || customer.firstContactAt || now;
+                    const hoursPassed = (now.getTime() - new Date(lastCustomerActivity).getTime()) / (1000 * 60 * 60);
+                    const isWindowExpired = hoursPassed >= 24;
+
                     if (customer.status === 'first_follow_up' && !firstFollowupSent) {
                         // --- إرسال المتابعة الأولى ---
                         const firstFollowupMessage = await getSystemSetting('first_followup_message', userId);
                         const firstFollowupType = await getSystemSetting('first_followup_type', userId) || 'static';
+                        const shouldUseMetaTemplate = firstFollowupType === 'meta_template' || isWindowExpired;
 
                         let customerFirstMsg = firstFollowupMessage;
-                        if (firstFollowupType === 'meta_template') {
+                        if (shouldUseMetaTemplate) {
                             const templateName = await getSystemSetting('first_followup_template_name', userId) || 'followup_3days';
                             customerFirstMsg = `[قالب ميتا المعتمد: ${templateName}]`;
+                            console.log(`[FollowUpService Smart Fallback] Customer ${customer.phoneNumber} activity was ${hoursPassed.toFixed(1)}h ago (Window Expired: ${isWindowExpired}). Auto-switching to Meta Template: ${templateName}`);
                             await sendMetaMessage(customer.phoneNumber, '', {
                                 template: {
                                     name: templateName,
@@ -172,7 +179,7 @@ export const checkPendingFollowUps = async (io) => {
 
                         await ChangeLog.create({
                             action: 'follow_up',
-                            description: `حان موعد المتابعة الأولى. تم إرسال المتابعة الأولى وتغيير الحالة إلى "متابعة نهائية".`,
+                            description: `حان موعد المتابعة الأولى. تم إرسال المتابعة بنجاح (${shouldUseMetaTemplate ? 'قالب ميتا أوتوماتيك لمرور >24س' : 'رسالة نصية'}) وتغيير الحالة إلى "متابعة نهائية".`,
                             oldValue: oldStatus,
                             newValue: 'final_follow_up',
                             CustomerId: customer.id,
@@ -195,11 +202,13 @@ export const checkPendingFollowUps = async (io) => {
                         // --- إرسال المتابعة النهائية ---
                         const finalFollowupMessage = await getSystemSetting('final_followup_message', userId);
                         const finalFollowupType = await getSystemSetting('final_followup_type', userId) || 'static';
+                        const shouldUseMetaTemplateFinal = finalFollowupType === 'meta_template' || isWindowExpired;
 
                         let customerFinalMsg = finalFollowupMessage;
-                        if (finalFollowupType === 'meta_template') {
+                        if (shouldUseMetaTemplateFinal) {
                             const templateName = await getSystemSetting('final_followup_template_name', userId) || 'followup_3days';
                             customerFinalMsg = `[قالب ميتا المعتمد: ${templateName}]`;
+                            console.log(`[FollowUpService Smart Fallback Final] Customer ${customer.phoneNumber} activity was ${hoursPassed.toFixed(1)}h ago (Window Expired: ${isWindowExpired}). Auto-switching to Meta Template: ${templateName}`);
                             await sendMetaMessage(customer.phoneNumber, '', {
                                 template: {
                                     name: templateName,

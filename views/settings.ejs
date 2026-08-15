@@ -135,23 +135,23 @@
                                     
                                     <div class="mb-3">
                                         <label class="form-label fw-bold text-secondary small">نوع المتابعة الأولى</label>
-                                        <select name="first_followup_type" id="first_followup_type" class="form-select border-0 shadow-sm py-2.5 rounded-3 fw-medium" onchange="toggleTemplateInputs()">
+                                        <select name="first_followup_type" id="first_followup_type" class="form-select border-0 shadow-sm py-2.5 rounded-3 fw-medium">
                                             <option value="static" <%= settings.first_followup_type === 'static' ? 'selected' : '' %>>ثابتة (إرسال الرسالة النموذجية كما هي)</option>
                                             <option value="dynamic" <%= settings.first_followup_type === 'dynamic' ? 'selected' : '' %>>متغيرة بالذكاء الاصطناعي (ذكية بناءً على سياق الدردشة)</option>
                                             <option value="meta_template" <%= settings.first_followup_type === 'meta_template' ? 'selected' : '' %>>قالب معتمد عبر WhatsApp Business Meta API الرسمية 🟢</option>
                                         </select>
-                                        <div class="form-text text-muted small mt-1">يمكنك استخدام البوت التلقائي (Baileys) أو قوالب ميتا المعتمدة للمتابعة.</div>
+                                        <div class="form-text text-muted small mt-1">التبديل الذكي (Smart Fallback): إذا كان العميل خارج نافذة الـ 24 ساعة، سيتولى النظام تحويل المتابعة تلقائياً إلى قالب ميتا المعتمد لتفادي الفشل.</div>
                                     </div>
 
-                                    <div class="mb-3" id="first_followup_template_div" style="<%= settings.first_followup_type === 'meta_template' ? 'display: block;' : 'display: none;' %>">
-                                        <label class="form-label fw-bold text-secondary small">اسم قالب ميتا المعتمد (Meta Template Name)</label>
-                                        <input type="text" name="first_followup_template_name" class="form-control rounded-3" placeholder="مثال: followup_3days" value="<%= settings.first_followup_template_name || 'followup_3days' %>">
-                                        <div class="form-text text-muted small mt-1">اكتب اسم القالب كما هو مقبول ومسجل داخل حساب ميتا الخاص بك.</div>
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold text-secondary small"><i class="bi bi-patch-check-fill text-primary me-1"></i> اسم قالب ميتا للمتابعة الأولى (Meta Template Name)</label>
+                                        <input type="text" name="first_followup_template_name" class="form-control rounded-3 border-primary-subtle" placeholder="مثال: followup_3days" value="<%= settings.first_followup_template_name || 'followup_3days' %>">
+                                        <div class="form-text text-muted small mt-1">اسم القالب كما هو مقبول ومسجل داخل حساب ميتا الخاص بك (يُستخدم مباشرة أو كبديل آمن عند انتهاء الـ 24 ساعة).</div>
                                     </div>
 
                                     <div class="mb-0">
                                         <label class="form-label fw-bold text-secondary small">نص الرسالة النموذجية (أو السياق الأساسي للمتابعة)</label>
-                                        <textarea name="first_followup_message" class="form-control rounded-3" rows="5"><%= settings.first_followup_message %></textarea>
+                                        <textarea name="first_followup_message" class="form-control rounded-3" rows="4"><%= settings.first_followup_message %></textarea>
                                     </div>
                                 </div>
                             </div>
@@ -163,23 +163,23 @@
                                     
                                     <div class="mb-3">
                                         <label class="form-label fw-bold text-secondary small">نوع المتابعة النهائية</label>
-                                        <select name="final_followup_type" id="final_followup_type" class="form-select border-0 shadow-sm py-2.5 rounded-3 fw-medium" onchange="toggleTemplateInputs()">
+                                        <select name="final_followup_type" id="final_followup_type" class="form-select border-0 shadow-sm py-2.5 rounded-3 fw-medium">
                                             <option value="static" <%= settings.final_followup_type === 'static' ? 'selected' : '' %>>ثابتة (إرسال الرسالة النموذجية كما هي)</option>
                                             <option value="dynamic" <%= settings.final_followup_type === 'dynamic' ? 'selected' : '' %>>متغيرة بالذكاء الاصطناعي (ذكية بناءً على سياق الدردشة)</option>
                                             <option value="meta_template" <%= settings.final_followup_type === 'meta_template' ? 'selected' : '' %>>قالب معتمد عبر WhatsApp Business Meta API الرسمية 🟢</option>
                                         </select>
-                                        <div class="form-text text-muted small mt-1">يصيغها الذكاء الاصطناعي أو ترسل كقالب رسمى معتمد بعد نافذة الـ 24 ساعة.</div>
+                                        <div class="form-text text-muted small mt-1">إذا انقضت 24 ساعة على العميل، سيقوم النظام تلقائياً بإرسال القالب بدلاً من النص العادي المرفوض.</div>
                                     </div>
 
-                                    <div class="mb-3" id="final_followup_template_div" style="<%= settings.final_followup_type === 'meta_template' ? 'display: block;' : 'display: none;' %>">
-                                        <label class="form-label fw-bold text-secondary small">اسم قالب ميتا المعتمد (Meta Template Name)</label>
-                                        <input type="text" name="final_followup_template_name" class="form-control rounded-3" placeholder="مثال: followup_3days" value="<%= settings.final_followup_template_name || 'followup_3days' %>">
-                                        <div class="form-text text-muted small mt-1">اكتب اسم القالب كما هو مقبول ومسجل داخل حساب ميتا الخاص بك.</div>
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold text-secondary small"><i class="bi bi-patch-check-fill text-danger me-1"></i> اسم قالب ميتا للمتابعة النهائية (Meta Template Name)</label>
+                                        <input type="text" name="final_followup_template_name" class="form-control rounded-3 border-danger-subtle" placeholder="مثال: followup_3days" value="<%= settings.final_followup_template_name || 'followup_3days' %>">
+                                        <div class="form-text text-muted small mt-1">اسم القالب كما هو مقبول ومسجل داخل حساب ميتا الخاص بك.</div>
                                     </div>
 
                                     <div class="mb-0">
                                         <label class="form-label fw-bold text-secondary small">نص الرسالة النموذجية أو السياق الأساسي للمتابعة</label>
-                                        <textarea name="final_followup_message" class="form-control rounded-3" rows="5"><%= settings.final_followup_message %></textarea>
+                                        <textarea name="final_followup_message" class="form-control rounded-3" rows="4"><%= settings.final_followup_message %></textarea>
                                     </div>
                                 </div>
                             </div>
