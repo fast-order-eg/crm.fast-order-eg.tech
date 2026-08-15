@@ -2200,10 +2200,11 @@ router.get('/employees', async (req, res) => {
             }
         }
 
-        // Fetch shift split rule
+        // Fetch shift split rule using owner.id
         let shiftSplitRule = null;
         try {
-            shiftSplitRule = await getSetting('shift_split_rule', req.user.id);
+            const owner = await getOwnerUser(req.user);
+            shiftSplitRule = await getSetting('shift_split_rule', owner.id);
         } catch (e) {
             console.error('Error fetching shift split rule:', e);
         }
