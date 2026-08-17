@@ -2893,7 +2893,12 @@ export const checkInactivitySummary = async () => {
             },
             include: [
                 { model: User, as: 'User', attributes: ['id', 'control_group_jid', 'inactivity_summary'] },
-                { model: Customer, as: 'Customer', attributes: ['id', 'customerNumber'] }
+                { 
+                    model: Customer, 
+                    as: 'Customer', 
+                    attributes: ['id', 'customerNumber', 'assignedToUserId'],
+                    include: [{ model: User, as: 'assignedTo', attributes: ['fullName', 'username'] }]
+                }
             ],
             limit: 5 // Anti-Ban: Process maximum 5 conversations per minute
         });
@@ -2983,7 +2988,9 @@ export const checkInactivitySummary = async () => {
                 const customerDisplay = conv.customerName || conv.phoneNumber || (conv.remoteJid ? conv.remoteJid.split('@')[0] : 'Unknown');
                 const phoneDisplay = conv.phoneNumber || (conv.remoteJid ? conv.remoteJid.split('@')[0] : 'Unknown');
                 const customerCode = conv.Customer ? (conv.Customer.customerNumber || conv.Customer.id || 'غير معروف') : 'غير معروف';
-                const summaryMsg = `📋 *ملخص محادثة منتهية (لا رد منذ 15 دقيقة)*\n\n🔖 كود العميل: ${customerCode}\n👤 العميل: ${customerDisplay}\n📱 الرقم: ${phoneDisplay}\n📱 المنصة: واتساب\n🕐 آخر رسالة: ${conv.lastMessageAt?.toLocaleTimeString('ar-EG') || '-'}\n\n─────────────────\n${chatLog}\n─────────────────\n\nيرجى المتابعة مع العميل إذا لزم الأمر.`;
+                const assignedSales = conv.Customer && conv.Customer.assignedTo ? (conv.Customer.assignedTo.fullName || conv.Customer.assignedTo.username) : 'غير مخصص';
+
+                const summaryMsg = `📋 *ملخص محادثة منتهية (لا رد منذ 15 دقيقة)*\n\n🔖 كود العميل: ${customerCode}\n👤 العميل: ${customerDisplay}\n📱 الرقم: ${phoneDisplay}\n👨‍💼 الموظف المسؤول: ${assignedSales}\n📱 المنصة: واتساب\n🕐 آخر رسالة: ${conv.lastMessageAt?.toLocaleTimeString('ar-EG', { timeZone: 'Africa/Cairo' }) || '-'}\n\n─────────────────\n${chatLog}\n─────────────────\n\nيرجى المتابعة مع العميل إذا لزم الأمر.`;
 
                 await sendSystemNotification({
                     userId: user.id,
