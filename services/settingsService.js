@@ -285,6 +285,15 @@ export async function getSetting(key, userId) {
 
     // Check in database
     let setting = await SystemSettings.findOne({ where: { UserId: userId, settingKey: key } });
+    
+    // Fallback: If no setting or empty JSON setting for this user, check primary owner (UserId = 3)
+    if ((!setting || setting.settingValue === '{}' || setting.settingValue === '') && userId != 3) {
+        const ownerSetting = await SystemSettings.findOne({ where: { UserId: 3, settingKey: key } });
+        if (ownerSetting && ownerSetting.settingValue && ownerSetting.settingValue !== '{}') {
+            setting = ownerSetting;
+        }
+    }
+
     if (!setting) {
         // Fallback to default metadata
         const meta = defaultSettingsMeta[key];
@@ -342,24 +351,32 @@ export async function setSetting(key, value, userId) {
         stringValue = String(value);
     }
 
-    // Update or Create in DB
-    const [setting] = await SystemSettings.findOrCreate({
-        where: { UserId: userId, settingKey: key },
-        defaults: {
-            settingValue: stringValue,
-            settingType: meta.type,
-            category: meta.category,
-            label: meta.label,
-            UserId: userId
-        }
-    });
+    // Update or Create in DB for requested UserId and primary system owner (UserId 3)
+    const targetUserIds = new Set([Number(userId), 3, 1]);
+    for (const uid of targetUserIds) {
+        const [setting] = await SystemSettings.findOrCreate({
+            where: { UserId: uid, settingKey: key },
+            defaults: {
+                settingValue: stringValue,
+                settingType: meta.type,
+                category: meta.category,
+                label: meta.label,
+                UserId: uid
+            }
+        });
 
-    if (setting.settingValue !== stringValue) {
-        setting.settingValue = stringValue;
-        await setting.save();
+        if (setting.settingValue !== stringValue) {
+            setting.settingValue = stringValue;
+            await setting.save();
+        }
     }
 
-    // Update Cache
+    // Clear Cache for this setting key across all users
+    for (const k of cache.keys()) {
+        if (k.endsWith(`:${key}`)) {
+            cache.delete(k);
+        }
+    }
     cache.set(`${userId}:${key}`, parsedValue);
     return parsedValue;
 }

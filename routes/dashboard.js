@@ -28,18 +28,16 @@ const router = express.Router();
 
 // Helper to resolve the owner of the system for sales users
 async function getOwnerUser(reqUser) {
-    if (reqUser.role !== 'sales') {
-        return reqUser;
-    }
-    
-    // 1. Priority 1: Find the primary admin who owns the active customers (most customers)
-    let owner = null;
     try {
+        const primaryAdmin = await User.findOne({ where: { username: 'rady' } });
+        if (primaryAdmin) return primaryAdmin;
+
         const admins = await User.findAll({
             where: { role: { [Op.in]: ['admin', 'super_admin'] } }
         });
         
-        let maxCustomers = 0;
+        let maxCustomers = -1;
+        let owner = null;
         for (const adm of admins) {
             const count = await Customer.count({ where: { UserId: adm.id } });
             if (count > maxCustomers) {
@@ -47,40 +45,11 @@ async function getOwnerUser(reqUser) {
                 owner = adm;
             }
         }
-        if (owner) {
-            return owner;
-        }
+        if (owner) return owner;
     } catch (err) {
-        console.error('Error finding admin by customer count:', err);
+        console.error('Error finding primary system owner:', err);
     }
-    
-    // 2. Fallback: Try finding an admin or super_admin with an online/meta_online bot connection
-    owner = await User.findOne({
-        where: {
-            role: { [Op.in]: ['admin', 'super_admin'] },
-            connection_status: { [Op.in]: ['online', 'meta_online'] }
-        }
-    });
-    
-    // 3. Fallback: Try finding an admin or super_admin with a linked phone number
-    if (!owner) {
-        owner = await User.findOne({
-            where: {
-                role: { [Op.in]: ['admin', 'super_admin'] },
-                linked_phone_number: { [Op.and]: [{ [Op.ne]: null }, { [Op.ne]: '' }] }
-            }
-        });
-    }
-
-    // 4. Ultimate Fallback: return admin or reqUser
-    if (!owner) {
-        owner = await User.findOne({ where: { role: 'admin' } });
-    }
-    if (!owner) {
-        owner = await User.findOne({ where: { role: 'super_admin' } });
-    }
-    
-    return owner || reqUser;
+    return reqUser;
 }
 
 // Use permissions middleware to ensure login
