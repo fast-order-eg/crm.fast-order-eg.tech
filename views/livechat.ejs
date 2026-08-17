@@ -763,14 +763,18 @@
 
         if (mediaUrl) {
             const ext = mediaUrl.split('.').pop().toLowerCase();
-            if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
+            const isAudio = ['mp3', 'ogg', 'wav', 'm4a', 'opus'].includes(ext) || (text && (text.includes('audio') || text.includes('صوتية')));
+            const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext) || (text && text.includes('صورة'));
+            const isVideo = ['mp4', 'webm', 'mov'].includes(ext) || (text && text.includes('فيديو'));
+
+            if (isAudio) {
+                contentHtml += `<div class="media-bubble mb-1"><audio src="${mediaUrl}" controls style="max-width:100%; min-width: 220px;"></audio></div>`;
+            } else if (isImage) {
                 contentHtml += `<div class="media-bubble mb-1"><a href="${mediaUrl}" target="_blank"><img src="${mediaUrl}" alt="صورة" style="max-width:100%; border-radius:6px;"></a></div>`;
-            } else if (['mp4', 'webm', 'ogg'].includes(ext)) {
+            } else if (isVideo) {
                 contentHtml += `<div class="media-bubble mb-1"><video src="${mediaUrl}" controls style="max-width:100%; border-radius:6px;"></video></div>`;
-            } else if (['mp3', 'ogg', 'wav', 'm4a', 'opus'].includes(ext)) {
-                contentHtml += `<div class="media-bubble mb-1"><audio src="${mediaUrl}" controls style="max-width:100%;"></audio></div>`;
             } else {
-                contentHtml += `<div class="media-bubble mb-1"><a href="${mediaUrl}" target="_blank" class="btn btn-sm btn-light border"><i class="bi bi-file-earmark-arrow-down me-1"></i>تحميل الملف</a></div>`;
+                contentHtml += `<div class="media-bubble mb-1"><a href="${mediaUrl}" target="_blank" download class="btn btn-sm btn-light border"><i class="bi bi-file-earmark-arrow-down me-1"></i>تحميل الملف / الوسائط</a></div>`;
             }
         }
 
@@ -878,6 +882,7 @@
         const urlParams = new URLSearchParams(window.location.search);
         const targetJid = urlParams.get('jid');
         const targetPhone = urlParams.get('phone');
+        const targetName = urlParams.get('name') || targetPhone || 'عميل';
 
         if (targetJid || targetPhone) {
             setTimeout(() => {
@@ -886,14 +891,26 @@
                     targetEl = document.querySelector(`.lc-item[data-jid="${targetJid}"]`);
                 }
                 if (!targetEl && targetPhone) {
-                    targetEl = document.querySelector(`.lc-item[data-phone="${targetPhone}"]`);
+                    const cleanP = targetPhone.replace(/[^0-9]/g, '');
+                    const cleanNoZero = cleanP.startsWith('01') ? ('20' + cleanP.substring(1)) : cleanP;
+                    document.querySelectorAll('.lc-item').forEach(el => {
+                        const itemJid = el.getAttribute('data-jid') || '';
+                        const itemPhone = el.getAttribute('data-phone') || '';
+                        if (itemJid.includes(cleanNoZero) || itemPhone.includes(cleanNoZero)) {
+                            targetEl = el;
+                        }
+                    });
                 }
                 if (targetEl) {
                     targetEl.click();
                     targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    console.log('✅ Auto-opened chat:', targetJid || targetPhone);
+                    console.log('✅ Auto-opened chat from list:', targetJid || targetPhone);
                 } else {
-                    console.log('⚠️ Target chat not found:', targetJid || targetPhone);
+                    const finalJid = targetJid || (targetPhone ? (targetPhone.replace(/[^0-9]/g, '') + '@s.whatsapp.net') : null);
+                    if (finalJid) {
+                        loadChat(finalJid, targetName, false, targetPhone || '');
+                        console.log('✅ Directly opened chat:', finalJid);
+                    }
                 }
             }, 400);
         }

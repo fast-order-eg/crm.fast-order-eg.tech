@@ -149,10 +149,37 @@ export const handleWebhook = async (req, res) => {
             const userId = activeAdmin ? activeAdmin.id : 3;
 
             let textContent = '';
+            let mediaUrl = null;
             let buttonId = null;
 
             if (msg.type === 'text') {
                 textContent = msg.text.body;
+            } else if (msg.type === 'audio' || msg.type === 'voice') {
+                const audioObj = msg.audio || msg.voice;
+                if (audioObj && audioObj.id) {
+                    mediaUrl = `/api/whatsapp/meta-media/${audioObj.id}`;
+                }
+                textContent = '🎤 [رسالة صوتية]';
+            } else if (msg.type === 'image') {
+                if (msg.image && msg.image.id) {
+                    mediaUrl = `/api/whatsapp/meta-media/${msg.image.id}`;
+                }
+                textContent = msg.image?.caption || '📷 [صورة]';
+            } else if (msg.type === 'video') {
+                if (msg.video && msg.video.id) {
+                    mediaUrl = `/api/whatsapp/meta-media/${msg.video.id}`;
+                }
+                textContent = msg.video?.caption || '🎥 [فيديو]';
+            } else if (msg.type === 'document') {
+                if (msg.document && msg.document.id) {
+                    mediaUrl = `/api/whatsapp/meta-media/${msg.document.id}`;
+                }
+                textContent = msg.document?.filename || '📄 [ملف]';
+            } else if (msg.type === 'sticker') {
+                if (msg.sticker && msg.sticker.id) {
+                    mediaUrl = `/api/whatsapp/meta-media/${msg.sticker.id}`;
+                }
+                textContent = '🎨 [ملصق]';
             } else if (msg.type === 'button') {
                 textContent = msg.button.text;
                 buttonId = msg.button.payload;
@@ -222,6 +249,7 @@ export const handleWebhook = async (req, res) => {
                 role: 'user',
                 content: textContent,
                 senderName: senderName,
+                media_url: mediaUrl,
                 status: 'delivered'
             });
 
@@ -276,26 +304,6 @@ export const handleWebhook = async (req, res) => {
                         sentText = String(content);
                         result = await sendMetaMessage(cleanTo, sentText);
                     }
-
-                    // Save bot reply to DB and emit to Live Chat
-                    if (result && result.success && sentText) {
-                        try {
-                            const savedReply = await Message.create({
-                                UserId: userId,
-                                remoteJid: jid,
-                                role: 'model',
-                                content: sentText,
-                                status: 'sent'
-                            });
-                            if (io) {
-                                io.to(`user_${userId}`).emit('new_message', savedReply);
-                                console.log(`📡 [META_SOCKET] Emitted bot reply to user_${userId}`);
-                            }
-                        } catch (saveErr) {
-                            console.error('⚠️ [META_SAVE_REPLY_ERROR]:', saveErr.message);
-                        }
-                    }
-
                     return result;
                 }
             };
@@ -320,5 +328,42 @@ export const handleWebhook = async (req, res) => {
         }
     } catch (err) {
         console.error('❌ [META_WEBHOOK_HANDLER_ERROR]:', err);
+    }
+};
+
+/**
+ * Proxy controller to stream Meta Cloud API Media files (Audio, Images, Videos, Documents)
+ */
+export const getMetaMedia = async (req, res) => {
+    try {
+        const { mediaId } = req.params;
+        const accessToken = process.env.META_ACCESS_TOKEN;
+        if (!mediaId || !accessToken) {
+            return res.status(400).send('Media ID or Access Token missing');
+        }
+
+        // 1. Get Media URL from Meta Graph API
+        const metaRes = await axios.get(`https://graph.facebook.com/v18.0/${mediaId}`, {
+            headers: { Authorization: `Bearer ${accessToken}` }
+        });
+
+        const mediaUrl = metaRes.data?.url;
+        const mimeType = metaRes.data?.mime_type || 'application/octet-stream';
+
+        if (!mediaUrl) {
+            return res.status(404).send('Media URL not found from Meta');
+        }
+
+        // 2. Download and stream the media file directly to the client
+        const mediaStream = await axios.get(mediaUrl, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+            responseType: 'stream'
+        });
+
+        res.setHeader('Content-Type', mimeType);
+        mediaStream.data.pipe(res);
+    } catch (err) {
+        console.error('❌ [META_MEDIA_PROXY_ERROR]:', err.response?.data || err.message);
+        res.status(500).send('Failed to stream Meta media file');
     }
 };

@@ -864,7 +864,7 @@
                         </td>
                         <td class="text-center">
                             <div class="d-flex justify-content-center gap-2">
-                                <a href="/dashboard/livechat?jid=${encodeURIComponent(cust.remoteJid || (cust.phoneNumber + '@s.whatsapp.net'))}" class="btn btn-sm btn-outline-primary px-2 py-1 rounded" title="فتح المحادثة في اللايف شات">
+                                <a href="/dashboard/livechat?jid=${encodeURIComponent(cust.remoteJid || '')}&phone=${encodeURIComponent(cust.phoneNumber || '')}&name=${encodeURIComponent(cust.customerName || '')}" class="btn btn-sm btn-outline-primary px-2 py-1 rounded" title="فتح المحادثة في اللايف شات">
                                     <i class="bi bi-chat-text-fill"></i>
                                 </a>
                                 <a href="https://wa.me/${cust.phoneNumber}" target="_blank" class="btn btn-sm btn-outline-success px-2 py-1 rounded" title="محادثة واتساب">
