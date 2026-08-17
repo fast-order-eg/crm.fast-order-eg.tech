@@ -641,6 +641,24 @@ export async function sendInteractiveButtons(sock, remoteJid, userId, io, menuId
             return false;
         }
 
+        // Anti-Duplicate Rate-Limit: Don't send duplicate menu if a menu was already sent to this customer in the last 15 seconds
+        try {
+            const recentMenuMsg = await Message.findOne({
+                where: {
+                    UserId: userId,
+                    remoteJid,
+                    role: 'model',
+                    createdAt: { [Op.gt]: new Date(Date.now() - 15000) }
+                }
+            });
+            if (recentMenuMsg && (recentMenuMsg.content?.includes('[M:') || recentMenuMsg.content?.includes('اختر الخدمة'))) {
+                console.log(`🔘 [RateLimit] Skipped duplicate menu for ${remoteJid} (sent < 15s ago).`);
+                return true;
+            }
+        } catch (rateErr) {
+            console.error('Error checking recent menu rate limit:', rateErr);
+        }
+
         let menu = null;
 
         if (menuId) {
