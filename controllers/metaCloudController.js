@@ -227,6 +227,28 @@ export const handleWebhook = async (req, res) => {
                 }
             });
 
+            // Clean up any temporary Baileys LID duplicate customer for the same pushName
+            try {
+                const tempLidCustomer = await Customer.findOne({
+                    where: {
+                        UserId: userId,
+                        customerName: senderName,
+                        phoneNumber: { [Op.like]: '%@lid' }
+                    }
+                });
+                if (tempLidCustomer && tempLidCustomer.id !== customer.id) {
+                    await Message.update(
+                        { remoteJid: remoteJid },
+                        { where: { UserId: userId, remoteJid: tempLidCustomer.remoteJid } }
+                    );
+                    await Conversation.destroy({ where: { UserId: userId, remoteJid: tempLidCustomer.remoteJid } });
+                    await tempLidCustomer.destroy();
+                    console.log(`🧹 [LID Cleanup] Merged temporary LID customer ${tempLidCustomer.id} into real customer ${customer.id}`);
+                }
+            } catch (mergeErr) {
+                console.error('⚠️ [LID_MERGE_ERROR]:', mergeErr.message);
+            }
+
             // Find or Create Conversation
             let [conversation] = await Conversation.findOrCreate({
                 where: { UserId: userId, remoteJid: remoteJid },
