@@ -2224,21 +2224,22 @@ router.post('/employees/shift-split', async (req, res) => {
             return res.redirect('/dashboard/employees');
         }
 
-        const { enabled, startTime, endTime, days, selectedEmployees } = req.body;
+        const { enabled, startTime, endTime, days, selectedEmployees, defaultEmployeeId } = req.body;
         
         const rule = {
             enabled: enabled === 'on',
             startTime: startTime || '10:00',
             endTime: endTime || '18:00',
             days: days ? (Array.isArray(days) ? days : [days]) : [],
-            employees: selectedEmployees ? (Array.isArray(selectedEmployees) ? selectedEmployees.map(Number) : [Number(selectedEmployees)]) : []
+            employees: selectedEmployees ? (Array.isArray(selectedEmployees) ? selectedEmployees.map(Number) : [Number(selectedEmployees)]) : [],
+            defaultEmployeeId: defaultEmployeeId ? Number(defaultEmployeeId) : null
         };
 
         await setSetting('shift_split_rule', rule, owner.id);
-        req.flash('success_msg', 'تم حفظ إعدادات تجزئة الشيفت بنجاح.');
+        req.flash('success_msg', 'تم حفظ قواعد توزيع العملاء بنجاح.');
         res.redirect('/dashboard/employees');
     } catch (err) {
-        console.error('Error saving shift split rule:', err);
+        console.error('Error saving lead routing rule:', err);
         req.flash('error_msg', 'حدث خطأ أثناء حفظ الإعدادات.');
         res.redirect('/dashboard/employees');
     }

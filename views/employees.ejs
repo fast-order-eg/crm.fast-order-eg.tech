@@ -97,76 +97,115 @@ function formatTimeAMPM(timeStr) {
 
             <div class="alert alert-warning empty-slots-info" style="display:none; font-size: 15px;"></div>
 
-            <!-- Shift Split Rule Settings (For Admins only) -->
+            <!-- Lead Routing Rules Settings (For Admins only) -->
             <% if (user.role === 'admin' || user.role === 'super_admin') { 
                 const rule = {
                     enabled: shiftSplitRule?.enabled || false,
                     startTime: shiftSplitRule?.startTime || '10:00',
                     endTime: shiftSplitRule?.endTime || '18:00',
-                    days: shiftSplitRule?.days || [],
-                    employees: shiftSplitRule?.employees || []
+                    days: shiftSplitRule?.days || ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'],
+                    employees: shiftSplitRule?.employees || [],
+                    defaultEmployeeId: shiftSplitRule?.defaultEmployeeId || null
                 };
             %>
-            <div class="card mb-4 border-primary border-opacity-25" style="background: rgba(99, 102, 241, 0.03);">
-                <div class="card-header bg-transparent border-bottom-0 pt-4 pb-0 d-flex justify-content-between align-items-center">
+            <div class="card mb-4 border-primary border-opacity-25 shadow-sm" style="background: #f8fafc;">
+                <div class="card-header bg-white border-bottom pt-3 pb-3 d-flex justify-content-between align-items-center">
                     <h5 class="fw-bold m-0 text-primary d-flex align-items-center gap-2">
-                        <i class="bi bi-diagram-3-fill"></i> نظام تجزئة الشيفت الاستثنائي
+                        <i class="bi bi-diagram-3-fill"></i> 🎯 نظام قواعد توزيع العملاء المتقدمة (Lead Routing Rules)
                     </h5>
-                    <button class="btn btn-sm btn-outline-primary rounded-pill" type="button" data-bs-toggle="collapse" data-bs-target="#shiftSplitConfig" aria-expanded="<%= rule.enabled ? 'true' : 'false' %>">
-                        <i class="bi bi-gear-fill"></i> الإعدادات
+                    <button class="btn btn-sm btn-outline-primary rounded-pill px-3" type="button" data-bs-toggle="collapse" data-bs-target="#shiftSplitConfig" aria-expanded="<%= rule.enabled ? 'true' : 'false' %>">
+                        <i class="bi bi-sliders me-1"></i> إعداد القواعد
                     </button>
                 </div>
                 <div class="collapse <%= rule.enabled ? 'show' : '' %>" id="shiftSplitConfig">
                     <div class="card-body">
                         <form action="/dashboard/employees/shift-split" method="POST">
-                            <div class="row g-3 align-items-end">
-                                <div class="col-md-2">
-                                    <div class="form-check form-switch fs-5">
-                                        <input class="form-check-input" type="checkbox" role="switch" id="shiftEnabled" name="enabled" <%= rule.enabled ? 'checked' : '' %>>
-                                        <label class="form-check-label fs-6 fw-bold text-dark mt-1" for="shiftEnabled">تفعيل النظام</label>
-                                    </div>
+                            
+                            <!-- Master Switch -->
+                            <div class="p-3 bg-white border rounded mb-3 d-flex align-items-center justify-content-between">
+                                <div>
+                                    <h6 class="fw-bold text-dark mb-1">تفعيل نظام قواعد التوزيع الخاصة</h6>
+                                    <p class="text-muted small mb-0">عند التفعيل، سيتم تطبيق التقسيم التناوبي في ساعات الذروة، وتحويل العملاء للموظف الافتراضي في الأوقات الأخرى والجمعة.</p>
                                 </div>
-                                <div class="col-md-2">
-                                    <label class="form-label fw-bold small">يبدأ الساعة</label>
-                                    <input type="time" class="form-control form-control-sm" name="startTime" value="<%= rule.startTime %>" required>
-                                </div>
-                                <div class="col-md-2">
-                                    <label class="form-label fw-bold small">ينتهي الساعة</label>
-                                    <input type="time" class="form-control form-control-sm" name="endTime" value="<%= rule.endTime %>" required>
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label fw-bold small d-block">الأيام المستهدفة</label>
-                                    <div class="d-flex flex-wrap gap-2">
-                                        <% ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'].forEach((day, index) => { %>
-                                            <div class="form-check form-check-inline m-0">
-                                                <input class="form-check-input" type="checkbox" name="days" value="<%= day %>" id="sDay<%= index %>" <%= rule.days.includes(day) ? 'checked' : '' %>>
-                                                <label class="form-check-label small" for="sDay<%= index %>"><%= day %></label>
-                                            </div>
-                                        <% }) %>
-                                    </div>
-                                </div>
-                                <div class="col-md-9">
-                                    <label class="form-label fw-bold small d-block">الموظفين المشمولين في التجزئة (Round Robin صارم)</label>
-                                    <div class="d-flex flex-wrap gap-2 border p-2 rounded bg-white">
-                                        <% employees.filter(e => e.role === 'sales').forEach(emp => { %>
-                                            <div class="form-check form-check-inline m-0">
-                                                <input class="form-check-input" type="checkbox" name="selectedEmployees" value="<%= emp.id %>" id="sEmp<%= emp.id %>" <%= rule.employees.includes(emp.id) ? 'checked' : '' %>>
-                                                <label class="form-check-label small" for="sEmp<%= emp.id %>"><%= emp.fullName || emp.username %></label>
-                                            </div>
-                                        <% }) %>
-                                        <% if(employees.filter(e => e.role === 'sales').length === 0) { %>
-                                            <span class="text-muted small">لا يوجد موظفي مبيعات حالياً</span>
-                                        <% } %>
-                                    </div>
-                                </div>
-                                <div class="col-md-3">
-                                    <button type="submit" class="btn btn-primary w-100 fw-bold">حفظ القاعدة</button>
+                                <div class="form-check form-switch fs-4 m-0">
+                                    <input class="form-check-input ms-0" type="checkbox" role="switch" id="shiftEnabled" name="enabled" <%= rule.enabled ? 'checked' : '' %>>
                                 </div>
                             </div>
+
+                            <div class="row g-3">
+                                <!-- Section 1: Peak Hours Distribution -->
+                                <div class="col-12">
+                                    <div class="p-3 border rounded bg-white">
+                                        <h6 class="fw-bold text-primary mb-3">
+                                            <i class="bi bi-sun-fill text-warning me-1"></i> 1. فترة التوزيع النهاري/النشط (التناوب 50% / 50%)
+                                        </h6>
+                                        <div class="row g-3">
+                                            <div class="col-md-3">
+                                                <label class="form-label fw-bold small text-secondary">من الساعة</label>
+                                                <input type="time" class="form-control form-control-sm" name="startTime" value="<%= rule.startTime %>" required>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label fw-bold small text-secondary">إلى الساعة</label>
+                                                <input type="time" class="form-control form-control-sm" name="endTime" value="<%= rule.endTime %>" required>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label fw-bold small text-secondary d-block">أيام التوزيع النهاري</label>
+                                                <div class="d-flex flex-wrap gap-2">
+                                                    <% ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'].forEach((day, index) => { %>
+                                                        <div class="form-check form-check-inline m-0">
+                                                            <input class="form-check-input" type="checkbox" name="days" value="<%= day %>" id="sDay<%= index %>" <%= rule.days.includes(day) ? 'checked' : '' %>>
+                                                            <label class="form-check-label small fw-semibold" for="sDay<%= index %>"><%= day %></label>
+                                                        </div>
+                                                    <% }) %>
+                                                </div>
+                                            </div>
+                                            <div class="col-12">
+                                                <label class="form-label fw-bold small text-secondary d-block">الموظفون المشمولون بالتوزيع التناوبي (مثال: رحمة سيلز + علا سيلز)</label>
+                                                <div class="d-flex flex-wrap gap-3 p-2 border rounded bg-light">
+                                                    <% employees.filter(e => e.role === 'sales').forEach(emp => { %>
+                                                        <div class="form-check form-check-inline m-0">
+                                                            <input class="form-check-input" type="checkbox" name="selectedEmployees" value="<%= emp.id %>" id="sEmp<%= emp.id %>" <%= rule.employees.includes(emp.id) ? 'checked' : '' %>>
+                                                            <label class="form-check-label small fw-bold text-dark" for="sEmp<%= emp.id %>">👤 <%= emp.fullName || emp.username %></label>
+                                                        </div>
+                                                    <% }) %>
+                                                    <% if(employees.filter(e => e.role === 'sales').length === 0) { %>
+                                                        <span class="text-muted small">لا يوجد موظفي مبيعات حالياً</span>
+                                                    <% } %>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Section 2: Off-Peak Default Representative -->
+                                <div class="col-12">
+                                    <div class="p-3 border rounded bg-white">
+                                        <h6 class="fw-bold text-indigo mb-2">
+                                            <i class="bi bi-moon-stars-fill me-1" style="color: #6366f1;"></i> 2. المسؤول المباشر (باقي الأوقات والجمعة)
+                                        </h6>
+                                        <p class="text-muted small mb-3">جميع العملاء الجدد القادمين خارج فترة التوزيع النهاري أعلاه (أو يوم الجمعة) سيتم تحويلهم تلقائياً بنسبة 100% إلى هذا الموظف مباشرة:</p>
+                                        <div class="row align-items-center">
+                                            <div class="col-md-6">
+                                                <select class="form-select form-select-sm" name="defaultEmployeeId">
+                                                    <option value="">-- اختر الموظف المسؤول لجميع الأوقات الأخرى (مثال: رحمة) --</option>
+                                                    <% employees.filter(e => e.role === 'sales').forEach(emp => { %>
+                                                        <option value="<%= emp.id %>" <%= (rule.defaultEmployeeId == emp.id) ? 'selected' : '' %>>
+                                                            👤 <%= emp.fullName || emp.username %>
+                                                        </option>
+                                                    <% }) %>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <button type="submit" class="btn btn-primary btn-sm px-4 fw-bold shadow-sm">
+                                                    <i class="bi bi-check-circle-fill me-1"></i> حفظ جميع القواعد
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                            </div>
                         </form>
-                        <div class="text-muted small mt-3">
-                            <i class="bi bi-info-circle"></i> عند تفعيل هذا النظام وتطابق الوقت واليوم، سيتم إلغاء التوزيع العادي، وتوزيع الرسائل الجديدة <strong>بالتساوي والترتيب (واحدة للأول، واحدة للثاني، إلخ)</strong> حصرياً بين الموظفين المحددين أعلاه.
-                        </div>
                     </div>
                 </div>
             </div>

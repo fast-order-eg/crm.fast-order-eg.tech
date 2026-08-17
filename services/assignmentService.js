@@ -48,16 +48,16 @@ export async function assignCustomerToSales(customerId, botOwnerId, io = null, s
             return null;
         }
 
-        // 1. Check Shift Split Rule FIRST
+        // 1. Check Lead Routing Rules (Peak Round-Robin & Off-Peak Default Rep)
         let shiftRule = null;
         try {
             shiftRule = await getSetting('shift_split_rule', botOwnerId);
-        } catch (e) { console.error('Error getting shift split rule', e); }
+        } catch (e) { console.error('Error getting lead routing rule', e); }
 
         let selectedEmp = null;
         let usedShiftSplit = false;
 
-        if (shiftRule && shiftRule.enabled && shiftRule.employees && shiftRule.employees.length > 0) {
+        if (shiftRule && shiftRule.enabled) {
             const now = new Date();
             const daysOfWeek = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
             const currentDay = daysOfWeek[now.getDay()];
@@ -66,17 +66,19 @@ export async function assignCustomerToSales(customerId, botOwnerId, io = null, s
             const currentMinute = now.getMinutes();
             const currentTimeStr = `${String(currentHour).padStart(2, '0')}:${String(currentMinute).padStart(2, '0')}`;
 
-            let inShiftDays = shiftRule.days.includes(currentDay);
+            let inShiftDays = (shiftRule.days || []).includes(currentDay);
             let inShiftTime = false;
             
-            if (shiftRule.startTime <= shiftRule.endTime) {
-                inShiftTime = currentTimeStr >= shiftRule.startTime && currentTimeStr <= shiftRule.endTime;
-            } else {
-                inShiftTime = currentTimeStr >= shiftRule.startTime || currentTimeStr <= shiftRule.endTime;
+            if (shiftRule.startTime && shiftRule.endTime) {
+                if (shiftRule.startTime <= shiftRule.endTime) {
+                    inShiftTime = currentTimeStr >= shiftRule.startTime && currentTimeStr <= shiftRule.endTime;
+                } else {
+                    inShiftTime = currentTimeStr >= shiftRule.startTime || currentTimeStr <= shiftRule.endTime;
+                }
             }
 
-            if (inShiftDays && inShiftTime) {
-                // Fetch the participating employees
+            if (inShiftDays && inShiftTime && shiftRule.employees && shiftRule.employees.length > 0) {
+                // Peak Shift: Round Robin between specified employees (e.g., Rahma & Ola)
                 const shiftEmployees = await User.findAll({
                     where: { id: { [Op.in]: shiftRule.employees }, is_active: true }
                 });
@@ -92,11 +94,19 @@ export async function assignCustomerToSales(customerId, botOwnerId, io = null, s
                     if (nextIndex >= shiftEmployees.length) nextIndex = 0;
 
                     selectedEmp = shiftEmployees[nextIndex];
-                    
-                    // Update index
                     await setSetting('last_assigned_shift_index', nextIndex, botOwnerId);
                     usedShiftSplit = true;
-                    console.log(`[Assignment] Shift Split Active. Assigned to ${selectedEmp.fullName} via strict Round Robin (Index: ${nextIndex})`);
+                    console.log(`🎯 [LeadRouting] Peak Shift Active (${currentTimeStr}). Assigned to ${selectedEmp.fullName || selectedEmp.username} via Round-Robin (Index: ${nextIndex})`);
+                }
+            } else if (shiftRule.defaultEmployeeId) {
+                // Off-Peak Hours / Friday: Direct 100% assignment to default employee (e.g., Rahma)
+                const defaultEmp = await User.findOne({
+                    where: { id: shiftRule.defaultEmployeeId, is_active: true }
+                });
+                if (defaultEmp) {
+                    selectedEmp = defaultEmp;
+                    usedShiftSplit = true;
+                    console.log(`🎯 [LeadRouting] Off-Peak Hours Active (${currentTimeStr} ${currentDay}). Assigned 100% to Default Rep: ${defaultEmp.fullName || defaultEmp.username}`);
                 }
             }
         }
