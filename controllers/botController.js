@@ -3814,6 +3814,116 @@ export async function sendManualMessage(userId, remoteJid, text, senderName = nu
     return savedMsg;
 }
 
+// 📎 Live Chat Outgoing Media Message (Voice Note, Image, Video, Document)
+export async function sendManualMediaMessage(userId, remoteJid, mediaUrl, mediaType, caption = '', senderName = null, io = null, filename = null) {
+    const user = await User.findByPk(userId);
+    const isMetaUser = user && (user.connection_status === 'meta_online' || user.connection_status === 'meta' || (process.env.META_ACCESS_TOKEN && process.env.META_PHONE_NUMBER_ID));
+
+    let sock = sessions.get(parseInt(userId, 10)) || sessions.get(String(userId)) || sessions.get(userId);
+
+    const fullPublicMediaUrl = mediaUrl.startsWith('http') ? mediaUrl : `https://crm.fast-order-eg.tech${mediaUrl}`;
+    const localFilePath = path.join(process.cwd(), 'public', mediaUrl.replace(/^\//, ''));
+
+    let displayContent = caption || '';
+    if (!displayContent) {
+        displayContent = mediaType === 'audio' ? 'رسالة صوتية 🎙️' :
+                         mediaType === 'image' ? '📷 صورة' :
+                         mediaType === 'video' ? '🎥 فيديو' :
+                         `📄 مستند: ${filename || 'ملف'}`;
+    }
+
+    if ((isMetaUser && (!sock || !sock.user)) || (user && (user.connection_status === 'meta_online' || user.connection_status === 'meta'))) {
+        console.log(`[sendManualMediaMessage] Sending ${mediaType} via Meta Cloud API for User ${userId} to ${remoteJid}...`);
+        try {
+            const { sendMetaMessage } = await import('./metaCloudController.js');
+            const targetPhone = remoteJid.replace(/[^0-9]/g, '');
+            const metaRes = await sendMetaMessage(targetPhone, caption, {
+                mediaUrl: fullPublicMediaUrl,
+                mediaType,
+                filename: filename || 'file'
+            });
+
+            if (!metaRes || !metaRes.success) {
+                const errMsg = typeof metaRes?.error === 'object' ? JSON.stringify(metaRes.error) : (metaRes?.error || 'فشل الاتصال بـ Meta API');
+                throw new Error(`خطأ في إرسال الميديا عبر Meta API: ${errMsg}`);
+            }
+
+            const messageId = metaRes?.data?.messages?.[0]?.id || `meta_media_${Date.now()}`;
+
+            const savedMsg = await Message.create({
+                UserId: userId,
+                remoteJid,
+                role: 'model',
+                content: displayContent,
+                mediaUrl: mediaUrl,
+                senderName: senderName,
+                messageId,
+                status: 'sent'
+            });
+
+            await Conversation.update(
+                { lastMessageText: displayContent, lastMessageAt: new Date() },
+                { where: { UserId: userId, remoteJid } }
+            );
+
+            if (io) {
+                io.to(`user_${userId}`).emit('new_message', savedMsg);
+            }
+
+            return savedMsg;
+        } catch (metaErr) {
+            console.error(`[sendManualMediaMessage] Meta API send error:`, metaErr);
+            throw metaErr;
+        }
+    }
+
+    // Fallback: Baileys (WhatsApp Web QR session)
+    if (!sock || !sock.user) {
+        throw new Error("جاري إعادة الاتصال التلقائي بالواتساب... يرجى إعادة محاولة إرسال الرسالة بعد ثوانٍ.");
+    }
+
+    let targetJid = remoteJid;
+    if (targetJid && !targetJid.includes('@')) {
+        targetJid = `${targetJid}@s.whatsapp.net`;
+    }
+
+    let msgPayload = {};
+    if (mediaType === 'image') {
+        msgPayload = { image: { url: localFilePath }, caption };
+    } else if (mediaType === 'audio') {
+        msgPayload = { audio: { url: localFilePath }, ptt: true, mimetype: 'audio/ogg; codecs=opus' };
+    } else if (mediaType === 'video') {
+        msgPayload = { video: { url: localFilePath }, caption };
+    } else {
+        msgPayload = { document: { url: localFilePath }, caption, fileName: filename || path.basename(localFilePath) };
+    }
+
+    const msgResult = await sock.sendMessage(targetJid, msgPayload);
+    const messageId = msgResult?.key?.id || `baileys_${Date.now()}`;
+
+    const savedMsg = await Message.create({
+        UserId: userId,
+        remoteJid,
+        role: 'model',
+        content: displayContent,
+        mediaUrl: mediaUrl,
+        senderName: senderName,
+        messageId,
+        status: 'sent'
+    });
+
+    await Conversation.update(
+        { lastMessageText: displayContent, lastMessageAt: new Date() },
+        { where: { UserId: userId, remoteJid } }
+    );
+
+    if (io) {
+        io.to(`user_${userId}`).emit('new_message', savedMsg);
+    }
+
+    return savedMsg;
+}
+
 export async function notifyControlGroup(userId, message, assignedToUserId = null) {
     try {
         return await sendSystemNotification({

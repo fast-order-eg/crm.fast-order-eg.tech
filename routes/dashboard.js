@@ -2,7 +2,7 @@ import express from 'express';
 import fs from 'fs';
 import path from 'path';
 import multer from 'multer';
-import { startSession, stopSession, logoutSession, getStatus, getGroups, sendManualMessage, generateCustomerSummary, checkBirdCrmGroup, sessions } from '../controllers/botController.js';
+import { startSession, stopSession, logoutSession, getStatus, getGroups, sendManualMessage, sendManualMediaMessage, generateCustomerSummary, checkBirdCrmGroup, sessions } from '../controllers/botController.js';
 import User from '../models/User.js';
 import Message from '../models/Message.js';
 import Customer from '../models/Customer.js';
@@ -1199,6 +1199,70 @@ router.post(['/livechat/send', '/livechat/:remoteJid/send'], async (req, res) =>
     } catch (err) {
         console.error('SendManual error:', err);
         res.status(500).json({ error: err.message || 'Failed to send message' });
+    }
+});
+
+// 📎 Live Chat Outgoing Media Upload (Voice Notes, Images, Videos, Documents)
+const livechatMediaStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        const userId = req.user ? req.user.id : '1';
+        const dir = path.join(process.cwd(), 'public', 'uploads', 'media', String(userId));
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        cb(null, dir);
+    },
+    filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname) || (file.mimetype ? `.${file.mimetype.split('/')[1]}` : '.bin');
+        const prefix = file.mimetype.startsWith('audio') ? 'voice_' : file.mimetype.startsWith('image') ? 'img_' : file.mimetype.startsWith('video') ? 'vid_' : 'doc_';
+        cb(null, `${prefix}${Date.now()}${ext}`);
+    }
+});
+
+const uploadLivechatMedia = multer({
+    storage: livechatMediaStorage,
+    limits: { fileSize: 25 * 1024 * 1024 } // 25 MB max limit
+});
+
+router.post(['/livechat/send-media', '/livechat/:remoteJid/send-media'], uploadLivechatMedia.single('mediaFile'), async (req, res) => {
+    try {
+        const remoteJid = req.params.remoteJid || req.body.remoteJid;
+        if (!remoteJid || !req.file) {
+            return res.status(400).json({ error: 'remoteJid and mediaFile required' });
+        }
+
+        const owner = await getOwnerUser(req.user);
+        let customer = await Customer.findOne({ where: { remoteJid } });
+        if (!customer) {
+            const phone = remoteJid.split('@')[0];
+            customer = await Customer.findOne({ where: { phoneNumber: phone } });
+        }
+
+        const sessionUserId = customer ? (customer.UserId || owner.id) : owner.id;
+        const relativeUrl = `/uploads/media/${sessionUserId}/${req.file.filename}`;
+
+        const mime = req.file.mimetype || '';
+        let mediaType = 'document';
+        if (mime.startsWith('image/')) mediaType = 'image';
+        else if (mime.startsWith('audio/')) mediaType = 'audio';
+        else if (mime.startsWith('video/')) mediaType = 'video';
+
+        const caption = req.body.caption || '';
+        const senderName = req.user.fullName || req.user.username;
+        const io = req.app.get('socketio');
+
+        const savedMsg = await sendManualMediaMessage(sessionUserId, remoteJid, relativeUrl, mediaType, caption, senderName, io, req.file.originalname);
+
+        // Record KPI response
+        if (customer) {
+            try {
+                const { recordResponse } = await import('../services/kpiService.js');
+                await recordResponse(req.user.id, customer.id);
+            } catch (kpiErr) {}
+        }
+
+        res.json({ success: true, message: savedMsg });
+    } catch (err) {
+        console.error('SendManualMedia error:', err);
+        res.status(500).json({ error: err.message || 'Failed to send media' });
     }
 });
 

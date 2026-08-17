@@ -38,7 +38,24 @@ export const sendMetaMessage = async (to, bodyText, options = {}) => {
             to: cleanTo,
         };
 
-        if (options.template) {
+        if (options.mediaUrl && options.mediaType) {
+            // Media Message (image, audio, video, document)
+            payload.type = options.mediaType;
+            const fullLink = options.mediaUrl.startsWith('http') ? options.mediaUrl : `https://crm.fast-order-eg.tech${options.mediaUrl}`;
+            
+            if (options.mediaType === 'image') {
+                payload.image = { link: fullLink };
+                if (bodyText) payload.image.caption = bodyText;
+            } else if (options.mediaType === 'audio') {
+                payload.audio = { link: fullLink };
+            } else if (options.mediaType === 'video') {
+                payload.video = { link: fullLink };
+                if (bodyText) payload.video.caption = bodyText;
+            } else if (options.mediaType === 'document') {
+                payload.document = { link: fullLink, filename: options.filename || 'file' };
+                if (bodyText) payload.document.caption = bodyText;
+            }
+        } else if (options.template) {
             // Template Message
             payload.type = 'template';
             payload.template = typeof options.template === 'string' 

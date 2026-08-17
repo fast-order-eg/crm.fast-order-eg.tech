@@ -521,9 +521,56 @@
                              </div>
                         </div>
                         <div class="lc-msgs" id="lcMsgs"></div>
-                        <div class="lc-send-bar">
+
+                        <!-- Outgoing Media Preview Overlay -->
+                        <div id="mediaPreviewOverlay" style="display:none; padding:10px 15px; background:#f0f2f5; border-top:1px solid #e0e0e0; align-items:center; gap:12px;">
+                            <div id="mediaPreviewThumb" style="width:48px; height:48px; border-radius:6px; background:#fff; display:flex; align-items:center; justify-content:center; overflow:hidden; border:1px solid #ccc; flex-shrink:0;">
+                                <i class="bi bi-file-earmark fs-3 text-secondary" id="mediaPreviewIcon"></i>
+                                <img id="mediaPreviewImg" src="" style="width:100%; height:100%; object-fit:cover; display:none;">
+                            </div>
+                            <div class="flex-grow-1 min-w-0">
+                                <div class="fw-bold small text-truncate" id="mediaPreviewName">ملف محدد</div>
+                                <input type="text" id="mediaCaptionIn" class="form-control form-control-sm mt-1" placeholder="أضف شرحاً أو تعليقاً (اختياري)..." style="font-size:12px; border-radius:6px;">
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="cancelMediaPreview()" title="إلغاء">
+                                <i class="bi bi-x-lg"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-success px-3" id="btnSendMedia" onclick="submitMediaUpload()" title="إرسال الميديا">
+                                <i class="bi bi-send-fill me-1"></i> إرسال
+                            </button>
+                        </div>
+
+                        <!-- Voice Recording Active Overlay -->
+                        <div id="voiceRecordOverlay" style="display:none; padding:10px 15px; background:#ffebee; border-top:1px solid #ffcdd2; align-items:center; justify-content:space-between; gap:12px;">
+                            <div class="d-flex align-items-center gap-2 text-danger fw-bold">
+                                <i class="bi bi-record-fill text-danger fs-5 animate-pulse"></i>
+                                <span>جاري تسجيل فويس: <span id="recordTimer">00:00</span></span>
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="stopRecording(false)" title="إلغاء التسجيل">
+                                    <i class="bi bi-trash3-fill text-danger me-1"></i> إلغاء
+                                </button>
+                                <button type="button" class="btn btn-sm btn-danger px-3" onclick="stopRecording(true)" title="إرسال الفويس">
+                                    <i class="bi bi-send-fill me-1"></i> إرسال الفويس
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Main Livechat Send Input Bar -->
+                        <div class="lc-send-bar d-flex align-items-center gap-2" id="lcSendBar">
+                            <input type="file" id="mediaFileInput" style="display:none;" onchange="onFileSelected(this)" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xlsx,.zip">
+                            
+                            <button type="button" class="btn btn-light btn-sm text-secondary border-0 p-2" onclick="document.getElementById('mediaFileInput').click()" title="إرفاق صورة، فيديو، أو ملف" style="border-radius:50%; width:36px; height:36px; display:flex; align-items:center; justify-content:center;">
+                                <i class="bi bi-paperclip fs-5"></i>
+                            </button>
+
                             <textarea id="lcIn" placeholder="اكتب ردك... (Enter=إرسال، Shift+Enter=سطر جديد)" rows="1"></textarea>
-                            <button class="btn-ls" onclick="sendMsg()"><i class="bi bi-send-fill"></i></button>
+
+                            <button type="button" class="btn btn-light btn-sm text-danger border-0 p-2" onclick="startRecording()" title="تسجيل فويس مباشر" style="border-radius:50%; width:36px; height:36px; display:flex; align-items:center; justify-content:center;">
+                                <i class="bi bi-mic-fill fs-5"></i>
+                            </button>
+
+                            <button class="btn-ls" onclick="sendMsg()" title="إرسال"><i class="bi bi-send-fill"></i></button>
                         </div>
                     </div>
                 </div>
@@ -930,6 +977,154 @@
     });
 
     // Auto-open chat if jid or phone URL parameter is present
+    // --- 🎙️ Live Chat Media Recording & Upload JS Logic ---
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let recordInterval = null;
+    let recordSeconds = 0;
+    let selectedMediaFile = null;
+
+    async function startRecording() {
+        if (!curJid) return alert('برجاء اختيار محادثة أولاً من القائمة الجانبية');
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            return alert('متصفحك لا يدعم تسجيل الصوت المباشر.');
+        }
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
+            audioChunks = [];
+
+            mediaRecorder.ondataavailable = event => {
+                if (event.data.size > 0) audioChunks.push(event.data);
+            };
+
+            mediaRecorder.start();
+            recordSeconds = 0;
+            document.getElementById('recordTimer').textContent = '00:00';
+            document.getElementById('voiceRecordOverlay').style.display = 'flex';
+            document.getElementById('lcSendBar').style.display = 'none';
+
+            recordInterval = setInterval(() => {
+                recordSeconds++;
+                const mins = String(Math.floor(recordSeconds / 60)).padStart(2, '0');
+                const secs = String(recordSeconds % 60).padStart(2, '0');
+                document.getElementById('recordTimer').textContent = `${mins}:${secs}`;
+            }, 1000);
+        } catch (err) {
+            console.error('Mic access error:', err);
+            alert('يرجى السماح بالوصول إلى المايكروفون لتسجيل الرسائل الصوتية.');
+        }
+    }
+
+    function stopRecording(send) {
+        if (!mediaRecorder) return;
+
+        clearInterval(recordInterval);
+        document.getElementById('voiceRecordOverlay').style.display = 'none';
+        document.getElementById('lcSendBar').style.display = 'flex';
+
+        if (send) {
+            mediaRecorder.onstop = async () => {
+                const mimeType = mediaRecorder.mimeType || 'audio/webm';
+                const audioBlob = new Blob(audioChunks, { type: mimeType });
+                const ext = mimeType.includes('ogg') ? 'ogg' : 'webm';
+                const file = new File([audioBlob], `voice_${Date.now()}.${ext}`, { type: mimeType });
+                
+                uploadAndSendMedia(file, '');
+                if (mediaRecorder.stream) {
+                    mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                }
+                mediaRecorder = null;
+            };
+            mediaRecorder.stop();
+        } else {
+            mediaRecorder.stop();
+            if (mediaRecorder.stream) {
+                mediaRecorder.stream.getTracks().forEach(track => track.stop());
+            }
+            mediaRecorder = null;
+        }
+    }
+
+    function onFileSelected(input) {
+        if (!input.files || input.files.length === 0) return;
+        if (!curJid) return alert('برجاء اختيار محادثة أولاً من القائمة الجانبية');
+
+        selectedMediaFile = input.files[0];
+        const previewName = document.getElementById('mediaPreviewName');
+        const previewImg = document.getElementById('mediaPreviewImg');
+        const previewIcon = document.getElementById('mediaPreviewIcon');
+
+        previewName.textContent = selectedMediaFile.name;
+        document.getElementById('mediaCaptionIn').value = '';
+
+        if (selectedMediaFile.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onload = e => {
+                previewImg.src = e.target.result;
+                previewImg.style.display = 'block';
+                previewIcon.style.display = 'none';
+            };
+            reader.readAsDataURL(selectedMediaFile);
+        } else {
+            previewImg.style.display = 'none';
+            previewIcon.style.display = 'block';
+            if (selectedMediaFile.type.startsWith('video/')) previewIcon.className = 'bi bi-file-earmark-play-fill fs-3 text-danger';
+            else if (selectedMediaFile.type.startsWith('audio/')) previewIcon.className = 'bi bi-file-earmark-music-fill fs-3 text-warning';
+            else previewIcon.className = 'bi bi-file-earmark-text-fill fs-3 text-primary';
+        }
+
+        document.getElementById('mediaPreviewOverlay').style.display = 'flex';
+    }
+
+    function cancelMediaPreview() {
+        selectedMediaFile = null;
+        document.getElementById('mediaFileInput').value = '';
+        document.getElementById('mediaPreviewOverlay').style.display = 'none';
+    }
+
+    function submitMediaUpload() {
+        if (!selectedMediaFile || !curJid) return;
+        const caption = document.getElementById('mediaCaptionIn').value.trim();
+        const fileToSend = selectedMediaFile;
+        cancelMediaPreview();
+        uploadAndSendMedia(fileToSend, caption);
+    }
+
+    async function uploadAndSendMedia(file, caption) {
+        if (!curJid) return;
+
+        const btnSendMedia = document.getElementById('btnSendMedia');
+        if (btnSendMedia) btnSendMedia.disabled = true;
+
+        try {
+            const formData = new FormData();
+            formData.append('mediaFile', file);
+            formData.append('caption', caption);
+
+            const res = await fetch(`/dashboard/livechat/${encodeURIComponent(curJid)}/send-media`, {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+
+            if (data.success && data.message) {
+                let content = data.message.content ? data.message.content.replace(/[M:d+]/g, '').trim() : '';
+                addBbl(content, false, new Date(data.message.createdAt), data.message.mediaUrl || data.message.media_url, data.message.messageId, data.message.status);
+                
+                const el = document.querySelector(`.lc-item[data-jid="${curJid}"]`);
+                if (el) el.querySelector('.lc-prev').textContent = content;
+            } else {
+                alert('حدث خطأ أثناء إرسال الميديا: ' + (data.error || 'فشل الاتصال'));
+            }
+        } catch (err) {
+            console.error('Media upload error:', err);
+            alert('حدث خطأ في الاتصال أثناء رفع الميديا.');
+        } finally {
+            if (btnSendMedia) btnSendMedia.disabled = false;
+        }
+    }
+
     window.addEventListener('load', () => {
         const urlParams = new URLSearchParams(window.location.search);
         const targetJid = urlParams.get('jid');
