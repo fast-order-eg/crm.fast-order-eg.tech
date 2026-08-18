@@ -158,15 +158,19 @@ export const handleWebhook = async (req, res) => {
         if (value.messages && value.messages.length > 0) {
             const msg = value.messages[0];
             const contact = value.contacts?.[0];
-            const senderPhone = String(msg.from || '').replace(/[^0-9]/g, '');
+            const rawFrom = String(msg.from || '').trim();
             
-            if (!senderPhone || senderPhone.length < 5) {
-                console.log(`⚠️ [META_WEBHOOK] Skipped message with invalid or missing sender phone: "${msg.from}"`);
+            if (!rawFrom) {
+                console.log(`⚠️ [META_WEBHOOK] Skipped message with empty sender identifier.`);
                 return;
             }
 
-            const senderName = contact?.profile?.name || `عميل ${senderPhone}`;
-            const remoteJid = `${senderPhone}@s.whatsapp.net`;
+            const digitsOnly = rawFrom.replace(/[^0-9]/g, '');
+            const isPhone = digitsOnly.length >= 5;
+            const targetId = isPhone ? digitsOnly : rawFrom;
+            const remoteJid = isPhone ? `${digitsOnly}@s.whatsapp.net` : (rawFrom.includes('@') ? rawFrom : `${rawFrom}@s.whatsapp.net`);
+
+            const senderName = contact?.profile?.name || (isPhone ? `عميل ${digitsOnly}` : `عميل ${rawFrom}`);
             // Primary Admin User ID for Meta API (User rady = ID 3)
             const activeAdmin = await User.findOne({ where: { username: 'rady' } });
             const userId = activeAdmin ? activeAdmin.id : 3;
@@ -238,10 +242,10 @@ export const handleWebhook = async (req, res) => {
 
             // Find or Create Customer
             let [customer] = await Customer.findOrCreate({
-                where: { UserId: userId, phoneNumber: senderPhone },
+                where: { UserId: userId, remoteJid: remoteJid },
                 defaults: {
                     UserId: userId,
-                    phoneNumber: senderPhone,
+                    phoneNumber: targetId,
                     customerName: senderName,
                     remoteJid: remoteJid,
                     status: 'new',

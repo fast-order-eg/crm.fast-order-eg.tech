@@ -3718,9 +3718,12 @@ export async function sendManualMessage(userId, remoteJid, text, senderName = nu
         console.log(`[sendManualMessage] Sending via Meta WhatsApp Cloud API for User ${userId} to ${remoteJid}...`);
         try {
             const { sendMetaMessage } = await import('./metaCloudController.js');
-            const targetPhone = remoteJid ? remoteJid.replace(/[^0-9]/g, '') : '';
-            if (!targetPhone || targetPhone.length < 5) {
-                throw new Error('رقم الهاتف الخاص بهذا العميل غير متوفر أو غير صحيح.');
+            const rawId = remoteJid ? remoteJid.split('@')[0] : '';
+            const digits = rawId.replace(/[^0-9]/g, '');
+            const targetPhone = (digits && digits.length >= 5) ? digits : rawId;
+            
+            if (!targetPhone) {
+                throw new Error('رقم الهاتف أو المعرف الخاص بهذا العميل غير متوفر أو غير صحيح.');
             }
             const metaRes = await sendMetaMessage(targetPhone, text);
 
@@ -3857,9 +3860,12 @@ export async function sendManualMediaMessage(userId, remoteJid, mediaUrl, mediaT
         console.log(`[sendManualMediaMessage] Sending ${mediaType} via Meta Cloud API for User ${userId} to ${remoteJid}...`);
         try {
             const { sendMetaMessage } = await import('./metaCloudController.js');
-            const targetPhone = remoteJid ? remoteJid.replace(/[^0-9]/g, '') : '';
-            if (!targetPhone || targetPhone.length < 5) {
-                throw new Error('رقم الهاتف الخاص بهذا العميل غير متوفر أو غير صحيح.');
+            const rawId = remoteJid ? remoteJid.split('@')[0] : '';
+            const digits = rawId.replace(/[^0-9]/g, '');
+            const targetPhone = (digits && digits.length >= 5) ? digits : rawId;
+            
+            if (!targetPhone) {
+                throw new Error('رقم الهاتف أو المعرف الخاص بهذا العميل غير متوفر أو غير صحيح.');
             }
             const metaRes = await sendMetaMessage(targetPhone, caption, {
                 mediaUrl: fullPublicMediaUrl,
