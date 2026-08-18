@@ -2699,6 +2699,8 @@ router.get('/customers/data', async (req, res) => {
             whereClause[Op.or] = [
                 { phoneNumber: { [Op.like]: searchVal } },
                 { customerName: { [Op.like]: searchVal } },
+                { customerNumber: { [Op.like]: searchVal } },
+                { id: search.trim() },
                 { email: { [Op.like]: searchVal } },
                 { notes: { [Op.like]: searchVal } }
             ];

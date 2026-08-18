@@ -243,7 +243,7 @@
                 <table class="table align-middle">
                     <thead>
                         <tr>
-                            <th style="width: 5%">#</th>
+                            <th style="width: 8%">كود العميل</th>
                             <th style="width: 25%">العميل</th>
                             <th class="text-center" style="width: 20%">رقم الهاتف</th>
                             <% if (user.role === 'super_admin' || user.role === 'admin') { %>
@@ -785,7 +785,7 @@
                 const dateStart = cust.firstContactAt ? formatDateTime(cust.firstContactAt) : '—';
                 const summaryText = cust.aiSummary || '';
                 const shortSummary = summaryText.length > 50 ? summaryText.substring(0, 50) + '...' : (summaryText || '—');
-                const serialNum = totalCount - ((currentPage - 1) * limit + index);
+                const serialNum = cust.customerNumber || cust.id;
                 
                 // Status Select Options
                 let statusOptions = `
@@ -890,7 +890,7 @@
             customers.forEach((cust, index) => {
                 const dateStart = cust.firstContactAt ? formatDateTime(cust.firstContactAt) : '—';
                 const assigneeName = cust.assignedTo ? cust.assignedTo.fullName : 'غير مخصص';
-                const serialNum = totalCount - ((currentPage - 1) * limit + index);
+                const serialNum = cust.customerNumber || cust.id;
 
                 // Dropdowns inside card
                 let statusOptions = `

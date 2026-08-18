@@ -2,7 +2,10 @@
 <div class="customer-card-mobile animate-fade-in mb-3 p-3 bg-white rounded-3 shadow-sm border" id="card-${cust.id}">
     <div class="d-flex justify-content-between align-items-start border-bottom pb-2 mb-2">
         <div>
-            <h6 class="fw-bold text-dark mb-0">${cust.customerName || 'عميل واتساب'}</h6>
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-secondary opacity-75">#${cust.customerNumber || cust.id}</span>
+                <h6 class="fw-bold text-dark mb-0">${cust.customerName || 'عميل واتساب'}</h6>
+            </div>
             <code class="text-secondary small">${cust.phoneNumber}</code>
         </div>
         <div>
