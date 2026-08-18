@@ -158,7 +158,13 @@ export const handleWebhook = async (req, res) => {
         if (value.messages && value.messages.length > 0) {
             const msg = value.messages[0];
             const contact = value.contacts?.[0];
-            const senderPhone = String(msg.from).replace(/[^0-9]/g, '');
+            const senderPhone = String(msg.from || '').replace(/[^0-9]/g, '');
+            
+            if (!senderPhone || senderPhone.length < 5) {
+                console.log(`⚠️ [META_WEBHOOK] Skipped message with invalid or missing sender phone: "${msg.from}"`);
+                return;
+            }
+
             const senderName = contact?.profile?.name || `عميل ${senderPhone}`;
             const remoteJid = `${senderPhone}@s.whatsapp.net`;
             // Primary Admin User ID for Meta API (User rady = ID 3)

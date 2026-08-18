@@ -3718,7 +3718,10 @@ export async function sendManualMessage(userId, remoteJid, text, senderName = nu
         console.log(`[sendManualMessage] Sending via Meta WhatsApp Cloud API for User ${userId} to ${remoteJid}...`);
         try {
             const { sendMetaMessage } = await import('./metaCloudController.js');
-            const targetPhone = remoteJid.replace(/[^0-9]/g, '');
+            const targetPhone = remoteJid ? remoteJid.replace(/[^0-9]/g, '') : '';
+            if (!targetPhone || targetPhone.length < 5) {
+                throw new Error('رقم الهاتف الخاص بهذا العميل غير متوفر أو غير صحيح.');
+            }
             const metaRes = await sendMetaMessage(targetPhone, text);
 
             if (!metaRes || !metaRes.success) {
@@ -3854,7 +3857,10 @@ export async function sendManualMediaMessage(userId, remoteJid, mediaUrl, mediaT
         console.log(`[sendManualMediaMessage] Sending ${mediaType} via Meta Cloud API for User ${userId} to ${remoteJid}...`);
         try {
             const { sendMetaMessage } = await import('./metaCloudController.js');
-            const targetPhone = remoteJid.replace(/[^0-9]/g, '');
+            const targetPhone = remoteJid ? remoteJid.replace(/[^0-9]/g, '') : '';
+            if (!targetPhone || targetPhone.length < 5) {
+                throw new Error('رقم الهاتف الخاص بهذا العميل غير متوفر أو غير صحيح.');
+            }
             const metaRes = await sendMetaMessage(targetPhone, caption, {
                 mediaUrl: fullPublicMediaUrl,
                 mediaType,
