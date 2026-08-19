@@ -229,7 +229,7 @@ export const handleWebhook = async (req, res) => {
                 textContent = `[رسالة ${msg.type}]`;
             }
 
-            console.log(`📩 [META_INCOMING] From ${senderName} (${senderPhone}): ${textContent}`);
+            console.log(`📩 [META_INCOMING] From ${senderName} (${targetId}): ${textContent}`);
 
             // Update User connection_status to meta_online
             try {
@@ -273,7 +273,7 @@ export const handleWebhook = async (req, res) => {
                 defaults: {
                     UserId: userId,
                     remoteJid: remoteJid,
-                    phoneNumber: senderPhone,
+                    phoneNumber: isPhone ? targetId : null,
                     customerName: senderName,
                     CustomerId: customer.id,
                     platform: 'whatsapp',
@@ -350,15 +350,15 @@ export const handleWebhook = async (req, res) => {
 
             // Trigger Bot Auto-Reply (Interactive Buttons / List Menu or Funnel Step)
             try {
-                console.log(`🤖 [META_BOT] Processing incoming message from ${senderPhone}...`);
+                console.log(`🤖 [META_BOT] Processing incoming message from ${targetId}...`);
                 if (buttonId) {
                     console.log(`🔘 [META_BOT] Button/List selection received: ${buttonId}`);
-                    await handleButtonResponse(metaSock, remoteJid, buttonId, userId, io, senderPhone);
+                    await handleButtonResponse(metaSock, remoteJid, buttonId, userId, io, targetId);
                 } else {
-                    console.log(`📋 [META_BOT] Sending interactive menu for ${senderPhone}...`);
+                    console.log(`📋 [META_BOT] Sending interactive menu for ${targetId}...`);
                     const sentMenu = await sendInteractiveButtons(metaSock, remoteJid, userId, io, null, senderName);
                     if (!sentMenu) {
-                        console.log(`🔄 [META_BOT] Fallback to funnel step for ${senderPhone}...`);
+                        console.log(`🔄 [META_BOT] Fallback to funnel step for ${targetId}...`);
                         await handleFunnelStep(metaSock, remoteJid, customer, textContent, msg, io);
                     }
                 }
