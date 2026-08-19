@@ -2573,10 +2573,18 @@ router.post('/customers/add', async (req, res) => {
         const owner = await getOwnerUser(req.user);
         const ownerId = owner.id;
         
-        const cleanPhone = phoneNumber.replace(/\D/g, '');
+        let cleanPhone = phoneNumber.replace(/\D/g, '');
         if (!cleanPhone) {
             return res.status(400).json({ success: false, error: 'رقم الهاتف غير صالح.' });
         }
+
+        // Auto-format Egyptian local numbers (010, 011, 012, 015) to international format (201...)
+        if (cleanPhone.length === 11 && cleanPhone.startsWith('01')) {
+            cleanPhone = '2' + cleanPhone;
+        } else if (cleanPhone.length === 10 && (cleanPhone.startsWith('10') || cleanPhone.startsWith('11') || cleanPhone.startsWith('12') || cleanPhone.startsWith('15'))) {
+            cleanPhone = '20' + cleanPhone;
+        }
+
         const remoteJid = `${cleanPhone}@s.whatsapp.net`;
         
         // Check if customer already exists for this UserId and phone number

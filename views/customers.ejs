@@ -1553,7 +1553,15 @@ function showCustomerDetails(customerId, serialNum) {
             const originalText = submitBtn.textContent;
             
             const customerName = document.getElementById('addCustomerName').value;
-            const phoneNumber = document.getElementById('addCustomerPhone').value;
+            let phoneNumber = document.getElementById('addCustomerPhone').value;
+            if (phoneNumber) {
+                let cleaned = phoneNumber.replace(/\D/g, '');
+                if (cleaned.length === 11 && cleaned.startsWith('01')) {
+                    phoneNumber = '2' + cleaned;
+                } else if (cleaned.length === 10 && (cleaned.startsWith('10') || cleaned.startsWith('11') || cleaned.startsWith('12') || cleaned.startsWith('15'))) {
+                    phoneNumber = '20' + cleaned;
+                }
+            }
             const status = document.getElementById('addCustomerStatus').value;
             const notes = document.getElementById('addCustomerNotes').value;
             

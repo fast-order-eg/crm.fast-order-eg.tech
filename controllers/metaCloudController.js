@@ -30,7 +30,12 @@ export const sendMetaMessage = async (to, bodyText, options = {}) => {
         const phoneId = process.env.META_PHONE_NUMBER_ID || '1187785914426370';
         const accessToken = process.env.META_ACCESS_TOKEN;
         console.log(`🔍 [META_SEND_DEBUG] PhoneId: ${phoneId}, Token Len: ${accessToken ? accessToken.length : 0}, Token Prefix: ${accessToken ? accessToken.substring(0, 20) : 'NONE'}`);
-        const cleanTo = String(to).replace(/[^0-9]/g, '');
+        let cleanTo = String(to || '').replace(/[^0-9]/g, '');
+        if (cleanTo.length === 11 && cleanTo.startsWith('01')) {
+            cleanTo = '2' + cleanTo;
+        } else if (cleanTo.length === 10 && (cleanTo.startsWith('10') || cleanTo.startsWith('11') || cleanTo.startsWith('12') || cleanTo.startsWith('15'))) {
+            cleanTo = '20' + cleanTo;
+        }
 
         let payload = {
             messaging_product: 'whatsapp',
