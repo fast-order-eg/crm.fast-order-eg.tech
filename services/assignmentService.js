@@ -7,15 +7,45 @@ import { getSetting, setSetting } from './settingsService.js';
 /**
  * التحقق مما إذا كان الموظف نشطاً حالياً (ليس في إجازة وضمن ساعات وأيام عمله).
  */
+/**
+ * الحصول على الوقت واليوم المحلي بتوقيت مصر (Africa/Cairo) بصرامة 100% بغض النظر عن توقيت السيرفر UTC
+ */
+export function getEgyptTimeInfo() {
+    const options = { timeZone: 'Africa/Cairo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false };
+    const formatter = new Intl.DateTimeFormat('en-US', options);
+    const parts = formatter.formatToParts(new Date());
+    const dateObj = {};
+    parts.forEach(p => { dateObj[p.type] = p.value; });
+
+    const cairoDateStr = `${dateObj.year}-${dateObj.month}-${dateObj.day}T${dateObj.hour}:${dateObj.minute}:${dateObj.second}`;
+    const cairoDate = new Date(cairoDateStr);
+
+    const currentHour = parseInt(dateObj.hour, 10);
+    const currentMinute = parseInt(dateObj.minute, 10);
+    const currentTimeStr = `${String(currentHour).padStart(2, '0')}:${String(currentMinute).padStart(2, '0')}`;
+    
+    const daysOfWeek = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+    const currentDayArabic = daysOfWeek[cairoDate.getDay()];
+
+    return {
+        currentHour,
+        currentMinute,
+        currentTimeStr,
+        currentDayArabic,
+        cairoDate
+    };
+}
+
+/**
+ * التحقق مما إذا كان الموظف نشطاً حالياً (ليس في إجازة وضمن ساعات وأيام عمله).
+ */
 export function isEmployeeActiveNow(employee) {
     if (!employee || employee.isOnLeave || !employee.is_active) return false;
 
-    const now = new Date();
+    const { currentTimeStr, currentDayArabic } = getEgyptTimeInfo();
     
     // 1. تحقق من أيام العمل
     if (employee.workDays) {
-        const daysOfWeek = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
-        const currentDayArabic = daysOfWeek[now.getDay()];
         const allowedDays = employee.workDays.split(',').map(d => d.trim());
         if (!allowedDays.includes(currentDayArabic)) {
             return false;
@@ -23,10 +53,6 @@ export function isEmployeeActiveNow(employee) {
     }
 
     // 2. تحقق من ساعات العمل
-    const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
-    const currentTimeStr = `${String(currentHour).padStart(2, '0')}:${String(currentMinute).padStart(2, '0')}`;
-
     const startTime = employee.workStartTime || '09:00';
     const endTime = employee.workEndTime || '17:00';
 
@@ -58,13 +84,7 @@ export async function assignCustomerToSales(customerId, botOwnerId, io = null, s
         let usedShiftSplit = false;
 
         if (shiftRule && shiftRule.enabled) {
-            const now = new Date();
-            const daysOfWeek = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
-            const currentDay = daysOfWeek[now.getDay()];
-            
-            const currentHour = now.getHours();
-            const currentMinute = now.getMinutes();
-            const currentTimeStr = `${String(currentHour).padStart(2, '0')}:${String(currentMinute).padStart(2, '0')}`;
+            const { currentTimeStr, currentDayArabic: currentDay } = getEgyptTimeInfo();
 
             let inShiftDays = (shiftRule.days || []).includes(currentDay);
             let inShiftTime = false;
@@ -96,7 +116,7 @@ export async function assignCustomerToSales(customerId, botOwnerId, io = null, s
                     selectedEmp = shiftEmployees[nextIndex];
                     await setSetting('last_assigned_shift_index', nextIndex, botOwnerId);
                     usedShiftSplit = true;
-                    console.log(`🎯 [LeadRouting] Peak Shift Active (${currentTimeStr}). Assigned to ${selectedEmp.fullName || selectedEmp.username} via Round-Robin (Index: ${nextIndex})`);
+                    console.log(`🎯 [LeadRouting] Peak Shift Active (Cairo Time: ${currentTimeStr}). Assigned to ${selectedEmp.fullName || selectedEmp.username} via Round-Robin (Index: ${nextIndex})`);
                 }
             } else if (shiftRule.defaultEmployeeId) {
                 // Off-Peak Hours / Friday: Direct 100% assignment to default employee (e.g., Rahma)
@@ -106,7 +126,7 @@ export async function assignCustomerToSales(customerId, botOwnerId, io = null, s
                 if (defaultEmp) {
                     selectedEmp = defaultEmp;
                     usedShiftSplit = true;
-                    console.log(`🎯 [LeadRouting] Off-Peak Hours Active (${currentTimeStr} ${currentDay}). Assigned 100% to Default Rep: ${defaultEmp.fullName || defaultEmp.username}`);
+                    console.log(`🎯 [LeadRouting] Off-Peak Hours Active (Cairo Time: ${currentTimeStr} ${currentDay}). Assigned 100% to Default Rep: ${defaultEmp.fullName || defaultEmp.username}`);
                 }
             }
         }
