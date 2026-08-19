@@ -269,3 +269,74 @@ export async function reassignOnLeave(userId) {
         console.error('Error in reassignOnLeave service:', err);
     }
 }
+
+/**
+ * دمج العميل المكرر من Baileys @lid تلقائياً في السجل الرئيسي @s.whatsapp.net
+ */
+export async function autoMergeDuplicateCustomers(userId, phoneNumber, remoteJid, customerName = null) {
+    try {
+        if (!userId) return;
+
+        const cleanPhone = phoneNumber ? String(phoneNumber).replace(/[^0-9]/g, '') : (remoteJid ? remoteJid.replace(/[^0-9]/g, '') : '');
+        
+        let primaryCustomer = null;
+
+        if (cleanPhone && cleanPhone.length >= 5) {
+            primaryCustomer = await Customer.findOne({
+                where: {
+                    UserId: userId,
+                    [Op.or]: [
+                        { phoneNumber: cleanPhone },
+                        { remoteJid: `${cleanPhone}@s.whatsapp.net` }
+                    ]
+                }
+            });
+        }
+
+        if (!primaryCustomer && customerName && customerName !== 'عميل واتساب' && customerName !== 'Unknown') {
+            primaryCustomer = await Customer.findOne({
+                where: {
+                    UserId: userId,
+                    customerName: customerName,
+                    remoteJid: { [Op.like]: '%@s.whatsapp.net' }
+                }
+            });
+        }
+
+        if (!primaryCustomer) return;
+
+        const MessageModule = await import('../models/Message.js');
+        const Message = MessageModule.default;
+        const ConversationModule = await import('../models/Conversation.js');
+        const Conversation = ConversationModule.default;
+
+        const duplicateLidCustomers = await Customer.findAll({
+            where: {
+                UserId: userId,
+                id: { [Op.ne]: primaryCustomer.id },
+                [Op.or]: [
+                    ...(cleanPhone && cleanPhone.length >= 5 ? [{ phoneNumber: cleanPhone }] : []),
+                    { remoteJid: { [Op.like]: '%@lid' } }
+                ]
+            }
+        });
+
+        for (const dup of duplicateLidCustomers) {
+            const isMatch = (cleanPhone && cleanPhone.length >= 5 && dup.phoneNumber === cleanPhone) ||
+                            (customerName && customerName !== 'عميل واتساب' && dup.customerName === customerName);
+
+            if (isMatch && dup.remoteJid && dup.remoteJid.endsWith('@lid')) {
+                await Message.update(
+                    { remoteJid: primaryCustomer.remoteJid },
+                    { where: { UserId: userId, remoteJid: dup.remoteJid } }
+                );
+
+                await Conversation.destroy({ where: { UserId: userId, remoteJid: dup.remoteJid } });
+                await dup.destroy();
+                console.log(`🧹 [AutoMerge] Merged duplicate customer #${dup.customerNumber || dup.id} (${dup.remoteJid}) into primary customer #${primaryCustomer.customerNumber || primaryCustomer.id} (${primaryCustomer.remoteJid})`);
+            }
+        }
+    } catch (err) {
+        console.error('Error in autoMergeDuplicateCustomers:', err.message);
+    }
+}

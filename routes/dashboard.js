@@ -951,7 +951,23 @@ router.get('/livechat', async (req, res) => {
             limit: 10
         };
 
-        const conversations = await Conversation.findAll(queryOptions);
+        const rawConversations = await Conversation.findAll(queryOptions);
+        
+        // Filter out duplicate LID conversations when primary @s.whatsapp.net conversation exists
+        const seenKeys = new Set();
+        const conversations = [];
+        for (const conv of rawConversations) {
+            const key = conv.phoneNumber || (conv.customerName && conv.customerName !== 'عميل واتساب' ? conv.customerName : conv.remoteJid);
+            if (conv.remoteJid && conv.remoteJid.endsWith('@lid')) {
+                const primaryExists = rawConversations.some(c => c.id !== conv.id && (c.phoneNumber === conv.phoneNumber || c.customerName === conv.customerName) && c.remoteJid && c.remoteJid.endsWith('@s.whatsapp.net'));
+                if (primaryExists) continue;
+            }
+            if (!seenKeys.has(key)) {
+                seenKeys.add(key);
+                conversations.push(conv);
+            }
+        }
+
         const totalConversationsCount = await Conversation.count({
             where: { UserId: targetUserId }
         });
@@ -1024,7 +1040,7 @@ router.get('/livechat/api/conversations', async (req, res) => {
             customerRequired = true;
         }
 
-        const { count, rows: conversations } = await Conversation.findAndCountAll({
+        const { count, rows: rawConversations } = await Conversation.findAndCountAll({
             where: whereClause,
             include: [{
                 model: Customer,
@@ -1041,6 +1057,21 @@ router.get('/livechat/api/conversations', async (req, res) => {
             limit,
             offset
         });
+
+        // Filter out duplicate LID conversations when primary @s.whatsapp.net conversation exists
+        const seenKeys = new Set();
+        const conversations = [];
+        for (const conv of rawConversations) {
+            const key = conv.phoneNumber || (conv.customerName && conv.customerName !== 'عميل واتساب' ? conv.customerName : conv.remoteJid);
+            if (conv.remoteJid && conv.remoteJid.endsWith('@lid')) {
+                const primaryExists = rawConversations.some(c => c.id !== conv.id && (c.phoneNumber === conv.phoneNumber || c.customerName === conv.customerName) && c.remoteJid && c.remoteJid.endsWith('@s.whatsapp.net'));
+                if (primaryExists) continue;
+            }
+            if (!seenKeys.has(key)) {
+                seenKeys.add(key);
+                conversations.push(conv);
+            }
+        }
 
         const totalHandoff = await Conversation.count({
             where: { UserId: targetUserId, is_handoff: true }

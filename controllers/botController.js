@@ -2073,6 +2073,14 @@ export const startSession = async (userId, io, phoneNumber = null) => {
                 }
             });
 
+            // Auto-merge LID customer if primary @s.whatsapp.net customer exists
+            try {
+                const { autoMergeDuplicateCustomers } = await import('../services/assignmentService.js');
+                await autoMergeDuplicateCustomers(userId, customerPhone, remoteJid, pushName);
+            } catch (mergeErr) {
+                console.error('⚠️ [LID_AUTO_MERGE_ERROR]:', mergeErr.message);
+            }
+
             if (!isNewCustomerRecord) {
                 customer.lastReplyAt = new Date();
                 if (pushName && pushName !== customerPhone && (!customer.customerName || customer.customerName === customerPhone)) {
