@@ -2636,9 +2636,8 @@ router.post('/customers/add', async (req, res) => {
         });
         if (existingConv) {
             existingConv.CustomerId = customer.id;
-            if (!existingConv.customerName || existingConv.customerName === cleanPhone) {
-                existingConv.customerName = customerName.trim();
-            }
+            existingConv.customerName = customerName.trim();
+            existingConv.lastMessageAt = new Date();
             await existingConv.save();
         } else {
             await Conversation.create({
