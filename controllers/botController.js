@@ -934,33 +934,36 @@ export async function handleButtonResponse(sock, remoteJid, buttonId, userId, io
 
         // Send the response text
         if (responseTextToSend && responseTextToSend.trim() !== '' && !skipStandardResponse) {
-            // Send response with image if available
+            // Send response with image or video if available
             if (button.responseImage) {
-                const images = button.responseImage.split(',').filter(i => i.trim() !== '');
-                for (const imgUrl of images) {
-                    if (imgUrl.startsWith('http')) {
-                        await sendHumanMessage(sock, remoteJid, {
-                            image: { url: imgUrl }
-                        }, { userId });
-                    } else {
-                        const imagePath = path.join(process.cwd(), 'public', imgUrl);
-                        if (fs.existsSync(imagePath)) {
+                const mediaItems = button.responseImage.split(',').filter(i => i.trim() !== '');
+                for (const mediaUrl of mediaItems) {
+                    const isVideo = mediaUrl.match(/\.(mp4|mov|webm|mkv|avi|3gp)$/i);
+                    const mediaPath = mediaUrl.startsWith('http') ? mediaUrl : path.join(process.cwd(), 'public', mediaUrl);
+
+                    if (mediaUrl.startsWith('http') || fs.existsSync(mediaPath)) {
+                        if (isVideo) {
                             await sendHumanMessage(sock, remoteJid, {
-                                image: { url: imagePath }
+                                video: { url: mediaPath },
+                                mimetype: 'video/mp4'
+                            }, { userId });
+                        } else {
+                            await sendHumanMessage(sock, remoteJid, {
+                                image: { url: mediaPath }
                             }, { userId });
                         }
                     }
-                    // Delay between images
+                    // Delay between media
                     await new Promise(resolve => setTimeout(resolve, 2000));
                 }
             }
 
-            // Delay before final text response if images/products were sent
+            // Delay before final text response if images/videos/products were sent
             if (button.responseImage || button.ProductId) {
                 await new Promise(resolve => setTimeout(resolve, 2000));
             }
 
-            // Send text after all images
+            // Send text after all media
             await sendHumanMessage(sock, remoteJid, { text: responseTextToSend }, { userId });
 
             // Save bot response

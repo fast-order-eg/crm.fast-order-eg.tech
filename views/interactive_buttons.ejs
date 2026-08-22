@@ -272,6 +272,13 @@
                                                                 <% } else { %>
                                                                     <span class="btn-meta-tag tag-ai-no">🔄 يرجع لنفس القائمة</span>
                                                                 <% } %>
+                                                                <% if (btn.responseImage) { %>
+                                                                    <% if (btn.responseImage.match(/\.(mp4|mov|webm|mkv|avi|3gp)/i)) { %>
+                                                                        <span class="btn-meta-tag tag-platform-whatsapp">🎥 فيديو</span>
+                                                                    <% } else { %>
+                                                                        <span class="btn-meta-tag tag-platform-whatsapp">📷 صور</span>
+                                                                    <% } %>
+                                                                <% } %>
                                                             </div>
                                                         </div>
                                                         <div class="d-flex flex-column gap-2 align-items-end ms-2">
@@ -406,8 +413,9 @@
                             <textarea name="responseText" class="form-control" required style="min-height: 120px;"></textarea>
                         </div>
                         <div class="mb-4">
-                            <label class="form-label fw-bold text-dark">صور مرفقة (اختياري)</label>
-                            <input type="file" name="responseImageFile" class="form-control" accept="image/*" multiple>
+                            <label class="form-label fw-bold text-dark">📷 صور أو 🎥 فيديو مرفق (اختياري)</label>
+                            <input type="file" name="responseImageFile" class="form-control" accept="image/*,video/*" multiple>
+                            <div class="form-text">يمكنك رفع صور أو فيديو (MP4) وسيتم ضغطه وتحسينه تلقائياً لسرعة الإرسال على الواتساب.</div>
                             <input type="hidden" name="responseImage" id="addResponseImage">
                         </div>
                         <div class="row mb-4">
@@ -493,10 +501,11 @@
                             <textarea name="responseText" id="editResponse" class="form-control" required style="min-height: 120px;"></textarea>
                         </div>
                         <div class="mb-4">
-                            <label class="form-label fw-bold text-dark">صور مرفقة (اختياري)</label>
+                            <label class="form-label fw-bold text-dark">📷 صور أو 🎥 فيديو مرفق (اختياري)</label>
                             <div id="editImagePreview" class="mb-2 d-flex flex-wrap gap-2" style="display:none;">
                             </div>
-                            <input type="file" name="responseImageFile" class="form-control" accept="image/*" multiple>
+                            <input type="file" name="responseImageFile" class="form-control" accept="image/*,video/*" multiple>
+                            <div class="form-text">يمكنك رفع صور أو فيديو (MP4) وسيتم ضغطه وتحسينه تلقائياً لسرعة الإرسال على الواتساب.</div>
                             <input type="hidden" name="responseImage" id="editImage">
                         </div>
                         <div class="row mb-4">
@@ -619,14 +628,17 @@
                         const filename = imgSrc.split('/').pop();
                         if (filename.startsWith('instruction_')) {
                             finalSrc = '/uploads/instructions/' + filename;
+                        } else if (filename.startsWith('vid_')) {
+                            finalSrc = '/uploads/videos/' + filename;
                         } else {
                             finalSrc = '/uploads/' + filename;
                         }
                     }
+                    const isVid = imgSrc.match(/\.(mp4|mov|webm|mkv|avi|3gp)$/i);
                     const div = document.createElement('div');
                     div.className = 'position-relative';
                     div.innerHTML = `
-                        <img src="${finalSrc}" class="img-thumbnail rounded" style="width: 100px; height: 100px; object-fit: cover;">
+                        ${isVid ? `<video src="${finalSrc}" class="img-thumbnail rounded" style="width: 100px; height: 100px; object-fit: cover;" muted autoplay loop playsinline></video>` : `<img src="${finalSrc}" class="img-thumbnail rounded" style="width: 100px; height: 100px; object-fit: cover;">`}
                         <button type="button" class="btn btn-danger btn-sm position-absolute top-0 start-0 translate-middle rounded-circle" style="width: 24px; height: 24px; padding: 0; line-height: 1;" onclick="removeEditImage(this, '${safeSrc}')">
                             <i class="bi bi-x"></i>
                         </button>
@@ -811,12 +823,16 @@
 
                     if (this.files && this.files.length > 0) {
                         previewContainer.style.display = 'flex';
-                        Array.from(this.files).forEach((file, index) => {
+                        Array.from(this.files).forEach((file) => {
                             const reader = new FileReader();
                             reader.onload = function(e) {
                                 const div = document.createElement('div');
                                 div.className = 'position-relative new-preview';
-                                div.innerHTML = '<img src="' + e.target.result + '" class="img-thumbnail rounded" style="width: 100px; height: 100px; object-fit: cover;">';
+                                if (file.type.startsWith('video/') || file.name.match(/\.(mp4|mov|webm|mkv|avi|3gp)$/i)) {
+                                    div.innerHTML = '<video src="' + e.target.result + '" class="img-thumbnail rounded" style="width: 100px; height: 100px; object-fit: cover;" muted autoplay loop playsinline></video>';
+                                } else {
+                                    div.innerHTML = '<img src="' + e.target.result + '" class="img-thumbnail rounded" style="width: 100px; height: 100px; object-fit: cover;">';
+                                }
                                 previewContainer.appendChild(div);
                             }
                             reader.readAsDataURL(file);
