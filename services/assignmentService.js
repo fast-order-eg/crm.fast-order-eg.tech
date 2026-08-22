@@ -66,7 +66,7 @@ export function isEmployeeActiveNow(employee) {
 /**
  * تخصيص العميل تلقائياً لموظف مبيعات نشط (Round Robin) بناءً على الأقل عملاء.
  */
-export async function assignCustomerToSales(customerId, botOwnerId, io = null, skipNotification = false) {
+export async function assignCustomerToSales(customerId, botOwnerId, io = null, skipNotification = false, preserveStatus = false) {
     try {
         const customer = await Customer.findByPk(customerId);
         if (!customer) {
@@ -174,7 +174,9 @@ export async function assignCustomerToSales(customerId, botOwnerId, io = null, s
         // 6. تخصيص العميل
         customer.assignedToUserId = selectedEmp.id;
         customer.assignedAt = new Date();
-        customer.status = 'awaiting_sales'; // تحويل لحالة انتظار المبيعات
+        if (!preserveStatus) {
+            customer.status = 'awaiting_sales'; // تحويل لحالة انتظار المبيعات فقط لو لم يتم الحفاظ على الحالة
+        }
         await customer.save();
 
         // 7. تسجيل الإجراء في السجل

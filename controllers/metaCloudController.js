@@ -274,6 +274,17 @@ export const handleWebhook = async (req, res) => {
                 console.error('⚠️ [LID_MERGE_ERROR]:', mergeErr.message);
             }
 
+            // تعيين فوري وتلقائي للعميل الجديد لموظف المبيعات (24/7 Lead Auto-Assignment)
+            if (!customer.assignedToUserId) {
+                try {
+                    const { assignCustomerToSales } = await import('../services/assignmentService.js');
+                    await assignCustomerToSales(customer.id, userId, null, true, true);
+                    await customer.reload();
+                } catch (assignErr) {
+                    console.error('⚠️ [META_AUTO_ASSIGN_ERROR]:', assignErr.message);
+                }
+            }
+
             // Find or Create Conversation
             let [conversation] = await Conversation.findOrCreate({
                 where: { UserId: userId, remoteJid: remoteJid },

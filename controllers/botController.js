@@ -2135,6 +2135,17 @@ export async function handleIncomingUnifiedMessage({
             await customer.save();
         }
 
+        // 2.5 تعيين فوري وتلقائي للعميل الجديد لموظف المبيعات (24/7 Lead Auto-Assignment)
+        if (!customer.assignedToUserId) {
+            try {
+                const { assignCustomerToSales } = await import('../services/assignmentService.js');
+                await assignCustomerToSales(customer.id, userId, io, true, true); // skipNotification=true, preserveStatus=true
+                await customer.reload();
+            } catch (assignErr) {
+                console.error('⚠️ [AUTO_ASSIGN_ON_ENTRY_ERROR]:', assignErr.message);
+            }
+        }
+
         // KPI recording for assigned agent
         if (customer.assignedToUserId) {
             try {
