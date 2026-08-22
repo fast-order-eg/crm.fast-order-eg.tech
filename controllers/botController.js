@@ -34,6 +34,44 @@ import { GoogleAuth } from 'google-auth-library';
 import { vertexQueue } from '../services/queueService.js';
 import { funnelDefaults } from '../config/funnelDefaults.js';
 import { getSetting as getSystemSetting } from '../services/settingsService.js';
+import { getEgyptTimeInfo } from '../services/assignmentService.js';
+
+export async function checkUserWorkingHours(userId) {
+    try {
+        const isWorkingHoursEnabled = await getSystemSetting('working_hours_enabled', userId);
+        const { currentTimeStr, currentDayArabic } = getEgyptTimeInfo();
+
+        if (isWorkingHoursEnabled === false || isWorkingHoursEnabled === 'false') {
+            return { isInsideWorkTime: true, currentTimeStr, currentDayArabic };
+        }
+
+        const workingHoursSchedule = await getSystemSetting('working_hours_schedule', userId);
+        if (!workingHoursSchedule || typeof workingHoursSchedule !== 'object') {
+            return { isInsideWorkTime: true, currentTimeStr, currentDayArabic };
+        }
+
+        const todayConfig = workingHoursSchedule[currentDayArabic];
+        if (!todayConfig || todayConfig.enabled === false || todayConfig.enabled === 'false') {
+            // Day off / holiday
+            return { isInsideWorkTime: false, isHoliday: true, currentTimeStr, currentDayArabic };
+        }
+
+        const start = todayConfig.start || '10:00';
+        const end = todayConfig.end || '23:00';
+
+        let isInside = false;
+        if (start <= end) {
+            isInside = currentTimeStr >= start && currentTimeStr <= end;
+        } else {
+            isInside = currentTimeStr >= start || currentTimeStr <= end;
+        }
+
+        return { isInsideWorkTime: isInside, isHoliday: false, startTime: start, endTime: end, currentTimeStr, currentDayArabic };
+    } catch (e) {
+        console.error('Error checking user working hours:', e);
+        return { isInsideWorkTime: true };
+    }
+}
 
 // V6_STABLE_VERSION
 console.log("✅ [V6_SIGNATURE] botController.js Loaded");
@@ -804,7 +842,15 @@ export async function handleButtonResponse(sock, remoteJid, buttonId, userId, io
                 customer.currentFunnelStep = 'awaiting_sales';
                 await customer.save();
 
-                await Conversation.update({ is_handoff: true }, { where: { UserId: userId, remoteJid } });
+                const workHoursInfo = await checkUserWorkingHours(userId);
+                const isInsideWorkTime = workHoursInfo.isInsideWorkTime;
+
+                if (isInsideWorkTime) {
+                    await Conversation.update({ is_handoff: true }, { where: { UserId: userId, remoteJid } });
+                } else {
+                    // Do NOT lock the conversation during off-hours/holidays, so AI stays active!
+                    await Conversation.update({ is_handoff: false }, { where: { UserId: userId, remoteJid } });
+                }
 
                 let assignedSalesName = 'أحد ممثلي المبيعات';
                 try {
@@ -819,7 +865,7 @@ export async function handleButtonResponse(sock, remoteJid, buttonId, userId, io
 
                 await ChangeLog.create({
                     action: 'status_change',
-                    description: `طلب العميل التحدث مع المبيعات عبر زر تفاعلي: "${label}". حالة العميل: "في انتظار المبيعات"`,
+                    description: `طلب العميل التحدث مع المبيعات عبر زر تفاعلي: "${label}". حالة العميل: "في انتظار المبيعات" (${isInsideWorkTime ? 'أوقات العمل' : 'خارج مواعيد العمل/عطلة'})`,
                     oldValue: oldStatus || 'welcome',
                     newValue: 'awaiting_sales',
                     CustomerId: customer.id,
@@ -827,7 +873,10 @@ export async function handleButtonResponse(sock, remoteJid, buttonId, userId, io
                     UserId: userId
                 });
 
-                if (!responseTextToSend || responseTextToSend.trim() === '') {
+                if (!isInsideWorkTime) {
+                    const customOutOfHoursMsg = await getSystemSetting('out_of_hours_handoff_message', userId);
+                    responseTextToSend = customOutOfHoursMsg || `تم تسجيل طلبك وبياناتك بنجاح لدى فريق المبيعات 📋\n\nمواعيد العمل الرسمية من 10:00 صباحاً إلى 11:00 مساءً، وسيتم التواصل مع حضرتك هاتفياً أو عبر الواتساب في بداية الشفت القادم ✨\n\nفي هذه الأثناء، أنا معاك لو حابب تسأل عن أي شيء بخصوص المتجر أو الخدمات!`;
+                } else if (!responseTextToSend || responseTextToSend.trim() === '') {
                     responseTextToSend = handoffMessages[Math.floor(Math.random() * handoffMessages.length)];
                 }
 
@@ -837,7 +886,8 @@ export async function handleButtonResponse(sock, remoteJid, buttonId, userId, io
                 const summary = await generateCustomerSummary(customer.id, userId);
 
                 const noteLink = `\n\n🔗 *لإضافة ملاحظات للعميل مباشرة:*\nhttps://crm.bird-technology.com/dashboard/customers?openNote=${customer.id}`;
-                const notifyMsg = `🚨 *طلب تدخل فريق المبيعات*\n\n🔢 كود العميل: ${customer.customerNumber || customer.id}\n👤 العميل: ${customer.customerName || 'عميل واتساب'}\n📞 الرقم: ${customer.phoneNumber}\nالمسؤول: ${assignedSalesName}\n⏰ وقت التحويل: ${transferTime}\n\n🤖 *ملخص المحادثة بالذكاء الاصطناعي:*\n${summary}${noteLink}`;
+                const nightBadge = isInsideWorkTime ? '' : ' 🌙 *(خارج مواعيد العمل / عطلة - للمتابعة الصباحية)*';
+                const notifyMsg = `🚨 *طلب تدخل فريق المبيعات*${nightBadge}\n\n🔢 كود العميل: ${customer.customerNumber || customer.id}\n👤 العميل: ${customer.customerName || 'عميل واتساب'}\n📞 الرقم: ${customer.phoneNumber}\nالمسؤول: ${assignedSalesName}\n⏰ وقت التحويل: ${transferTime}\n\n🤖 *ملخص المحادثة بالذكاء الاصطناعي:*\n${summary}${noteLink}`;
                 await notifyControlGroup(userId, notifyMsg);
             } 
             else if (label.includes('الأسعار والتفاصيل') || label.includes('الاسعار والتفاصيل')) {
@@ -2329,7 +2379,15 @@ export async function handleIncomingUnifiedMessage({
             
             if (isHandoffTrigger) {
                 console.log(`[AI Handoff] ✅ HANDOFF DETECTED! Reply: "${replyText.substring(0,100)}"`);
-                await Conversation.update({ is_handoff: true }, { where: { UserId: userId, remoteJid } });
+                const workHoursInfo = await checkUserWorkingHours(userId);
+                const isInsideWorkTime = workHoursInfo.isInsideWorkTime;
+
+                if (isInsideWorkTime) {
+                    await Conversation.update({ is_handoff: true }, { where: { UserId: userId, remoteJid } });
+                } else {
+                    // Keep AI active during off-hours/holidays!
+                    await Conversation.update({ is_handoff: false }, { where: { UserId: userId, remoteJid } });
+                }
                 
                 let assignedSalesName = 'أحد ممثلي المبيعات';
                 if (conversation && conversation.CustomerId) {
@@ -2342,7 +2400,14 @@ export async function handleIncomingUnifiedMessage({
                     }
                 }
 
-                const handoffMsg = handoffMessages[Math.floor(Math.random() * handoffMessages.length)];
+                let handoffMsg;
+                if (!isInsideWorkTime) {
+                    const customOutOfHoursMsg = await getSystemSetting('out_of_hours_handoff_message', userId);
+                    handoffMsg = customOutOfHoursMsg || `تم تسجيل طلبك وبياناتك بنجاح لدى فريق المبيعات 📋\n\nمواعيد العمل الرسمية من 10:00 صباحاً إلى 11:00 مساءً، وسيتم التواصل مع حضرتك في بداية الشفت القادم ✨\n\nفي هذه الأثناء، أنا معاك لو حابب تسأل عن أي شيء بخصوص المتجر أو الخدمات!`;
+                } else {
+                    handoffMsg = handoffMessages[Math.floor(Math.random() * handoffMessages.length)];
+                }
+
                 await sendHumanMessage(sock, remoteJid, { text: handoffMsg }, { userId });
                 const sv = await Message.create({ UserId: userId, remoteJid, role: 'model', content: handoffMsg });
                 if (io) io.to(`user_${userId}`).emit('new_message', sv);
@@ -2350,7 +2415,8 @@ export async function handleIncomingUnifiedMessage({
                 try {
                     const summary = conversation.CustomerId ? await generateCustomerSummary(conversation.CustomerId, userId) : "لا يوجد رسائل سابقة لتلخيصها.";
                     const transferTime = new Date().toLocaleString('en-US', { timeZone: 'Africa/Cairo', hour12: true, dateStyle: 'short', timeStyle: 'short' });
-                    const notifyMsg = `🚨 *طلب تدخل فريق المبيعات*\n\n🔢 كود العميل: ${customer.customerNumber || customer.id}\n👤 العميل: ${conversation.customerName || customerPhone}\n📞 الرقم: ${customerPhone || remoteJid.split('@')[0]}\nالمسؤول: ${assignedSalesName}\n⏰ وقت التحويل: ${transferTime}\n\n🤖 *ملخص المحادثة بالذكاء الاصطناعي:*\n${summary}`;
+                    const nightBadge = isInsideWorkTime ? '' : ' 🌙 *(خارج مواعيد العمل / عطلة - للمتابعة الصباحية)*';
+                    const notifyMsg = `🚨 *طلب تدخل فريق المبيعات*${nightBadge}\n\n🔢 كود العميل: ${customer.customerNumber || customer.id}\n👤 العميل: ${conversation.customerName || customerPhone}\n📞 الرقم: ${customerPhone || remoteJid.split('@')[0]}\nالمسؤول: ${assignedSalesName}\n⏰ وقت التحويل: ${transferTime}\n\n🤖 *ملخص المحادثة بالذكاء الاصطناعي:*\n${summary}`;
                     await notifyControlGroup(userId, notifyMsg);
                 } catch (e) {
                     console.error('[AI Handoff] ❌ Failed to notify control group:', e);
@@ -3879,6 +3945,12 @@ export const checkNoActionCustomers = async (io) => {
             const userId = user.id;
             const sock = sessions.get(userId);
             if (!sock) continue;
+
+            const workHoursInfo = await checkUserWorkingHours(userId);
+            if (!workHoursInfo.isInsideWorkTime) {
+                // Outside working hours or day off (e.g. Friday), skip auto-handoff so AI stays active and sales is not disturbed!
+                continue;
+            }
 
             const noActionTimeout = await getSystemSetting('no_action_timeout', userId);
             const cutoff = new Date(now.getTime() - (noActionTimeout * 60 * 1000));

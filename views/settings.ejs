@@ -283,6 +283,86 @@
                                     </div>
                                 </div>
                             </div>
+
+                            <!-- Working Hours & Daily Schedule Section -->
+                            <div class="col-12 mt-2">
+                                <div class="card border-0 shadow-sm p-4 rounded-4 bg-light">
+                                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+                                        <div>
+                                            <h6 class="fw-bold mb-1 text-dark">
+                                                <i class="bi bi-calendar-week text-success me-1"></i>
+                                                مواعيد وساعات العمل الرسمية والشفتات اليومية
+                                            </h6>
+                                            <div class="text-muted small">
+                                                عند التفعيل، سيعمل البوت والذكاء الاصطناعي 24 ساعة للرد على العملاء، ولن يتم تحويل العميل للمبيعات تلقائياً أثناء الليل أو في أيام العطلات (مثل الجمعة).
+                                            </div>
+                                        </div>
+                                        <div class="form-check form-switch m-0" style="direction: rtl;">
+                                            <input class="form-check-input ms-0" type="checkbox" role="switch" id="working_hours_enabled" name="working_hours_enabled" value="true" <%= settings.working_hours_enabled ? 'checked' : '' %> style="cursor: pointer; width: 2.8em; height: 1.4em;" onchange="toggleWorkingHoursTable(this.checked)">
+                                        </div>
+                                    </div>
+
+                                    <div id="workingHoursContainer" style="<%= settings.working_hours_enabled ? '' : 'opacity: 0.5; pointer-events: none;' %>">
+                                        <div class="table-responsive bg-white rounded-3 border shadow-sm p-3 mb-3">
+                                            <table class="table table-borderless align-middle mb-0">
+                                                <thead>
+                                                    <tr class="border-bottom text-secondary small">
+                                                        <th style="width: 140px;">اليوم</th>
+                                                        <th style="width: 180px;">حالة اليوم</th>
+                                                        <th>بداية العمل (صباحاً)</th>
+                                                        <th>نهاية العمل (مساءً)</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <% 
+                                                    const defaultSchedule = {
+                                                        "السبت": { enabled: true, start: "10:00", end: "23:00" },
+                                                        "الأحد": { enabled: true, start: "10:00", end: "23:00" },
+                                                        "الإثنين": { enabled: true, start: "10:00", end: "23:00" },
+                                                        "الثلاثاء": { enabled: true, start: "10:00", end: "23:00" },
+                                                        "الأربعاء": { enabled: true, start: "10:00", end: "23:00" },
+                                                        "الخميس": { enabled: true, start: "10:00", end: "23:00" },
+                                                        "الجمعة": { enabled: false, start: "10:00", end: "23:00" }
+                                                    };
+                                                    const currentSchedule = (typeof settings.working_hours_schedule === 'object' && settings.working_hours_schedule) ? settings.working_hours_schedule : defaultSchedule;
+                                                    const daysOfWeek = ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'];
+                                                    daysOfWeek.forEach(day => {
+                                                        const dayData = currentSchedule[day] || defaultSchedule[day] || { enabled: true, start: '10:00', end: '23:00' };
+                                                        const isDayEnabled = dayData.enabled === true || dayData.enabled === 'true';
+                                                    %>
+                                                    <tr class="border-bottom">
+                                                        <td><strong class="text-dark"><%= day %></strong></td>
+                                                        <td>
+                                                            <div class="form-check form-switch m-0">
+                                                                <input class="form-check-input" type="checkbox" name="working_hours_schedule[<%= day %>][enabled]" value="true" <%= isDayEnabled ? 'checked' : '' %> id="day_<%= day %>">
+                                                                <label class="form-check-label small fw-medium <%= isDayEnabled ? 'text-success' : 'text-muted' %>" for="day_<%= day %>">
+                                                                    <%= isDayEnabled ? 'يوم عمل' : 'عطلة (البوت فقط)' %>
+                                                                </label>
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            <input type="time" name="working_hours_schedule[<%= day %>][start]" class="form-control form-control-sm rounded-2 text-center" value="<%= dayData.start || '10:00' %>" style="max-width: 140px;">
+                                                        </td>
+                                                        <td>
+                                                            <input type="time" name="working_hours_schedule[<%= day %>][end]" class="form-control form-control-sm rounded-2 text-center" value="<%= dayData.end || '23:00' %>" style="max-width: 140px;">
+                                                        </td>
+                                                    </tr>
+                                                    <% }); %>
+                                                </tbody>
+                                            </table>
+                                        </div>
+
+                                        <div class="bg-white p-3 rounded-3 border shadow-sm">
+                                            <label class="form-label fw-bold text-dark small mb-1">
+                                                <i class="bi bi-chat-left-quote text-primary me-1"></i>
+                                                رسالة التحويل خارج مواعيد العمل أو في أيام العطلات (الليل / الجمعة)
+                                            </label>
+                                            <div class="form-text text-muted small mb-2">تُرسل للعميل عندما يطلب التواصل مع المبيعات في أوقات الراحة لطمأنته بأن طلبه مسجل وسيتم الاتصال به صباحاً.</div>
+                                            <textarea name="out_of_hours_handoff_message" class="form-control rounded-3" rows="3"><%= settings.out_of_hours_handoff_message || 'تم تسجيل طلبك وبياناتك بنجاح لدى فريق المبيعات 📋\n\nمواعيد العمل الرسمية من 10:00 صباحاً إلى 11:00 مساءً، وسيتم التواصل مع حضرتك هاتفياً أو عبر الواتساب في بداية الشفت القادم ✨\n\nفي هذه الأثناء، أنا معاك لو حابب تسأل عن أي شيء بخصوص المتجر أو الخدمات!' %></textarea>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -477,10 +557,38 @@
                     toast.classList.add('fade');
                     setTimeout(() => document.body.removeChild(toast), 300);
                 }, 2000);
-            }).catch(err => {
-                console.error('Failed to copy: ', err);
-            });
+        function toggleWorkingHoursTable(enabled) {
+            const container = document.getElementById('workingHoursContainer');
+            if (container) {
+                if (enabled) {
+                    container.style.opacity = '1';
+                    container.style.pointerEvents = 'auto';
+                } else {
+                    container.style.opacity = '0.5';
+                    container.style.pointerEvents = 'none';
+                }
+            }
         }
+
+        // Update day switch labels on toggle
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('input[id^="day_"]').forEach(sw => {
+                sw.addEventListener('change', function() {
+                    const label = this.nextElementSibling;
+                    if (label) {
+                        if (this.checked) {
+                            label.textContent = 'يوم عمل';
+                            label.classList.remove('text-muted');
+                            label.classList.add('text-success');
+                        } else {
+                            label.textContent = 'عطلة (البوت فقط)';
+                            label.classList.remove('text-success');
+                            label.classList.add('text-muted');
+                        }
+                    }
+                });
+            });
+        });
     </script>
 </body>
 

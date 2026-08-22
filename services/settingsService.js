@@ -133,6 +133,34 @@ export const defaultSettingsMeta = {
         defaultValue: 'hours'
     },
 
+    // مواعيد وساعات العمل
+    working_hours_enabled: {
+        type: 'boolean',
+        category: 'timers',
+        label: 'تفعيل نظام ساعات العمل الرسمية (تعطيل التحويل التلقائي ليلاً وفي العطلات)',
+        defaultValue: true
+    },
+    working_hours_schedule: {
+        type: 'json',
+        category: 'timers',
+        label: 'جدول ساعات العمل الأسبوعي لكل يوم',
+        defaultValue: {
+            "السبت": { "enabled": true, "start": "10:00", "end": "23:00" },
+            "الأحد": { "enabled": true, "start": "10:00", "end": "23:00" },
+            "الإثنين": { "enabled": true, "start": "10:00", "end": "23:00" },
+            "الثلاثاء": { "enabled": true, "start": "10:00", "end": "23:00" },
+            "الأربعاء": { "enabled": true, "start": "10:00", "end": "23:00" },
+            "الخميس": { "enabled": true, "start": "10:00", "end": "23:00" },
+            "الجمعة": { "enabled": false, "start": "10:00", "end": "23:00" }
+        }
+    },
+    out_of_hours_handoff_message: {
+        type: 'text',
+        category: 'messages',
+        label: 'رسالة التحويل خارج مواعيد العمل أو في العطلات',
+        defaultValue: `تم تسجيل طلبك وبياناتك بنجاح لدى فريق المبيعات 📋\n\nمواعيد العمل الرسمية من 10:00 صباحاً إلى 11:00 مساءً، وسيتم التواصل مع حضرتك هاتفياً أو عبر الواتساب في بداية الشفت القادم ✨\n\nفي هذه الأثناء، أنا معاك لو حابب تسأل عن أي شيء بخصوص المتجر أو الخدمات!`
+    },
+
     // الدفع
     instapay_number: {
         type: 'text',

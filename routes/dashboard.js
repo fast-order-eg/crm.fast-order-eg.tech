@@ -2183,6 +2183,25 @@ router.post('/settings/update', async (req, res) => {
         if (updates.enable_whatsapp_notifications === undefined) {
             updates.enable_whatsapp_notifications = 'false';
         }
+        if (updates.working_hours_enabled === undefined) {
+            updates.working_hours_enabled = 'false';
+        }
+
+        // Process working hours weekly schedule
+        if (updates.working_hours_schedule) {
+            const daysList = ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'];
+            const rawSchedule = updates.working_hours_schedule || {};
+            const finalSchedule = {};
+            for (const day of daysList) {
+                const d = rawSchedule[day] || {};
+                finalSchedule[day] = {
+                    enabled: d.enabled === 'true' || d.enabled === true || d.enabled === 'on',
+                    start: d.start || '10:00',
+                    end: d.end || '23:00'
+                };
+            }
+            updates.working_hours_schedule = finalSchedule;
+        }
         
         const readOnlyKeys = ['welcome_message', 'course_details', 'free_lectures_url', 'free_lectures_message', 'guarantees_message', 'payment_instructions'];
         for (const [key, value] of Object.entries(updates)) {
