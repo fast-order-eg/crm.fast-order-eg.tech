@@ -268,7 +268,7 @@
                                                                 <% if (btn.NextMenuId) { %>
                                                                     <span class="btn-meta-tag tag-ai-no">🔀 يفتح قائمة أخرى</span>
                                                                 <% } else if (btn.continueToAI) { %>
-                                                                    <span class="btn-meta-tag tag-ai-yes">👤 يترك موظف المبيعات يكمل</span>
+                                                                    <span class="btn-meta-tag tag-ai-yes">🤖 يكمل مع الذكاء الاصطناعي / المبيعات</span>
                                                                 <% } else { %>
                                                                     <span class="btn-meta-tag tag-ai-no">🔄 يرجع لنفس القائمة</span>
                                                                 <% } %>
@@ -431,7 +431,7 @@
                                 <label class="form-label fw-bold text-dark">الإجراء بعد الضغط</label>
                                 <select id="addBtnAction" class="form-select" onchange="toggleAddNextMenu()">
                                     <option value="same">🔄 يرجع يعرض نفس القائمة تاني</option>
-                                    <option value="ai">👤 يترك موظف المبيعات يكمل</option>
+                                    <option value="ai">🤖 يرسل الرد ويكمل مع الذكاء الاصطناعي / المبيعات</option>
                                     <option value="next">🔀 يفتح قائمة تانية</option>
                                 </select>
                                 <!-- Hidden fields to map UI to DB -->
@@ -520,7 +520,7 @@
                                 <label class="form-label fw-bold text-dark">الإجراء بعد الضغط</label>
                                 <select id="editBtnAction" class="form-select" onchange="toggleEditNextMenu()">
                                     <option value="same">🔄 يرجع يعرض نفس القائمة تاني</option>
-                                    <option value="ai">👤 يترك موظف المبيعات يكمل</option>
+                                    <option value="ai">🤖 يرسل الرد ويكمل مع الذكاء الاصطناعي / المبيعات</option>
                                     <option value="next">🔀 يفتح قائمة تانية</option>
                                 </select>
                                 <input type="hidden" name="continueToAI" id="editContinueToAI">

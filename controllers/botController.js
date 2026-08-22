@@ -798,7 +798,7 @@ export async function handleButtonResponse(sock, remoteJid, buttonId, userId, io
                     performedByUserId: userId,
                     UserId: userId
                 });
-            } else if (button.continueToAI || label.includes('طلب التواصل مع مبيعات') || label.includes('خدمة العملاء')) {
+            } else if (label.includes('طلب التواصل مع مبيعات') || label.includes('خدمة العملاء') || label.includes('خدمة عملاء') || label.includes('تحدث مع المبيعات') || label.includes('ممثلي المبيعات')) {
                 const oldStatus = customer.status;
                 customer.status = 'awaiting_sales';
                 customer.currentFunnelStep = 'awaiting_sales';
@@ -819,7 +819,7 @@ export async function handleButtonResponse(sock, remoteJid, buttonId, userId, io
 
                 await ChangeLog.create({
                     action: 'status_change',
-                    description: `طلب العميل التحدث مع المبيعات عبر زر تفاعلي. حالة العميل: "في انتظار المبيعات"`,
+                    description: `طلب العميل التحدث مع المبيعات عبر زر تفاعلي: "${label}". حالة العميل: "في انتظار المبيعات"`,
                     oldValue: oldStatus || 'welcome',
                     newValue: 'awaiting_sales',
                     CustomerId: customer.id,
@@ -827,7 +827,9 @@ export async function handleButtonResponse(sock, remoteJid, buttonId, userId, io
                     UserId: userId
                 });
 
-                responseTextToSend = handoffMessages[Math.floor(Math.random() * handoffMessages.length)];
+                if (!responseTextToSend || responseTextToSend.trim() === '') {
+                    responseTextToSend = handoffMessages[Math.floor(Math.random() * handoffMessages.length)];
+                }
 
                 const transferTime = new Date().toLocaleString('en-US', { timeZone: 'Africa/Cairo', hour12: true, dateStyle: 'short', timeStyle: 'short' });
                 
