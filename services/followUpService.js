@@ -18,7 +18,7 @@ export const checkPendingFollowUps = async (io) => {
         for (const user of activeUsers) {
             const userId = user.id;
             const sock = sessions.get(userId);
-            if (!sock || !sock.user || sock.ws?.readyState !== 1) continue;
+            if (!sock) continue;
 
             // 1. [موقوف بطلب العميل] تحويل البوت التلقائي للعملاء الصامتين إلى حالة "first_follow_up" وجدولة المتابعة الأولى لهم
             // تم إيقافه لكي يتم تحويل العميل للمبيعات تلقائياً بدلاً من إدخاله في قائمة المتابعة التلقائية فور صمته.
@@ -93,6 +93,9 @@ export const checkPendingFollowUps = async (io) => {
 
             for (const customer of scheduledCustomers) {
                 try {
+                    const targetJid = customer.remoteJid || (customer.phoneNumber ? `${customer.phoneNumber.replace(/[^0-9]/g, '')}@s.whatsapp.net` : null);
+                    if (!targetJid) continue;
+
                     // التحقق هل تم إرسال المتابعة الأولى للعميل من قبل
                     const firstFollowupSent = await FollowUp.findOne({
                         where: {
@@ -136,12 +139,12 @@ export const checkPendingFollowUps = async (io) => {
                             if (firstFollowupType === 'dynamic') {
                                 customerFirstMsg = await generateDynamicFollowUpMessage(customer.id, userId, firstFollowupMessage);
                             }
-                            await sock.sendMessage(customer.remoteJid, { text: customerFirstMsg });
+                            await sock.sendMessage(targetJid, { text: customerFirstMsg });
                         }
 
                         const savedMsg = await Message.create({
                             UserId: userId,
-                            remoteJid: customer.remoteJid,
+                            remoteJid: targetJid,
                             role: 'model',
                             content: customerFirstMsg,
                             status: 'sent'
@@ -155,11 +158,11 @@ export const checkPendingFollowUps = async (io) => {
                                 lastMessage: customerFirstMsg,
                                 updatedAt: new Date()
                             },
-                            { where: { UserId: userId, remoteJid: customer.remoteJid } }
+                            { where: { UserId: userId, remoteJid: targetJid } }
                         );
                         if (io) {
                             io.to(`user_${userId}`).emit('conversation_updated', {
-                                remoteJid: customer.remoteJid,
+                                remoteJid: targetJid,
                                 lastMessage: customerFirstMsg,
                                 updatedAt: new Date(),
                                 is_handoff: false
@@ -240,12 +243,12 @@ export const checkPendingFollowUps = async (io) => {
                             if (finalFollowupType === 'dynamic') {
                                 customerFinalMsg = await generateDynamicFollowUpMessage(customer.id, userId, finalFollowupMessage);
                             }
-                            await sock.sendMessage(customer.remoteJid, { text: customerFinalMsg });
+                            await sock.sendMessage(targetJid, { text: customerFinalMsg });
                         }
 
                         const savedFinalMsg = await Message.create({
                             UserId: userId,
-                            remoteJid: customer.remoteJid,
+                            remoteJid: targetJid,
                             role: 'model',
                             content: customerFinalMsg,
                             status: 'sent'
@@ -259,11 +262,11 @@ export const checkPendingFollowUps = async (io) => {
                                 lastMessage: customerFinalMsg,
                                 updatedAt: new Date()
                             },
-                            { where: { UserId: userId, remoteJid: customer.remoteJid } }
+                            { where: { UserId: userId, remoteJid: targetJid } }
                         );
                         if (io) {
                             io.to(`user_${userId}`).emit('conversation_updated', {
-                                remoteJid: customer.remoteJid,
+                                remoteJid: targetJid,
                                 lastMessage: customerFinalMsg,
                                 updatedAt: new Date(),
                                 is_handoff: false
