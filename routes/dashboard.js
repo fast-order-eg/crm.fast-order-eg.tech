@@ -1986,7 +1986,7 @@ router.post('/buttons/add', upload.array('responseImageFile', 10), async (req, r
 
         if (req.files && req.files.length > 0) {
             for (const file of req.files) {
-                const filename = await compressAndSaveImage(file.buffer, file.originalname);
+                const filename = await compressAndSaveImage(file);
                 finalImages.push(filename.startsWith('/uploads/') ? filename : '/uploads/' + filename);
             }
         }
@@ -2049,7 +2049,7 @@ router.post('/buttons/edit', upload.array('responseImageFile', 10), async (req, 
 
         if (req.files && req.files.length > 0) {
             for (const file of req.files) {
-                const filename = await compressAndSaveImage(file.buffer, file.originalname);
+                const filename = await compressAndSaveImage(file);
                 existingImages.push(filename.startsWith('/uploads/') ? filename : '/uploads/' + filename);
             }
         }

@@ -66,6 +66,18 @@ export const compressAndSaveImage = async (fileOrBuffer, originalname = '') => {
             mime = fileOrBuffer.mimetype || '';
         }
 
+        // Ensure buffer is a Node.js Buffer
+        let nodeBuffer;
+        if (Buffer.isBuffer(buffer)) {
+            nodeBuffer = buffer;
+        } else if (buffer instanceof ArrayBuffer || ArrayBuffer.isView(buffer)) {
+            nodeBuffer = Buffer.from(buffer);
+        } else if (typeof buffer === 'string') {
+            nodeBuffer = Buffer.from(buffer);
+        } else {
+            nodeBuffer = Buffer.from(buffer);
+        }
+
         const isVideo = (mime && mime.startsWith('video/')) || (name && name.match(/\.(mp4|mov|webm|mkv|avi|3gp)$/i));
 
         const timestamp = Date.now();
@@ -77,7 +89,7 @@ export const compressAndSaveImage = async (fileOrBuffer, originalname = '') => {
             const outputFilename = `vid_${timestamp}_${randomString}.mp4`;
             const outputPath = path.join(videoUploadDir, outputFilename);
 
-            fs.writeFileSync(inputTemp, buffer);
+            fs.writeFileSync(inputTemp, nodeBuffer);
 
             await new Promise((resolve) => {
                 ffmpeg(inputTemp)
@@ -95,9 +107,9 @@ export const compressAndSaveImage = async (fileOrBuffer, originalname = '') => {
                         resolve();
                     })
                     .on('error', (err) => {
-                        console.error('❌ [Video Compression Error]:', err);
+                        console.error('❌ [Video Compression Error, saving original]:', err);
                         // Fallback: save original buffer if ffmpeg fails
-                        fs.writeFileSync(outputPath, buffer);
+                        fs.writeFileSync(outputPath, nodeBuffer);
                         resolve();
                     })
                     .save(outputPath);
@@ -113,7 +125,7 @@ export const compressAndSaveImage = async (fileOrBuffer, originalname = '') => {
             const filename = `instruction_${timestamp}_${randomString}.jpg`;
             const filepath = path.join(uploadDir, filename);
 
-            await sharp(buffer)
+            await sharp(nodeBuffer)
                 .resize(1200, 1200, {
                     fit: 'inside',
                     withoutEnlargement: true
