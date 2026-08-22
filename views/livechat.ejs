@@ -292,8 +292,13 @@
             font-size: 13.5px;
             line-height: 1.45;
             word-wrap: break-word;
+            white-space: pre-wrap;
             position: relative;
             box-shadow: 0 1px 0.5px rgba(11,20,26,0.13);
+        }
+        .bbl .msg-text {
+            white-space: pre-wrap;
+            word-break: break-word;
         }
         .bbl.usr {
             align-self: flex-start;
@@ -471,7 +476,7 @@
                                     </span>
                                 </div>
                                 <% if (phone) { %><div class="lc-phone"><span class="d-none d-md-inline">📞 </span>+<%= phone %></div><% } %>
-                                <div class="lc-prev"><%= c.lastMessageText ? c.lastMessageText.replace(/[M:d+]/g, '').trim() : '...' %></div>
+                                <div class="lc-prev"><%= c.lastMessageText ? c.lastMessageText.replace(/\[M:\d+\]/g, '').trim() : '...' %></div>
                             </div>
                             <div class="lc-meta">
                                 <div class="lc-t"><%= ts %></div>
@@ -586,7 +591,7 @@
     io_.on('connect',()=>io_.emit('join_room','user_<%= targetUserId %>'));
     io_.on('new_message',msg=>{
         const el=document.querySelector(`.lc-item[data-jid="${msg.remoteJid}"]`);
-        let content = msg.content ? msg.content.replace(/[M:d+]/g, '').trim() : '';
+        let content = msg.content ? msg.content.replace(/\[M:\d+\]/g, '').trim() : '';
         if(el) el.querySelector('.lc-prev').textContent=content;
         if(msg.remoteJid===curJid) addBbl(content, msg.role==='user', new Date(msg.createdAt), msg.media_url, msg.messageId, msg.status);
     });
@@ -655,7 +660,7 @@
         }
 
         const safeNm = (nm || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
-        const prevText = c.lastMessageText ? c.lastMessageText.replace(/[M:d+]/g, '').trim() : '...';
+        const prevText = c.lastMessageText ? c.lastMessageText.replace(/\[M:\d+\]/g, '').trim() : '...';
         const unreadHtml = c.unreadCount > 0 ? `<span class="unread-pill">${c.unreadCount}</span>` : '';
         const phoneHtml = phone ? `<div class="lc-phone"><span class="d-none d-md-inline">📞 </span>+${phone}</div>` : '';
         const activeClass = (c.remoteJid === curJid) ? 'active' : '';
@@ -1109,7 +1114,7 @@
             const data = await res.json();
 
             if (data.success && data.message) {
-                let content = data.message.content ? data.message.content.replace(/[M:d+]/g, '').trim() : '';
+                let content = data.message.content ? data.message.content.replace(/\[M:\d+\]/g, '').trim() : '';
                 addBbl(content, false, new Date(data.message.createdAt), data.message.mediaUrl || data.message.media_url, data.message.messageId, data.message.status);
                 
                 const el = document.querySelector(`.lc-item[data-jid="${curJid}"]`);

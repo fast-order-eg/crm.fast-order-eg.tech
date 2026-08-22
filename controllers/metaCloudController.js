@@ -4,7 +4,7 @@ import Customer from '../models/Customer.js';
 import Conversation from '../models/Conversation.js';
 import Message from '../models/Message.js';
 import User from '../models/User.js';
-import { handleFunnelStep, sendInteractiveButtons, handleButtonResponse } from './botController.js';
+import { handleFunnelStep, sendInteractiveButtons, handleButtonResponse, handleIncomingUnifiedMessage } from './botController.js';
 
 // Webhook Verification (GET /api/whatsapp/meta-webhook)
 export const verifyWebhook = (req, res) => {
@@ -46,7 +46,14 @@ export const sendMetaMessage = async (to, bodyText, options = {}) => {
         if (options.mediaUrl && options.mediaType) {
             // Media Message (image, audio, video, document)
             payload.type = options.mediaType;
-            const fullLink = options.mediaUrl.startsWith('http') ? options.mediaUrl : `https://crm.fast-order-eg.tech${options.mediaUrl}`;
+            let relPath = String(options.mediaUrl).replace(/\\/g, '/');
+            if (relPath.includes('public/')) {
+                relPath = relPath.substring(relPath.indexOf('public/') + 6);
+            }
+            if (!relPath.startsWith('/') && !relPath.startsWith('http')) {
+                relPath = '/' + relPath;
+            }
+            const fullLink = options.mediaUrl.startsWith('http') ? options.mediaUrl : `https://crm.fast-order-eg.tech${relPath}`;
             
             if (options.mediaType === 'image') {
                 payload.image = { link: fullLink };
@@ -310,7 +317,7 @@ export const handleWebhook = async (req, res) => {
             const metaSock = {
                 user: { id: '1187785914426370@s.whatsapp.net', name: 'Fast Order' },
                 sendPresenceUpdate: async () => {},
-                sendMessage: async (jid, content) => {
+                sendMessage: async (jid, content, options = {}) => {
                     const cleanTo = jid.replace(/[^0-9]/g, '');
                     let result;
                     let sentText = '';
@@ -318,6 +325,18 @@ export const handleWebhook = async (req, res) => {
                     if (typeof content === 'string') {
                         sentText = content;
                         result = await sendMetaMessage(cleanTo, content);
+                    } else if (content && content.image) {
+                        const imgUrl = content.image.url || content.image;
+                        result = await sendMetaMessage(cleanTo, content.caption || '', { mediaUrl: imgUrl, mediaType: 'image' });
+                    } else if (content && content.audio) {
+                        const audUrl = content.audio.url || content.audio;
+                        result = await sendMetaMessage(cleanTo, '', { mediaUrl: audUrl, mediaType: 'audio' });
+                    } else if (content && content.video) {
+                        const vidUrl = content.video.url || content.video;
+                        result = await sendMetaMessage(cleanTo, content.caption || '', { mediaUrl: vidUrl, mediaType: 'video' });
+                    } else if (content && content.document) {
+                        const docUrl = content.document.url || content.document;
+                        result = await sendMetaMessage(cleanTo, content.caption || '', { mediaUrl: docUrl, mediaType: 'document', filename: content.fileName || 'file' });
                     } else if (content && content.text) {
                         sentText = content.text;
                         let opts = {};
@@ -348,20 +367,22 @@ export const handleWebhook = async (req, res) => {
                 }
             };
 
-            // Trigger Bot Auto-Reply (Interactive Buttons / List Menu or Funnel Step)
+            // Trigger Unified Bot Processing (Hybrid Mode, Vertex AI Gemini, Menus, Numeric Selection, Sales Handoff)
             try {
-                console.log(`🤖 [META_BOT] Processing incoming message from ${targetId}...`);
-                if (buttonId) {
-                    console.log(`🔘 [META_BOT] Button/List selection received: ${buttonId}`);
-                    await handleButtonResponse(metaSock, remoteJid, buttonId, userId, io, targetId);
-                } else {
-                    console.log(`📋 [META_BOT] Sending interactive menu for ${targetId}...`);
-                    const sentMenu = await sendInteractiveButtons(metaSock, remoteJid, userId, io, null, senderName);
-                    if (!sentMenu) {
-                        console.log(`🔄 [META_BOT] Fallback to funnel step for ${targetId}...`);
-                        await handleFunnelStep(metaSock, remoteJid, customer, textContent, msg, io);
-                    }
-                }
+                console.log(`🤖 [META_BOT] Delegating message from ${targetId} to unified bot handler...`);
+                await handleIncomingUnifiedMessage({
+                    sock: metaSock,
+                    remoteJid,
+                    phoneNumber: targetId,
+                    pushName: senderName,
+                    text: textContent,
+                    messageType: msg.type,
+                    incomingMediaUrl: mediaUrl,
+                    buttonId,
+                    userId,
+                    io,
+                    rawMsg: msg
+                });
             } catch (botErr) {
                 console.error('❌ [META_BOT_ERROR]:', botErr);
             }

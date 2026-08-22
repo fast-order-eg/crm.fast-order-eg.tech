@@ -1756,120 +1756,43 @@ export const startSession = async (userId, io, phoneNumber = null) => {
             text = "sticker 💟";
         }
 
-        // === Interactive Buttons Logic (Check button responses + triggers) ===
-        // Handle button/list responses from customer
+        // === Extract Button / Interactive Selection ID ===
+        let selectedId = null;
         if (messageType === 'buttonsResponseMessage' || messageType === 'listResponseMessage') {
-            const selectedId = msg.message.buttonsResponseMessage?.selectedButtonId
-                            || msg.message.listResponseMessage?.singleSelectReply?.selectedRowId;
-            if (selectedId && !remoteJid.endsWith('@g.us')) {
-                console.log(`🔘 [Buttons] Customer ${remoteJid} selected button: ${selectedId}`);
-                // Save selection as user message
-                const button = await InteractiveButton.findOne({ where: { buttonId: selectedId, UserId: userId, isActive: true } });
-                const selectionText = button ? button.label : selectedId;
-                const savedSel = await Message.create({ UserId: userId, remoteJid, role: 'user', content: selectionText });
-                io.to(`user_${userId}`).emit('new_message', savedSel);
-
-                await handleButtonResponse(sock, remoteJid, selectedId, userId, io, phoneNumber);
-                return;
-            }
-        }
-
-        // Handle interactive message responses (newer WhatsApp format)
-        if (messageType === 'interactiveResponseMessage') {
+            selectedId = msg.message.buttonsResponseMessage?.selectedButtonId
+                      || msg.message.listResponseMessage?.singleSelectReply?.selectedRowId;
+        } else if (messageType === 'interactiveResponseMessage') {
             try {
                 const interactiveResponse = msg.message.interactiveResponseMessage;
                 const body = interactiveResponse?.nativeFlowResponseMessage?.paramsJson;
                 if (body) {
                     const parsed = JSON.parse(body);
-                    const selectedId = parsed.id;
-                    if (selectedId && !remoteJid.endsWith('@g.us')) {
-                        console.log(`🔘 [Buttons] Customer ${remoteJid} selected interactive: ${selectedId}`);
-                        const button = await InteractiveButton.findOne({ where: { buttonId: selectedId, UserId: userId, isActive: true } });
-                        const selectionText = button ? button.label : selectedId;
-                        const savedSel = await Message.create({ UserId: userId, remoteJid, role: 'user', content: selectionText });
-                        io.to(`user_${userId}`).emit('new_message', savedSel);
-
-                        await handleButtonResponse(sock, remoteJid, selectedId, userId, io, phoneNumber);
-                        return;
-                    }
+                    selectedId = parsed.id;
                 }
             } catch (e) {
                 console.error('[Buttons] Error parsing interactive response:', e);
             }
         }
-        // === End Button Response Handling ===
-
-        // === Text Menu Numeric Fallback Parser ===
-        if (text && !isNaN(text.trim()) && text.trim() !== '' && !remoteJid.endsWith('@g.us')) {
-            const userChoice = parseInt(text.trim());
-            // Find last bot message to this user that was a MENU
-            const lastBotMsg = await Message.findOne({
-                where: { 
-                    UserId: userId, 
-                    remoteJid, 
-                    role: 'model',
-                    content: { [Op.like]: '%[M:%]' } 
-                },
-                order: [['createdAt', 'DESC']]
-            });
-            if (lastBotMsg && lastBotMsg.content) {
-                const match = lastBotMsg.content.match(/\[M:(\d+)\]/);
-                if (match) {
-                    const menuId = match[1];
-                    const buttons = await InteractiveButton.findAll({
-                        where: { MenuId: menuId, isActive: true },
-                        order: [['order', 'ASC'], ['createdAt', 'ASC']]
-                    });
-                    if (userChoice > 0 && userChoice <= buttons.length) {
-                        const selectedBtn = buttons[userChoice - 1];
-                        console.log(`🔘 [Text Menu] Customer ${remoteJid} selected: ${selectedBtn.buttonId} by typing number ${userChoice}`);
-                        
-                        const savedSel = await Message.create({ UserId: userId, remoteJid, role: 'user', content: text });
-                        io.to(`user_${userId}`).emit('new_message', savedSel);
-
-                        await handleButtonResponse(sock, remoteJid, selectedBtn.buttonId, userId, io, phoneNumber);
-                        return;
-                    }
-                }
-            }
-        }
-        // === End Text Menu Parser ===
 
         // 1. Save User Message to DB (ALWAYS)
-        if (text) {
-            const savedMsg = await Message.create({
-                UserId: userId,
-                remoteJid,
-                role: 'user',
-                content: text,
-                media_url: incomingMediaUrl || null
-            });
-            io.to(`user_${userId}`).emit('new_message', savedMsg);
-        }
-
-        // === Interactive Buttons: Check for trigger words ===
-        if (text && !remoteJid.endsWith('@g.us') && user.bot_mode !== 'ai_only' && !user.buttons_disabled) {
-            const normalizedText = text.trim().toLowerCase();
-            
-            // Fetch all active menus for this user
-            const menus = await InteractiveMenu.findAll({ where: { UserId: userId, isActive: true } });
-            
-            let matchedMenuId = null;
-            for (const menu of menus) {
-                if (!menu.triggerWords) continue;
-                const triggers = menu.triggerWords.split(',').map(w => w.trim().toLowerCase());
-                if (triggers.includes(normalizedText)) {
-                    matchedMenuId = menu.id;
-                    break;
-                }
+        if (text || selectedId) {
+            let msgContentToSave = text;
+            if (selectedId && !text) {
+                const btn = await InteractiveButton.findOne({ where: { buttonId: selectedId, UserId: userId, isActive: true } });
+                msgContentToSave = btn ? btn.label : selectedId;
             }
-
-            if (matchedMenuId) {
-                const sent = await sendInteractiveButtons(sock, remoteJid, userId, io, matchedMenuId);
-                if (sent) return; // Buttons sent, skip AI
+            if (msgContentToSave) {
+                const savedMsg = await Message.create({
+                    UserId: userId,
+                    remoteJid,
+                    role: 'user',
+                    content: msgContentToSave,
+                    media_url: incomingMediaUrl || null
+                });
+                io.to(`user_${userId}`).emit('new_message', savedMsg);
             }
         }
-        // === End Interactive Buttons Trigger Check ===
+
 
         // 2. Check for "Bird CRM" or "Abkarino" Group Message (High Priority)
         if (remoteJid.endsWith('@g.us')) {
@@ -2057,191 +1980,248 @@ export const startSession = async (userId, io, phoneNumber = null) => {
                 console.error('[Broadcast Reply Tracking Error]:', err);
             }
 
-            const pushName = msg.pushName || phoneNumber || (remoteJid.endsWith('@lid') ? 'عميل' : remoteJid.split('@')[0]);
-            const customerPhone = phoneNumber || remoteJid.split('@')[0];
-            
-            // Find or Create Customer
-            let [customer, isNewCustomerRecord] = await Customer.findOrCreate({
-                where: { UserId: userId, phoneNumber: customerPhone },
-                defaults: {
-                    customerName: pushName,
-                    remoteJid: remoteJid,
-                    firstContactAt: new Date(),
-                    lastReplyAt: new Date(),
-                    status: 'new',
-                    UserId: userId
-                }
-            });
+            // Delegate message to unified bot handler
+            if (!remoteJid.endsWith('@g.us')) {
+                await handleIncomingUnifiedMessage({
+                    sock,
+                    remoteJid,
+                    phoneNumber,
+                    pushName: msg.pushName || phoneNumber || (remoteJid.endsWith('@lid') ? 'عميل' : remoteJid.split('@')[0]),
+                    text,
+                    messageType,
+                    incomingMediaUrl,
+                    buttonId: selectedId,
+                    userId,
+                    io,
+                    rawMsg: msg
+                });
+            }
+        }
+    });
 
-            // Auto-merge LID customer if primary @s.whatsapp.net customer exists
+    return { status: 'started' };
+};
+
+/**
+ * 🤖 Unified Bot Handler: Processes incoming messages across Baileys and Meta WhatsApp Cloud API
+ * Supports Hybrid Mode (Menus + Vertex AI Gemini), Menu-Only Mode, AI-Only Mode, and Sales Handoff
+ */
+export async function handleIncomingUnifiedMessage({
+    sock,
+    remoteJid,
+    phoneNumber,
+    pushName,
+    text,
+    messageType,
+    incomingMediaUrl = null,
+    mediaBuffer = null,
+    mediaMime = null,
+    buttonId = null,
+    userId,
+    io,
+    rawMsg = null
+}) {
+    try {
+        if (!remoteJid || remoteJid.endsWith('@g.us')) return;
+
+        const user = await User.findByPk(userId);
+        if (!user) return;
+
+        // 1. Auto-Reply & Pause Status Check
+        if (user.auto_reply === false || user.connection_status === 'paused' || user.connection_status === 'paused_manual') {
+            if (user.pause_until && new Date() > new Date(user.pause_until)) {
+                user.connection_status = 'online';
+                user.pause_until = null;
+                await user.save();
+                if (io) io.to(`user_${userId}`).emit('status', { status: 'online' });
+            } else {
+                console.log(`⏸️ [Bot Paused] Skipped auto-reply for ${remoteJid} (Status: ${user.connection_status})`);
+                return;
+            }
+        }
+
+        // 2. Resolve Customer Phone and Data
+        const customerPhone = phoneNumber || (remoteJid.endsWith('@s.whatsapp.net') ? remoteJid.split('@')[0] : null);
+        
+        let [customer, isNewCustomerRecord] = await Customer.findOrCreate({
+            where: { UserId: userId, remoteJid },
+            defaults: {
+                UserId: userId,
+                phoneNumber: customerPhone,
+                customerName: pushName || (customerPhone ? `عميل ${customerPhone}` : 'عميل جديد'),
+                remoteJid,
+                status: 'new',
+                firstContactAt: new Date(),
+                lastReplyAt: new Date()
+            }
+        });
+
+        // Auto-merge LID customer if primary exists
+        try {
+            const { autoMergeDuplicateCustomers } = await import('../services/assignmentService.js');
+            await autoMergeDuplicateCustomers(userId, customerPhone, remoteJid, pushName);
+        } catch (mergeErr) {
+            console.error('⚠️ [LID_AUTO_MERGE_ERROR]:', mergeErr.message);
+        }
+
+        if (!isNewCustomerRecord) {
+            customer.lastReplyAt = new Date();
+            if (pushName && pushName !== customerPhone && (!customer.customerName || customer.customerName === customerPhone)) {
+                customer.customerName = pushName;
+            }
+            if (!customer.remoteJid) customer.remoteJid = remoteJid;
+            await customer.save();
+        }
+
+        if (customer.customerName === 'عميل' && customer.customerNumber) {
+            customer.customerName = `عميل #${customer.customerNumber}`;
+            await customer.save();
+        }
+
+        // KPI recording for assigned agent
+        if (customer.assignedToUserId) {
             try {
-                const { autoMergeDuplicateCustomers } = await import('../services/assignmentService.js');
-                await autoMergeDuplicateCustomers(userId, customerPhone, remoteJid, pushName);
-            } catch (mergeErr) {
-                console.error('⚠️ [LID_AUTO_MERGE_ERROR]:', mergeErr.message);
+                const { recordMessageReceived } = await import('../services/kpiService.js');
+                await recordMessageReceived(customer.assignedToUserId, customer.UserId);
+            } catch (kpiErr) {
+                console.error("Error recording KPI messagesReceived:", kpiErr);
             }
+        }
 
-            if (!isNewCustomerRecord) {
-                customer.lastReplyAt = new Date();
-                if (pushName && pushName !== customerPhone && (!customer.customerName || customer.customerName === customerPhone)) {
-                    customer.customerName = pushName;
-                }
-                if (!customer.remoteJid) {
-                    customer.remoteJid = remoteJid;
-                }
-                await customer.save();
+        // 3. Find or Create Conversation
+        let [conversation, created] = await Conversation.findOrCreate({
+            where: { UserId: userId, remoteJid },
+            defaults: {
+                platform: 'whatsapp',
+                customerName: customer.customerName || pushName || 'عميل',
+                phoneNumber: customerPhone || null,
+                lastMessageText: text || 'رسالة',
+                unreadCount: 1,
+                CustomerId: customer.id
             }
+        });
 
-            // تحسين اسم عميل LID: بدل "عميل" فقط، نعرض "عميل #رقم" (حل 2)
-            if (customer.customerName === 'عميل' && customer.customerNumber) {
-                customer.customerName = `عميل #${customer.customerNumber}`;
-                await customer.save();
-            }
+        if (conversation.customerName === 'عميل' && customer.customerNumber) {
+            conversation.customerName = `عميل #${customer.customerNumber}`;
+            if (!created) await conversation.save();
+        }
 
-            // تسجيل استلام رسالة للموظف المخصص في نظام الـ KPI تلقائياً
-            if (customer.assignedToUserId) {
-                try {
-                    const { recordMessageReceived } = await import('../services/kpiService.js');
-                    await recordMessageReceived(customer.assignedToUserId, customer.UserId);
-                } catch (kpiErr) {
-                    console.error("Error recording KPI messagesReceived in botController:", kpiErr);
-                }
-            }
+        if (!created) {
+            if (text) conversation.lastMessageText = text;
+            conversation.lastMessageAt = new Date();
+            conversation.unreadCount = (conversation.unreadCount || 0) + 1;
+            if (pushName && pushName !== remoteJid.split('@')[0]) conversation.customerName = pushName;
+            if (customerPhone && (!conversation.phoneNumber || conversation.phoneNumber.includes('@'))) conversation.phoneNumber = customerPhone;
+            if (!conversation.CustomerId) conversation.CustomerId = customer.id;
+            await conversation.save();
+        }
 
-            let created;
-            [conversation, created] = await Conversation.findOrCreate({
-                where: { UserId: userId, remoteJid },
-                defaults: {
-                    platform: 'whatsapp',
-                    customerName: customer.customerName || pushName,
-                    phoneNumber: phoneNumber || null,
-                    lastMessageText: text,
-                    unreadCount: 1,
-                    CustomerId: customer.id
-                }
+        // 4. 🛑 CRITICAL: Handoff Guard (Is Sales Representative Handling This Chat?)
+        if (conversation.is_handoff) {
+            console.log(`🛑 [Handoff Active] Bot is paused for chat ${remoteJid}. Human agent is handling conversation.`);
+            return;
+        }
+
+        // 5. Button / Quick Reply Selection
+        if (buttonId) {
+            console.log(`🔘 [Buttons] Customer ${remoteJid} selected button: ${buttonId}`);
+            await handleButtonResponse(sock, remoteJid, buttonId, userId, io, customerPhone);
+            return;
+        }
+
+        // 6. Text Menu Numeric Selection Fallback (e.g. customer typed "1", "2")
+        if (text && !isNaN(text.trim()) && text.trim() !== '' && user.bot_mode !== 'ai_only' && !user.buttons_disabled) {
+            const userChoice = parseInt(text.trim());
+            const lastBotMsg = await Message.findOne({
+                where: {
+                    UserId: userId,
+                    remoteJid,
+                    role: 'model',
+                    content: { [Op.like]: '%[M:%]' }
+                },
+                order: [['createdAt', 'DESC']]
             });
-
-            // تحسين اسم المحادثة لو لسه "عميل" بدون رقم (حل 2)
-            if (conversation.customerName === 'عميل' && customer.customerNumber) {
-                conversation.customerName = `عميل #${customer.customerNumber}`;
-                if (!created) await conversation.save();
-            }
-
-            const modelMsgCount = await Message.count({
-                where: { UserId: userId, remoteJid, role: 'model' }
-            });
-            const isFirstConversation = created || (modelMsgCount === 0);
-            isNewCustomer = isFirstConversation;
-
-            // === Interactive Buttons: Send to NEW customers (first message ever) in Hybrid or Menu-Only mode ===
-            // استثناء: الفويس والصور والفيديو تعدي للـ AI مباشرة بدل ما ترجع القائمة
-            const isMediaMessage = ['audioMessage', 'imageMessage', 'videoMessage'].includes(messageType);
-            if (isFirstConversation && user.bot_mode !== 'ai_only' && !user.buttons_disabled && !isMediaMessage) {
-                const sent = await sendInteractiveButtons(sock, remoteJid, userId, io, null, conversation?.customerName || pushName);
-                if (sent) {
-                    if (!created) {
-                        conversation.lastMessageText = text || 'قائمة البداية';
-                        conversation.lastMessageAt = new Date();
-                        await conversation.save();
+            if (lastBotMsg && lastBotMsg.content) {
+                const match = lastBotMsg.content.match(/\[M:(\d+)\]/);
+                if (match) {
+                    const menuId = match[1];
+                    const buttons = await InteractiveButton.findAll({
+                        where: { MenuId: menuId, isActive: true },
+                        order: [['order', 'ASC'], ['createdAt', 'ASC']]
+                    });
+                    if (userChoice > 0 && userChoice <= buttons.length) {
+                        const selectedBtn = buttons[userChoice - 1];
+                        console.log(`🔘 [Text Menu] Customer ${remoteJid} selected "${selectedBtn.label}" by typing number ${userChoice}`);
+                        await handleButtonResponse(sock, remoteJid, selectedBtn.buttonId, userId, io, customerPhone);
+                        return;
                     }
-                    return; // Buttons sent to new customer, skip further processing (Skip AI)
                 }
             }
-            // === End New Customer Buttons ===
+        }
 
-            if (!created) {
-                conversation.lastMessageText = text;
+        // 7. Interactive Buttons: Check Trigger Words (e.g. "قائمة", "الخدمات", "مبيعات", "ابدأ")
+        if (text && user.bot_mode !== 'ai_only' && !user.buttons_disabled) {
+            const normalizedText = text.trim().toLowerCase();
+            const menus = await InteractiveMenu.findAll({ where: { UserId: userId, isActive: true } });
+            let matchedMenuId = null;
+            for (const menu of menus) {
+                if (!menu.triggerWords) continue;
+                const triggers = menu.triggerWords.split(',').map(w => w.trim().toLowerCase());
+                if (triggers.includes(normalizedText)) {
+                    matchedMenuId = menu.id;
+                    break;
+                }
+            }
+            if (matchedMenuId) {
+                const sent = await sendInteractiveButtons(sock, remoteJid, userId, io, matchedMenuId, conversation?.customerName || pushName);
+                if (sent) return;
+            }
+        }
+
+        // 8. New Customer Welcome Menu (First message ever)
+        const modelMsgCount = await Message.count({
+            where: { UserId: userId, remoteJid, role: 'model' }
+        });
+        const isFirstContact = created || (modelMsgCount === 0);
+        const isMediaMessage = ['audioMessage', 'imageMessage', 'videoMessage', 'audio', 'voice', 'image', 'video'].includes(messageType);
+
+        if (isFirstContact && user.bot_mode !== 'ai_only' && !user.buttons_disabled && !isMediaMessage) {
+            const sent = await sendInteractiveButtons(sock, remoteJid, userId, io, null, conversation?.customerName || pushName);
+            if (sent) {
+                conversation.lastMessageText = text || 'قائمة البداية';
                 conversation.lastMessageAt = new Date();
-                conversation.unreadCount += 1; 
-                if (pushName && pushName !== remoteJid.split('@')[0]) {
-                    conversation.customerName = pushName;
-                }
-                if (phoneNumber && (!conversation.phoneNumber || conversation.phoneNumber.includes('@'))) {
-                    conversation.phoneNumber = phoneNumber;
-                }
-                if (!conversation.CustomerId) {
-                    conversation.CustomerId = customer.id;
-                }
                 await conversation.save();
-            }
-
-            // 3.7 Handle Handoff (Is Human taking over?)
-            if (conversation.is_handoff) {
-                console.log(`[Handoff] Bot paused for chat ${remoteJid}. Human is handling it.`);
-                return;
-            }
-
-            // 3.8 Bird-CRM WhatsApp Funnel Logic (Bypassed)
-            const isFunnelState = false;
-            if (isFunnelState) {
-                const funnelProcessed = await handleFunnelStep(sock, remoteJid, customer, text, msg, io);
-                if (funnelProcessed) {
-                    // Update conversation
-                    conversation.lastMessageText = text || (msg.message && msg.message.imageMessage ? 'صورة/مرفق' : 'رسالة');
-                    conversation.lastMessageAt = new Date();
-                    await conversation.save();
-                    return; // Skip AI / other handlers
-                }
-            }
-        }
-
-        // 4. Ignore Group Messages (Safety - Already handled Abkarino & Bird CRM group above)
-        if (remoteJid.endsWith('@g.us')) {
-            // Double check if it's the control group, just in case
-            try {
-                const groupMetadata = await sock.groupMetadata(remoteJid);
-                const subjectLower = groupMetadata.subject ? groupMetadata.subject.toLowerCase() : '';
-                if (subjectLower === "bird crm") {
-                    console.log(`[Safety Check] Allowed Bird CRM group message to pass through ignore block: ${remoteJid}`);
-                    // Allowed Bird CRM group msg to proceed to AI.
-                } else {
-                    console.log(`Ignoring other group message from: ${remoteJid}`);
-                    return;
-                }
-            } catch (e) {
-                console.log(`Ignoring group message (metadata fetch failed) from: ${remoteJid}`);
                 return;
             }
         }
 
-        // === Debounce System ===
+        // 9. Debounce System
         const debounceKey = userId + '_' + remoteJid;
         const currentToken = Date.now() + '_' + Math.random();
         contactDebounceMap.set(debounceKey, currentToken);
 
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        await new Promise(resolve => setTimeout(resolve, 2500));
 
         if (contactDebounceMap.get(debounceKey) !== currentToken) {
-            console.log(`⏳ [Debounce] Ignoring duplicate fast message for contact ${remoteJid}`);
+            console.log(`⏳ [Debounce] Duplicate rapid message ignored for ${remoteJid}`);
             return;
         }
-        // === End Debounce System ===
 
-        // ======================================================
-        // 🔒 Menu-Only Mode — وضع القوائم فقط
-        // ======================================================
-        // استثناء: الفويس والصور والفيديو تعدي للـ AI في أي وضع
-        const isMediaMessageForMenu = ['audioMessage', 'imageMessage', 'videoMessage'].includes(messageType);
-        if (user.bot_mode === 'menu_only' && !user.buttons_disabled && text && !remoteJid.endsWith('@g.us') && !isMediaMessageForMenu) {
+        // 10. Menu-Only Mode (Locked to Menus)
+        if (user.bot_mode === 'menu_only' && !user.buttons_disabled && text && !isMediaMessage) {
             const normalizedFreeText = text.trim().toLowerCase();
-            
-            // Check if user wants to talk to a human agent
             const agentKeywords = ['مبيعات', 'موظف', 'خدمة عملاء', 'بشري', 'agent', 'human', 'مساعدة', 'خدمة', 'خدمه', 'عملاء', 'عملا'];
             const wantsAgent = agentKeywords.some(k => normalizedFreeText.includes(k));
-            
+
             if (wantsAgent) {
-                // Trigger handoff to human
                 await Conversation.update({ is_handoff: true }, { where: { UserId: userId, remoteJid } });
-                console.log(`[Menu-Only] ✅ Handoff triggered for ${remoteJid} (user requested agent).`);
-                
-                // Assign customer using Round Robin
+                console.log(`[Menu-Only] ✅ Handoff triggered for ${remoteJid}`);
+
                 let assignedSalesName = 'أحد ممثلي المبيعات';
                 try {
                     const { assignCustomerToSales } = await import('../services/assignmentService.js');
-                    const assignedEmp = await assignCustomerToSales(conversation.CustomerId, userId, io, true); // skip default notification
-                    if (assignedEmp) {
-                        assignedSalesName = assignedEmp.fullName || assignedEmp.username;
-                    }
+                    const assignedEmp = await assignCustomerToSales(conversation.CustomerId, userId, io, true);
+                    if (assignedEmp) assignedSalesName = assignedEmp.fullName || assignedEmp.username;
                 } catch (assignErr) {
                     console.error("Error assigning customer to sales in menu-only handoff:", assignErr);
                 }
@@ -2249,173 +2229,91 @@ export const startSession = async (userId, io, phoneNumber = null) => {
                 const handoffMsg = handoffMessages[Math.floor(Math.random() * handoffMessages.length)];
                 await sendHumanMessage(sock, remoteJid, { text: handoffMsg }, { userId });
                 const svHandoff = await Message.create({ UserId: userId, remoteJid, role: 'model', content: handoffMsg });
-                io.to(`user_${userId}`).emit('new_message', svHandoff);
+                if (io) io.to(`user_${userId}`).emit('new_message', svHandoff);
 
                 // Notify Control Group
                 try {
-                    const customerName = conversation ? (conversation.customerName || phoneNumber || remoteJid.split('@')[0]) : (phoneNumber || remoteJid.split('@')[0]);
-                    const customerPhone = phoneNumber || (conversation ? conversation.phoneNumber : null) || remoteJid.split('@')[0];
+                    const summary = conversation.CustomerId ? await generateCustomerSummary(conversation.CustomerId, userId) : "لا يوجد رسائل سابقة لتلخيصها.";
                     const transferTime = new Date().toLocaleString('en-US', { timeZone: 'Africa/Cairo', hour12: true, dateStyle: 'short', timeStyle: 'short' });
-                    
-                    let custNumber = 'غير مسجل';
-                    let custId = conversation ? conversation.CustomerId : null;
-                    if (custId) {
-                        const c = await Customer.findByPk(custId);
-                        if (c) custNumber = c.customerNumber || c.id;
-                    }
-                    
-                    // Generate AI summary
-                    const summary = custId ? await generateCustomerSummary(custId, userId) : "لا يوجد رسائل سابقة لتلخيصها.";
-
-                    const noteLink = custId ? `\n\n🔗 *لإضافة ملاحظات للعميل مباشرة:*\nhttps://crm.bird-technology.com/dashboard/customers?openNote=${custId}` : "";
-                    const notifyMsg = `🚨 *طلب تدخل فريق المبيعات*\n\n🔢 كود العميل: ${custNumber}\n👤 العميل: ${customerName}\n📞 الرقم: ${customerPhone}\nالمسؤول: ${assignedSalesName}\n⏰ وقت التحويل: ${transferTime}\n\n🤖 *ملخص المحادثة بالذكاء الاصطناعي:*\n${summary}${noteLink}`;
-                    
-                    let targetJid = user.control_group_jid || null;
-                    if (!targetJid) {
-                        const groups = await sock.groupFetchAllParticipating();
-                        for (const groupId in groups) {
-                            const group = groups[groupId];
-                            const subjectLower = group.subject ? group.subject.toLowerCase() : '';
-                            if (subjectLower === 'bird crm') {
-                                targetJid = groupId;
-                                break;
-                            }
-                        }
-                    }
-                    if (targetJid) {
-                        await sock.sendMessage(targetJid, { text: notifyMsg });
-                        console.log(`[Menu-Only] ✅ Handoff notification sent to group ${targetJid}`);
-                    }
+                    const notifyMsg = `🚨 *طلب تدخل فريق المبيعات*\n\n🔢 كود العميل: ${customer.customerNumber || customer.id}\n👤 العميل: ${conversation.customerName || customerPhone}\n📞 الرقم: ${customerPhone || remoteJid.split('@')[0]}\nالمسؤول: ${assignedSalesName}\n⏰ وقت التحويل: ${transferTime}\n\n🤖 *ملخص المحادثة بالذكاء الاصطناعي:*\n${summary}`;
+                    await notifyControlGroup(userId, notifyMsg);
                 } catch (e) {
                     console.error('[Menu-Only] ❌ Failed to notify control group:', e);
                 }
                 return;
             }
-            
-            // Free text that is not a number and not a trigger word → show guidance + re-send menu
-            console.log(`[Menu-Only] 🔒 Free text blocked for ${remoteJid}: "${text}"`);
-            
+
             const greetings = ['السلام عليكم', 'سلام عليكم', 'مرحبا', 'مرحباً', 'هلا', 'تفاصيل', 'التفاصيل', 'hi', 'hello', 'هاي'];
             const isGreeting = greetings.some(g => normalizedFreeText.includes(g));
-
             if (!isGreeting) {
                 const guidanceMsg = '⚠️ عذراً، لم أتمكن من فهم رسالتك.\n\n👉 يرجى اختيار رقم من القائمة أدناه، أو أرسل كلمة "مبيعات" للتحدث مع المبيعات.';
                 await sendHumanMessage(sock, remoteJid, { text: guidanceMsg }, { userId });
                 const svGuidance = await Message.create({ UserId: userId, remoteJid, role: 'model', content: guidanceMsg });
                 if (io) io.to(`user_${userId}`).emit('new_message', svGuidance);
             }
-            
-            // Re-send the last menu that was sent to this customer, or default menu
+
             const lastMenuMsg = await Message.findOne({
-                where: { 
-                    UserId: userId, 
-                    remoteJid, 
-                    role: 'model',
-                    content: { [Op.like]: '%[M:%]' } 
-                },
+                where: { UserId: userId, remoteJid, role: 'model', content: { [Op.like]: '%[M:%]' } },
                 order: [['createdAt', 'DESC']]
             });
-            
             let resendMenuId = null;
             if (lastMenuMsg && lastMenuMsg.content) {
                 const menuMatch = lastMenuMsg.content.match(/\[M:(\d+)\]/);
                 if (menuMatch) resendMenuId = parseInt(menuMatch[1]);
             }
-            
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            await new Promise(resolve => setTimeout(resolve, 1500));
             await sendInteractiveButtons(sock, remoteJid, userId, io, resendMenuId, conversation?.customerName);
             return;
         }
-        // === End Menu-Only Mode ===
 
-        // 5. Process AI Response (Vertex AI for Customers)
-        // Simulate Typing
-        await sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
-        const aiTypingInterval = setInterval(() => {
-            sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
-        }, 5000);
-
-        let aiResponse = null;
-        if (messageType === 'conversation' || messageType === 'extendedTextMessage') {
-            aiResponse = await callVertexAI(remoteJid, text, null, null, userId);
-        } else if (messageType === 'audioMessage') {
-            // 🎤 معالجة الفويس: نستخدم الملف المحفوظ محلياً لو موجود، وإلا نحمله من جديد
-            console.log("🎤 Processing audio message for AI...");
+        // 11. Prepare Media Buffer if media exists
+        if (incomingMediaUrl && !mediaBuffer) {
             try {
-                let mp3Buffer = null;
-
-                if (incomingMediaUrl) {
-                    // الملف محفوظ محلياً بالفعل من خطوة حفظ الميديا أعلاه
-                    const localOggPath = path.join(process.cwd(), 'public', incomingMediaUrl);
-                    const tempMp3 = path.join(os.tmpdir(), `voice_${Date.now()}.mp3`);
-                    if (fs.existsSync(localOggPath)) {
+                const localPath = path.join(process.cwd(), 'public', incomingMediaUrl);
+                if (fs.existsSync(localPath)) {
+                    const isAudio = incomingMediaUrl.endsWith('.ogg') || incomingMediaUrl.endsWith('.opus') || incomingMediaUrl.endsWith('.mp3') || incomingMediaUrl.endsWith('.wav');
+                    if (isAudio) {
+                        const tempMp3 = path.join(os.tmpdir(), `voice_${Date.now()}.mp3`);
                         await new Promise((resolve, reject) => {
-                            ffmpeg(localOggPath)
+                            ffmpeg(localPath)
                                 .toFormat('mp3')
                                 .on('end', resolve)
                                 .on('error', reject)
                                 .save(tempMp3);
                         });
-                        mp3Buffer = fs.readFileSync(tempMp3);
-                        if (fs.existsSync(tempMp3)) fs.unlinkSync(tempMp3);
+                        if (fs.existsSync(tempMp3)) {
+                            mediaBuffer = fs.readFileSync(tempMp3);
+                            mediaMime = 'audio/mp3';
+                            fs.unlinkSync(tempMp3);
+                        }
+                    } else if (incomingMediaUrl.match(/\.(jpg|jpeg|png|webp|gif)$/i)) {
+                        mediaBuffer = fs.readFileSync(localPath);
+                        mediaMime = incomingMediaUrl.endsWith('.png') ? 'image/png' : 'image/jpeg';
                     }
                 }
-
-                if (!mp3Buffer) {
-                    // fallback: حمله مرة تانية من WhatsApp
-                    const buffer = await downloadMediaMessage(msg, 'buffer', {}, { logger, reuploadRequest: sock.updateMediaMessage });
-                    const tempInput = path.join(os.tmpdir(), `temp_${Date.now()}.ogg`);
-                    const tempOutput = path.join(os.tmpdir(), `temp_${Date.now()}.mp3`);
-                    fs.writeFileSync(tempInput, buffer);
-                    await new Promise((resolve, reject) => {
-                        ffmpeg(tempInput)
-                            .toFormat('mp3')
-                            .on('end', resolve)
-                            .on('error', reject)
-                            .save(tempOutput);
-                    });
-                    mp3Buffer = fs.readFileSync(tempOutput);
-                    if (fs.existsSync(tempInput)) fs.unlinkSync(tempInput);
-                    if (fs.existsSync(tempOutput)) fs.unlinkSync(tempOutput);
-                }
-
-                aiResponse = await callVertexAI(remoteJid, "رسالة صوتية", mp3Buffer, "audio/mp3", userId);
-
-            } catch (e) {
-                console.error("❌ Voice Error:", e);
-                aiResponse = { text: "عذراً، مش عارف اسمع الصوت ده دلوقتي.", show_products: [] };
-            }
-        } else if (messageType === 'imageMessage') {
-            // 🖼️ معالجة الصورة: بعتها للـ AI مع الكابشن
-            console.log("🖼️ Processing image message for AI...");
-            try {
-                const caption = msg.message.imageMessage?.caption || '';
-                let imgBuffer = null;
-                if (incomingMediaUrl) {
-                    const localPath = path.join(process.cwd(), 'public', incomingMediaUrl);
-                    if (fs.existsSync(localPath)) imgBuffer = fs.readFileSync(localPath);
-                }
-                if (!imgBuffer) {
-                    imgBuffer = await downloadMediaMessage(msg, 'buffer', {}, { logger, reuploadRequest: sock.updateMediaMessage });
-                }
-                const imgMime = msg.message.imageMessage?.mimetype || 'image/jpeg';
-                aiResponse = await callVertexAI(remoteJid, caption || 'صورة من العميل', imgBuffer, imgMime, userId);
-            } catch (e) {
-                console.error("❌ Image AI Error:", e);
-                aiResponse = { text: "عذراً، مش عارف أشوف الصورة دي دلوقتي.", show_products: [] };
+            } catch (mediaErr) {
+                console.error("⚠️ [Media Buffer Conversion Error]:", mediaErr.message);
             }
         }
 
-        // Stop Typing
-        clearInterval(aiTypingInterval);
-        await sock.sendPresenceUpdate('paused', remoteJid).catch(() => {});
+        // 12. Process AI Response (Vertex AI / Gemini for Hybrid & Open AI modes)
+        if (typeof sock.sendPresenceUpdate === 'function') {
+            await sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
+        }
 
+        let aiResponse = null;
+        if (mediaBuffer) {
+            aiResponse = await callVertexAI(remoteJid, text || "ميديا من العميل", mediaBuffer, mediaMime || "image/jpeg", userId);
+        } else {
+            aiResponse = await callVertexAI(remoteJid, text, null, null, userId);
+        }
+
+        if (typeof sock.sendPresenceUpdate === 'function') {
+            await sock.sendPresenceUpdate('paused', remoteJid).catch(() => {});
+        }
 
         let replyText = aiResponse ? aiResponse.text : "";
-
         if (replyText) {
-            // Check for AI Handoff trigger
-            // Detect BOTH: [HANDOFF] keyword OR the Arabic transfer message the AI writes directly
             const isHandoffTrigger = replyText.includes('[HANDOFF]') || 
                                      replyText.includes('سأقوم بتحويلك') ||
                                      replyText.includes('ساقوم بتحويلك') ||
@@ -2426,108 +2324,40 @@ export const startSession = async (userId, io, phoneNumber = null) => {
             
             if (isHandoffTrigger) {
                 console.log(`[AI Handoff] ✅ HANDOFF DETECTED! Reply: "${replyText.substring(0,100)}"`);
-                
-                // 1. Mark conversation as handoff (bot stops replying)
                 await Conversation.update({ is_handoff: true }, { where: { UserId: userId, remoteJid } });
-                console.log(`[AI Handoff] ✅ Conversation ${remoteJid} marked as handoff (bot paused).`);
                 
                 let assignedSalesName = 'أحد ممثلي المبيعات';
-                let custIdForAI = null;
                 if (conversation && conversation.CustomerId) {
-                    custIdForAI = conversation.CustomerId;
                     try {
                         const { assignCustomerToSales } = await import('../services/assignmentService.js');
-                        const assignedEmp = await assignCustomerToSales(conversation.CustomerId, userId, io, true); // skip default notification
-                        if (assignedEmp) {
-                            assignedSalesName = assignedEmp.fullName || assignedEmp.username;
-                        }
+                        const assignedEmp = await assignCustomerToSales(conversation.CustomerId, userId, io, true);
+                        if (assignedEmp) assignedSalesName = assignedEmp.fullName || assignedEmp.username;
                     } catch (assignErr) {
                         console.error("Error assigning customer to sales in AI handoff:", assignErr);
                     }
                 }
 
-                // 2. Send message to customer
                 const handoffMsg = handoffMessages[Math.floor(Math.random() * handoffMessages.length)];
                 await sendHumanMessage(sock, remoteJid, { text: handoffMsg }, { userId });
                 const sv = await Message.create({ UserId: userId, remoteJid, role: 'model', content: handoffMsg });
-                io.to('user_' + userId).emit('new_message', sv);
+                if (io) io.to(`user_${userId}`).emit('new_message', sv);
 
-                // 3. Notify Control Group (Bird CRM)
                 try {
-                    const userObj = await User.findByPk(userId);
-                    const customerName = conversation ? (conversation.customerName || phoneNumber || remoteJid.split('@')[0]) : (phoneNumber || remoteJid.split('@')[0]);
-                    const customerPhone = phoneNumber || (conversation ? conversation.phoneNumber : null) || remoteJid.split('@')[0];
-                    
+                    const summary = conversation.CustomerId ? await generateCustomerSummary(conversation.CustomerId, userId) : "لا يوجد رسائل سابقة لتلخيصها.";
                     const transferTime = new Date().toLocaleString('en-US', { timeZone: 'Africa/Cairo', hour12: true, dateStyle: 'short', timeStyle: 'short' });
-                    
-                    let custNumber = 'غير مسجل';
-                    if (conversation && conversation.CustomerId) {
-                        const c = await Customer.findByPk(conversation.CustomerId);
-                        if (c) custNumber = c.customerNumber || c.id;
-                    }
-                    
-                    // Generate AI summary
-                    const summary = custIdForAI ? await generateCustomerSummary(custIdForAI, userId) : "لا يوجد رسائل سابقة لتلخيصها.";
-
-                    const noteLink = custIdForAI ? `\n\n🔗 *لإضافة ملاحظات للعميل مباشرة:*\nhttps://crm.bird-technology.com/dashboard/customers?openNote=${custIdForAI}` : "";
-                    const notifyMsg = `🚨 *طلب تدخل فريق المبيعات*\n\n🔢 كود العميل: ${custNumber}\n👤 العميل: ${customerName}\n📞 الرقم: ${customerPhone}\nالمسؤول: ${assignedSalesName}\n⏰ وقت التحويل: ${transferTime}\n\n🤖 *ملخص المحادثة بالذكاء الاصطناعي:*\n${summary}${noteLink}`;
-                    
-                    let targetJid = userObj ? userObj.control_group_jid : null;
-                    console.log(`[AI Handoff] Saved control_group_jid: ${targetJid}`);
-
-                    // If no control group saved, search by name
-                    if (!targetJid) {
-                        console.log('[AI Handoff] No saved group, searching for Bird CRM group...');
-                        const groups = await sock.groupFetchAllParticipating();
-                        const allGroupNames = Object.values(groups).map(g => g.subject).join(', ');
-                        console.log(`[AI Handoff] Available groups: ${allGroupNames}`);
-                        
-                        for (const groupId in groups) {
-                            const group = groups[groupId];
-                            const subjectLower = group.subject ? group.subject.toLowerCase() : '';
-                            if (subjectLower === 'bird crm') {
-                                targetJid = groupId;
-                                console.log(`[AI Handoff] ✅ Found group: ${group.subject} (${groupId})`);
-                                if (userObj) {
-                                    userObj.control_group_jid = groupId;
-                                    await userObj.save();
-                                    console.log(`[AI Handoff] ✅ Saved group JID to DB: ${groupId}`);
-                                }
-                                break;
-                            }
-                        }
-                    }
-
-                    if (targetJid) {
-                        await sock.sendMessage(targetJid, { text: notifyMsg });
-                        console.log(`[AI Handoff] ✅ Notification sent to group ${targetJid}`);
-                    } else {
-                        console.log('[AI Handoff] ❌ No group named Bird CRM found! Check group name.');
-                    }
+                    const notifyMsg = `🚨 *طلب تدخل فريق المبيعات*\n\n🔢 كود العميل: ${customer.customerNumber || customer.id}\n👤 العميل: ${conversation.customerName || customerPhone}\n📞 الرقم: ${customerPhone || remoteJid.split('@')[0]}\nالمسؤول: ${assignedSalesName}\n⏰ وقت التحويل: ${transferTime}\n\n🤖 *ملخص المحادثة بالذكاء الاصطناعي:*\n${summary}`;
+                    await notifyControlGroup(userId, notifyMsg);
                 } catch (e) {
                     console.error('[AI Handoff] ❌ Failed to notify control group:', e);
-                    // FIX: If forbidden (403), clear saved JID to force re-search next time
-                    const errCode = e?.data || e?.output?.statusCode;
-                    if (errCode === 403 || (e?.message && e.message.includes('forbidden'))) {
-                        console.log('[AI Handoff] 🗑️ Clearing invalid control_group_jid from DB due to forbidden error.');
-                        if (userObj) {
-                            userObj.control_group_jid = null;
-                            await userObj.save().catch(dbErr => console.error('[AI Handoff] DB clear error:', dbErr));
-                        }
-                    }
                 }
-
                 return;
             }
-            // FIX: Clean up Markdown links [text](url) -> url (if text is similar) to prevent duplication in WhatsApp
-            replyText = replyText.replace(/\[([^\]]*?)\]\(([^)]+?)\)/g, (match, text, url) => {
-                const cleanText = text.trim();
+
+            // Clean Markdown Links
+            replyText = replyText.replace(/\[([^\]]*?)\]\(([^)]+?)\)/g, (match, linkText, url) => {
+                const cleanText = linkText.trim();
                 const cleanUrl = url.trim();
-                // If text is same as URL or URL contains text (typical AI behavior for raw links), just show URL
-                if (cleanText === cleanUrl || cleanUrl.includes(cleanText)) {
-                    return cleanUrl;
-                }
-                // Otherwise show: Text (URL)
+                if (cleanText === cleanUrl || cleanUrl.includes(cleanText)) return cleanUrl;
                 return `${cleanText}: ${cleanUrl}`;
             });
 
@@ -2539,82 +2369,46 @@ export const startSession = async (userId, io, phoneNumber = null) => {
                 role: 'model',
                 content: replyText
             });
-            io.to(`user_${userId}`).emit('new_message', savedResponse);
+            if (io) io.to(`user_${userId}`).emit('new_message', savedResponse);
 
-            // 4. Send requested products (from JSON `show_products`)
+            // Send requested products (from JSON show_products)
             if (aiResponse && aiResponse.show_products && aiResponse.show_products.length > 0) {
-                console.log("\n--- [V7_STRUCTURED] PRODUCT SCAN START ---");
-                console.log(`🤖 AI Requested Products IDs:`, aiResponse.show_products);
-                
                 try {
                     const requestedProducts = await Product.findAll({
                         where: { id: aiResponse.show_products, UserId: userId, isActive: true }
                     });
-
                     if (requestedProducts.length > 0) {
                         for (const prod of requestedProducts) {
                             const images = prod.images || [];
-                            
-                            // Send product details with the first image, or just text if no images
+                            const cap = `📦 *${prod.name}*\n${prod.price ? 'السعر: ' + prod.price + ' ' + prod.currency + '\n' : ''}${prod.description || ''}`;
                             if (images.length > 0 && images[0].url) {
                                 const imagePath = path.join(process.cwd(), 'public', images[0].url);
                                 if (fs.existsSync(imagePath)) {
-                                    let caption = `*${prod.name}*`;
-                                    if (prod.price) caption += `\nالسعر: ${prod.price} ${prod.currency}`;
-                                    if (prod.description) caption += `\n\n${prod.description}`;
-                                    
-                                    await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 2000));
-                                    await sendHumanMessage(sock, remoteJid, {
-                                        image: { url: imagePath },
-                                        caption: caption
-                                    }, { userId });
-                                    console.log(`   ✅ Sent Product Image: ${prod.name}`);
-                                    
-                                    // Send remaining images if any
-                                    if (images.length > 1) {
-                                        for (let i = 1; i < images.length; i++) {
-                                            const extraImgPath = path.join(process.cwd(), 'public', images[i].url);
-                                            if (fs.existsSync(extraImgPath)) {
-                                                let extraCap = images[i].description || '';
-                                                await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 2000));
-                                                await sendHumanMessage(sock, remoteJid, { image: { url: extraImgPath }, caption: extraCap }, { userId });
-                                            }
-                                        }
-                                    }
+                                    await sendHumanMessage(sock, remoteJid, { image: { url: imagePath }, caption: cap }, { userId });
                                 } else {
-                                    console.log(`   ❌ ERROR: File missing: ${imagePath}`);
+                                    await sendHumanMessage(sock, remoteJid, { text: cap }, { userId });
                                 }
                             } else {
-                                // No images, just send text
-                                let textMsg = `*${prod.name}*`;
-                                if (prod.price) textMsg += `\nالسعر: ${prod.price} ${prod.currency}`;
-                                if (prod.description) textMsg += `\n\n${prod.description}`;
-                                await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 2000));
-                                await sendHumanMessage(sock, remoteJid, { text: textMsg }, { userId });
-                                console.log(`   ✅ Sent Product Text: ${prod.name}`);
+                                await sendHumanMessage(sock, remoteJid, { text: cap }, { userId });
                             }
                         }
-                    } else {
-                        console.log("❌ RESULT: No active products found matching those IDs.");
                     }
-                } catch (err) {
-                    console.error(`   ❌ FAIL fetching products: ${err.message}`);
+                } catch (prodErr) {
+                    console.error("Error sending AI requested products:", prodErr);
                 }
-                console.log("--- [V7_STRUCTURED] PRODUCT SCAN END ---\n");
             }
 
-            // 5. Check if order is complete and send to group
+            // Check if order is complete and forward
             if (replyText.includes("تم إرسال طلبك بنجاح") && replyText.includes("رقم الطلب:")) {
                 console.log("✅ Order completed! Preparing to forward to group...");
                 await handleOrderCompletion(sock, remoteJid, text, replyText, userId);
             }
-
-            // (Bypassed delayed buttons trigger)
         }
-    });
+    } catch (unifiedErr) {
+        console.error('❌ [handleIncomingUnifiedMessage Error]:', unifiedErr);
+    }
+}
 
-    return { status: 'started' };
-};
 
 export const stopSession = async (userId, io) => {
     // DISABLE Auto Reply in DB, but KEEP socket connection AND update status
