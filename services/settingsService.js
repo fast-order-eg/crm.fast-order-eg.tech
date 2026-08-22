@@ -188,7 +188,14 @@ export const defaultSettingsMeta = {
         type: 'json',
         category: 'general',
         label: 'قاعدة توزيع العملاء في الشيفت',
-        defaultValue: {}
+        defaultValue: {
+            enabled: true,
+            startTime: '10:00',
+            endTime: '18:00',
+            days: ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'السبت'],
+            employees: [5, 4],
+            defaultEmployeeId: 5
+        }
     },
     last_assigned_shift_index: {
         type: 'number',
@@ -199,7 +206,7 @@ export const defaultSettingsMeta = {
 };
 
 // Parse value based on type
-function parseValue(value, type) {
+function parseValue(value, type, key = '') {
     if (value === null || value === undefined) return value;
     if (type === 'number') {
         return Number(value);
@@ -207,10 +214,21 @@ function parseValue(value, type) {
         return value === 'true' || value === true;
     } else if (type === 'json') {
         try {
-            return typeof value === 'string' ? JSON.parse(value) : value;
+            const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+            if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
+                return parsed;
+            }
         } catch (e) {
-            return {};
+            try {
+                if (typeof value === 'string') {
+                    const repairedStr = value
+                        .replace(/([{,])\s*([a-zA-Z0-9_]+)\s*:/g, '$1"$2":')
+                        .replace(/:\s*([a-zA-Z0-9_]+)(?=[,}])/g, ':"$1"');
+                    return JSON.parse(repairedStr);
+                }
+            } catch (err2) {}
         }
+        return defaultSettingsMeta[key]?.defaultValue || {};
     }
     return String(value);
 }
@@ -312,12 +330,12 @@ export async function getSetting(key, userId) {
             UserId: userId
         });
 
-        const parsedVal = parseValue(defaultValue, type);
+        const parsedVal = parseValue(defaultValue, type, key);
         cache.set(cacheKey, parsedVal);
         return parsedVal;
     }
 
-    const parsedVal = parseValue(setting.settingValue, setting.settingType);
+    const parsedVal = parseValue(setting.settingValue, setting.settingType, key);
     cache.set(cacheKey, parsedVal);
     return parsedVal;
 }

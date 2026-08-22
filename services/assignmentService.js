@@ -86,7 +86,7 @@ export async function assignCustomerToSales(customerId, botOwnerId, io = null, s
         if (shiftRule && shiftRule.enabled) {
             const { currentTimeStr, currentDayArabic: currentDay } = getEgyptTimeInfo();
 
-            let inShiftDays = (shiftRule.days || []).includes(currentDay);
+            let inShiftDays = (!shiftRule.days || shiftRule.days.length === 0 || shiftRule.days.includes(currentDay));
             let inShiftTime = false;
             
             if (shiftRule.startTime && shiftRule.endTime) {
