@@ -139,19 +139,32 @@ export const checkPendingFollowUps = async (io) => {
                             await sock.sendMessage(customer.remoteJid, { text: customerFirstMsg });
                         }
 
-                        await Message.create({
+                        const savedMsg = await Message.create({
                             UserId: userId,
                             remoteJid: customer.remoteJid,
                             role: 'model',
                             content: customerFirstMsg,
                             status: 'sent'
                         });
+                        if (io) io.to(`user_${userId}`).emit('new_message', savedMsg);
 
-                        // إرجاع المحادثة تلقائياً للبوت
+                        // إرجاع المحادثة تلقائياً للبوت وتحديث وقت المحادثة ليطفو الشات للأعلى
                         await Conversation.update(
-                            { is_handoff: false },
+                            { 
+                                is_handoff: false,
+                                lastMessage: customerFirstMsg,
+                                updatedAt: new Date()
+                            },
                             { where: { UserId: userId, remoteJid: customer.remoteJid } }
                         );
+                        if (io) {
+                            io.to(`user_${userId}`).emit('conversation_updated', {
+                                remoteJid: customer.remoteJid,
+                                lastMessage: customerFirstMsg,
+                                updatedAt: new Date(),
+                                is_handoff: false
+                            });
+                        }
 
                         // تسجيل المتابعة الأولى في السجل
                         await FollowUp.create({
@@ -230,19 +243,32 @@ export const checkPendingFollowUps = async (io) => {
                             await sock.sendMessage(customer.remoteJid, { text: customerFinalMsg });
                         }
 
-                        await Message.create({
+                        const savedFinalMsg = await Message.create({
                             UserId: userId,
                             remoteJid: customer.remoteJid,
                             role: 'model',
                             content: customerFinalMsg,
                             status: 'sent'
                         });
+                        if (io) io.to(`user_${userId}`).emit('new_message', savedFinalMsg);
 
-                        // إرجاع المحادثة تلقائياً للبوت
+                        // إرجاع المحادثة تلقائياً للبوت وتحديث وقت المحادثة ليطفو الشات للأعلى
                         await Conversation.update(
-                            { is_handoff: false },
+                            { 
+                                is_handoff: false,
+                                lastMessage: customerFinalMsg,
+                                updatedAt: new Date()
+                            },
                             { where: { UserId: userId, remoteJid: customer.remoteJid } }
                         );
+                        if (io) {
+                            io.to(`user_${userId}`).emit('conversation_updated', {
+                                remoteJid: customer.remoteJid,
+                                lastMessage: customerFinalMsg,
+                                updatedAt: new Date(),
+                                is_handoff: false
+                            });
+                        }
 
                         // تسجيل المتابعة النهائية في السجل
                         await FollowUp.create({
@@ -378,19 +404,32 @@ export const checkScheduledFollowUps = async (io) => {
                 if (followup.message) {
                     await sock.sendMessage(followup.customer.remoteJid, { text: followup.message });
                     
-                    await Message.create({
+                    const savedScheduledMsg = await Message.create({
                         UserId: userId,
                         remoteJid: followup.customer.remoteJid,
                         role: 'model',
                         content: followup.message,
                         status: 'sent'
                     });
+                    if (io) io.to(`user_${userId}`).emit('new_message', savedScheduledMsg);
 
-                    // إرجاع المحادثة تلقائياً للبوت
+                    // إرجاع المحادثة تلقائياً للبوت وتحديث وقت المحادثة ليطفو الشات للأعلى
                     await Conversation.update(
-                        { is_handoff: false },
+                        { 
+                            is_handoff: false,
+                            lastMessage: followup.message,
+                            updatedAt: new Date()
+                        },
                         { where: { UserId: userId, remoteJid: followup.customer.remoteJid } }
                     );
+                    if (io) {
+                        io.to(`user_${userId}`).emit('conversation_updated', {
+                            remoteJid: followup.customer.remoteJid,
+                            lastMessage: followup.message,
+                            updatedAt: new Date(),
+                            is_handoff: false
+                        });
+                    }
                 }
 
                 followup.status = 'sent';
