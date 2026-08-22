@@ -472,9 +472,15 @@
                             <input type="number" name="order" class="form-control" value="0" min="0">
                         </div>
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
-                        <button type="submit" class="btn btn-primary px-5">حفظ الزرار</button>
+                    <div class="modal-footer d-flex justify-content-between align-items-center">
+                        <div id="addLoadingNotice" class="text-primary small fw-bold" style="display: none;">
+                            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                            <span>⏳ جاري رفع وضغط الوسائط... يرجى الانتظار</span>
+                        </div>
+                        <div class="d-flex gap-2 ms-auto">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                            <button type="submit" id="addBtnSubmit" class="btn btn-primary px-5">حفظ الزرار</button>
+                        </div>
                     </div>
                 </form>
             </div>
@@ -560,9 +566,15 @@
                             <input type="number" name="order" id="editOrder" class="form-control" min="0">
                         </div>
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
-                        <button type="submit" class="btn btn-primary px-5">حفظ التعديلات</button>
+                    <div class="modal-footer d-flex justify-content-between align-items-center">
+                        <div id="editLoadingNotice" class="text-primary small fw-bold" style="display: none;">
+                            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                            <span>⏳ جاري رفع وضغط الوسائط... يرجى الانتظار</span>
+                        </div>
+                        <div class="d-flex gap-2 ms-auto">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                            <button type="submit" id="editBtnSubmit" class="btn btn-primary px-5">حفظ التعديلات</button>
+                        </div>
                     </div>
                 </form>
             </div>
@@ -868,6 +880,33 @@
             if (editModalEl) {
                 editModalEl.addEventListener('shown.bs.modal', function () {
                     autoResizeTextarea(editWelcome);
+                });
+            }
+
+            // Handle button form submission loading states
+            const addForm = document.querySelector('form[action="/dashboard/buttons/add"]');
+            if (addForm) {
+                addForm.addEventListener('submit', function() {
+                    const submitBtn = document.getElementById('addBtnSubmit');
+                    const notice = document.getElementById('addLoadingNotice');
+                    if (submitBtn) {
+                        submitBtn.disabled = true;
+                        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> جاري الحفظ والرفع...';
+                    }
+                    if (notice) notice.style.display = 'block';
+                });
+            }
+
+            const editForm = document.querySelector('form[action="/dashboard/buttons/edit"]');
+            if (editForm) {
+                editForm.addEventListener('submit', function() {
+                    const submitBtn = document.getElementById('editBtnSubmit');
+                    const notice = document.getElementById('editLoadingNotice');
+                    if (submitBtn) {
+                        submitBtn.disabled = true;
+                        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> جاري الحفظ والرفع...';
+                    }
+                    if (notice) notice.style.display = 'block';
                 });
             }
         });
