@@ -96,11 +96,19 @@ export const checkPendingFollowUps = async (io) => {
                     const targetJid = customer.remoteJid || (customer.phoneNumber ? `${customer.phoneNumber.replace(/[^0-9]/g, '')}@s.whatsapp.net` : null);
                     if (!targetJid) continue;
 
-                    // التحقق هل تم إرسال المتابعة الأولى للعميل من قبل
+                    // التحقق هل تم إرسال المتابعات للعميل من قبل
                     const firstFollowupSent = await FollowUp.findOne({
                         where: {
                             CustomerId: customer.id,
                             type: 'first',
+                            status: 'sent'
+                        }
+                    });
+
+                    const finalFollowupSent = await FollowUp.findOne({
+                        where: {
+                            CustomerId: customer.id,
+                            type: 'final',
                             status: 'sent'
                         }
                     });
@@ -214,7 +222,7 @@ export const checkPendingFollowUps = async (io) => {
                         });
 
                         console.log(`[FollowUpService] Sent scheduled first follow-up to ${customer.phoneNumber}`);
-                    } else {
+                    } else if (customer.status === 'final_follow_up' && !finalFollowupSent) {
                         // --- إرسال المتابعة النهائية ---
                         const finalFollowupMessage = await getSystemSetting('final_followup_message', userId);
                         const finalFollowupType = await getSystemSetting('final_followup_type', userId) || 'static';
@@ -299,6 +307,11 @@ export const checkPendingFollowUps = async (io) => {
                             performedByUserId: userId,
                             UserId: userId
                         });
+                    } else if (firstFollowupSent && finalFollowupSent) {
+                        // كلاهما تم إرساله بالفعل - تفريغ الموعد لمنع أي تكرار
+                        customer.scheduledFollowUpAt = null;
+                        await customer.save();
+                    }
 
                         await notificationService.createNotification({
                             type: 'status_changed',
