@@ -307,11 +307,6 @@ export const checkPendingFollowUps = async (io) => {
                             performedByUserId: userId,
                             UserId: userId
                         });
-                    } else if (firstFollowupSent && finalFollowupSent) {
-                        // كلاهما تم إرساله بالفعل - تفريغ الموعد لمنع أي تكرار
-                        customer.scheduledFollowUpAt = null;
-                        await customer.save();
-                    }
 
                         await notificationService.createNotification({
                             type: 'status_changed',
@@ -324,6 +319,10 @@ export const checkPendingFollowUps = async (io) => {
                         });
 
                         console.log(`[FollowUpService] Sent scheduled final follow-up to ${customer.phoneNumber}`);
+                    } else if (firstFollowupSent && finalFollowupSent) {
+                        // كلاهما تم إرساله بالفعل - تفريغ الموعد لمنع أي تكرار
+                        customer.scheduledFollowUpAt = null;
+                        await customer.save();
                     }
                 } catch (err) {
                     console.error(`Error processing scheduled follow-up for customer ${customer.id}:`, err);
