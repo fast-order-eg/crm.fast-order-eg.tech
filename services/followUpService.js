@@ -126,23 +126,19 @@ export const checkPendingFollowUps = async (io) => {
 
                         let customerFirstMsg = firstFollowupMessage;
                         if (shouldUseMetaTemplate) {
-                            const templateName = await getSystemSetting('first_followup_template_name', userId) || 'followup_3days';
-                            customerFirstMsg = `[قالب ميتا المعتمد: ${templateName}]`;
+                            const templateName = await getSystemSetting('first_followup_template_name', userId) || 'followup_3days_';
                             console.log(`[FollowUpService Smart Fallback] Customer ${customer.phoneNumber} activity was ${hoursPassed.toFixed(1)}h ago (Window Expired: ${isWindowExpired}). Auto-switching to Meta Template: ${templateName}`);
-                            await sendMetaMessage(customer.phoneNumber, '', {
+                            const metaRes = await sendMetaMessage(customer.phoneNumber, '', {
                                 template: {
                                     name: templateName,
-                                    language: { code: 'ar' },
-                                    components: [
-                                        {
-                                            type: 'body',
-                                            parameters: [
-                                                { type: 'text', text: customer.customerName || 'عميلنا العزيز' }
-                                            ]
-                                        }
-                                    ]
+                                    language: { code: 'ar_EG' }
                                 }
                             });
+                            if (!metaRes || !metaRes.success) {
+                                console.error(`[FollowUpService] ❌ Meta template failed to send to ${customer.phoneNumber}:`, metaRes?.error);
+                                continue;
+                            }
+                            customerFirstMsg = firstFollowupMessage || 'أهلاً بك، بنتابع مع حضرتك بخصوص المتجر الإلكتروني وحابين نطمن عليك ونساعدك في أي استفسار 🌸';
                         } else {
                             if (firstFollowupType === 'dynamic') {
                                 customerFirstMsg = await generateDynamicFollowUpMessage(customer.id, userId, firstFollowupMessage);
@@ -230,23 +226,19 @@ export const checkPendingFollowUps = async (io) => {
 
                         let customerFinalMsg = finalFollowupMessage;
                         if (shouldUseMetaTemplateFinal) {
-                            const templateName = await getSystemSetting('final_followup_template_name', userId) || 'followup_3days';
-                            customerFinalMsg = `[قالب ميتا المعتمد: ${templateName}]`;
+                            const templateName = await getSystemSetting('final_followup_template_name', userId) || 'followup_3days_';
                             console.log(`[FollowUpService Smart Fallback Final] Customer ${customer.phoneNumber} activity was ${hoursPassed.toFixed(1)}h ago (Window Expired: ${isWindowExpired}). Auto-switching to Meta Template: ${templateName}`);
-                            await sendMetaMessage(customer.phoneNumber, '', {
+                            const metaRes = await sendMetaMessage(customer.phoneNumber, '', {
                                 template: {
                                     name: templateName,
-                                    language: { code: 'ar' },
-                                    components: [
-                                        {
-                                            type: 'body',
-                                            parameters: [
-                                                { type: 'text', text: customer.customerName || 'عميلنا العزيز' }
-                                            ]
-                                        }
-                                    ]
+                                    language: { code: 'ar_EG' }
                                 }
                             });
+                            if (!metaRes || !metaRes.success) {
+                                console.error(`[FollowUpService] ❌ Meta final template failed to send to ${customer.phoneNumber}:`, metaRes?.error);
+                                continue;
+                            }
+                            customerFinalMsg = finalFollowupMessage || 'أهلاً بك، حبينا نفكرك بعرض المتجر الإلكتروني المجاني من Fast Order 🚀';
                         } else {
                             if (finalFollowupType === 'dynamic') {
                                 customerFinalMsg = await generateDynamicFollowUpMessage(customer.id, userId, finalFollowupMessage);
