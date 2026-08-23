@@ -236,6 +236,22 @@ export const handleWebhook = async (req, res) => {
                 textContent = `[رسالة ${msg.type}]`;
             }
 
+            // Capture Meta Ad Referral (Click-to-WhatsApp Ads)
+            let referralData = null;
+            if (msg.referral) {
+                referralData = {
+                    headline: msg.referral.headline || '',
+                    body: msg.referral.body || '',
+                    source_id: msg.referral.source_id || '',
+                    source_url: msg.referral.source_url || '',
+                    source_type: msg.referral.source_type || 'ad'
+                };
+                console.log(`🎯 [META_AD_REFERRAL] Lead from Ad: "${referralData.headline}" (ID: ${referralData.source_id})`);
+                if (referralData.headline) {
+                    textContent = `🎯 [إعلان ممول: ${referralData.headline}]\n${textContent}`;
+                }
+            }
+
             console.log(`📩 [META_INCOMING] From ${senderName} (${targetId}): ${textContent}`);
 
             // Update User connection_status to meta_online
