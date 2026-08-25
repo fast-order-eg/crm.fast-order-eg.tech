@@ -124,7 +124,7 @@ export const checkPendingFollowUps = async (io) => {
                         const firstFollowupType = await getSystemSetting('first_followup_type', userId) || 'static';
                         const shouldUseMetaTemplate = firstFollowupType === 'meta_template' || isWindowExpired;
 
-                        let customerFirstMsg = firstFollowupMessage;
+                        let firstMsgId = null;
                         if (shouldUseMetaTemplate) {
                             const templateName = await getSystemSetting('first_followup_template_name', userId) || 'followup_3days_';
                             console.log(`[FollowUpService Smart Fallback] Customer ${customer.phoneNumber} activity was ${hoursPassed.toFixed(1)}h ago (Window Expired: ${isWindowExpired}). Auto-switching to Meta Template: ${templateName}`);
@@ -138,12 +138,14 @@ export const checkPendingFollowUps = async (io) => {
                                 console.error(`[FollowUpService] ❌ Meta template failed to send to ${customer.phoneNumber}:`, metaRes?.error);
                                 continue;
                             }
+                            firstMsgId = metaRes?.data?.messages?.[0]?.id || `meta_${Date.now()}`;
                             customerFirstMsg = firstFollowupMessage || 'أهلاً بك، بنتابع مع حضرتك بخصوص المتجر الإلكتروني وحابين نطمن عليك ونساعدك في أي استفسار 🌸';
                         } else {
                             if (firstFollowupType === 'dynamic') {
                                 customerFirstMsg = await generateDynamicFollowUpMessage(customer.id, userId, firstFollowupMessage);
                             }
-                            await sock.sendMessage(targetJid, { text: customerFirstMsg });
+                            const sentBaileys = await sock.sendMessage(targetJid, { text: customerFirstMsg });
+                            firstMsgId = sentBaileys?.key?.id || `baileys_${Date.now()}`;
                         }
 
                         const savedMsg = await Message.create({
@@ -151,6 +153,7 @@ export const checkPendingFollowUps = async (io) => {
                             remoteJid: targetJid,
                             role: 'model',
                             content: customerFirstMsg,
+                            messageId: firstMsgId,
                             status: 'sent'
                         });
                         if (io) io.to(`user_${userId}`).emit('new_message', savedMsg);
@@ -225,6 +228,7 @@ export const checkPendingFollowUps = async (io) => {
                         const shouldUseMetaTemplateFinal = finalFollowupType === 'meta_template' || isWindowExpired;
 
                         let customerFinalMsg = finalFollowupMessage;
+                        let finalMsgId = null;
                         if (shouldUseMetaTemplateFinal) {
                             const templateName = await getSystemSetting('final_followup_template_name', userId) || 'followup_3days_';
                             console.log(`[FollowUpService Smart Fallback Final] Customer ${customer.phoneNumber} activity was ${hoursPassed.toFixed(1)}h ago (Window Expired: ${isWindowExpired}). Auto-switching to Meta Template: ${templateName}`);
@@ -238,12 +242,14 @@ export const checkPendingFollowUps = async (io) => {
                                 console.error(`[FollowUpService] ❌ Meta final template failed to send to ${customer.phoneNumber}:`, metaRes?.error);
                                 continue;
                             }
+                            finalMsgId = metaRes?.data?.messages?.[0]?.id || `meta_${Date.now()}`;
                             customerFinalMsg = finalFollowupMessage || 'أهلاً بك، حبينا نفكرك بعرض المتجر الإلكتروني المجاني من Fast Order 🚀';
                         } else {
                             if (finalFollowupType === 'dynamic') {
                                 customerFinalMsg = await generateDynamicFollowUpMessage(customer.id, userId, finalFollowupMessage);
                             }
-                            await sock.sendMessage(targetJid, { text: customerFinalMsg });
+                            const sentBaileys = await sock.sendMessage(targetJid, { text: customerFinalMsg });
+                            finalMsgId = sentBaileys?.key?.id || `baileys_${Date.now()}`;
                         }
 
                         const savedFinalMsg = await Message.create({
@@ -251,6 +257,7 @@ export const checkPendingFollowUps = async (io) => {
                             remoteJid: targetJid,
                             role: 'model',
                             content: customerFinalMsg,
+                            messageId: finalMsgId,
                             status: 'sent'
                         });
                         if (io) io.to(`user_${userId}`).emit('new_message', savedFinalMsg);
