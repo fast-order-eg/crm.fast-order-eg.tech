@@ -139,11 +139,17 @@ app.use(limiter);
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
-// Session
+// Session (60 Days Persistence)
 app.use(session({
     secret: process.env.SESSION_SECRET || 'secret',
     resave: false,
-    saveUninitialized: false
+    saveUninitialized: false,
+    cookie: {
+        maxAge: 60 * 24 * 60 * 60 * 1000, // 60 Days
+        httpOnly: true,
+        secure: false, // works seamlessly on reverse proxy / https
+        sameSite: 'lax'
+    }
 }));
 
 // Passport
