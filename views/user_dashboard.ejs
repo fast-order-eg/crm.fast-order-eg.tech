@@ -224,14 +224,14 @@
                                 <div class="border-top pt-3 mt-2">
                                     <div class="d-flex align-items-center justify-content-between mb-2">
                                         <h6 class="m-0 fw-bold text-secondary">الاتصال الثانوي (الإشعارات والكنترول)</h6>
-                                        <span id="baileys-phone" class="badge <%= (typeof baileysPhone !== 'undefined' && baileysPhone) ? 'bg-success' : 'bg-secondary' %> font-monospace px-3 py-1.5 dir-ltr" style="font-size: 0.85rem;">
-                                            <%= (typeof baileysPhone !== 'undefined' && baileysPhone) ? '📞 ' + baileysPhone : 'غير مرتبط' %>
+                                        <span id="baileys-phone" class="badge <%= (typeof baileysOnline !== 'undefined' && baileysOnline && typeof baileysPhone !== 'undefined' && baileysPhone) ? 'bg-success' : 'bg-secondary' %> font-monospace px-3 py-1.5 dir-ltr" style="font-size: 0.85rem;">
+                                            <%= (typeof baileysOnline !== 'undefined' && baileysOnline && typeof baileysPhone !== 'undefined' && baileysPhone) ? '📞 ' + baileysPhone : 'غير مرتبط' %>
                                         </span>
                                     </div>
                                     <div class="d-flex align-items-center gap-2">
-                                        <span id="baileys-status-dot" class="status-dot <%= (typeof baileysOnline !== 'undefined' && baileysOnline) || (typeof baileysPhone !== 'undefined' && baileysPhone) ? 'status-online' : 'status-offline' %>" style="width: 12px; height: 12px;"></span>
+                                        <span id="baileys-status-dot" class="status-dot <%= (typeof baileysOnline !== 'undefined' && baileysOnline) ? 'status-online' : 'status-offline' %>" style="width: 12px; height: 12px;"></span>
                                         <span id="baileys-status-text" class="small fw-bold text-dark">
-                                            <%= (typeof baileysOnline !== 'undefined' && baileysOnline) || (typeof baileysPhone !== 'undefined' && baileysPhone) ? 'متصل برقم الإشعارات والكنترول (Baileys)' : 'غير مرتبط برقم ثانوي للإشعارات' %>
+                                            <%= (typeof baileysOnline !== 'undefined' && baileysOnline) ? 'متصل برقم الإشعارات والكنترول (Baileys)' : 'غير مرتبط برقم ثانوي للإشعارات' %>
                                         </span>
                                     </div>
                                 </div>
@@ -853,20 +853,25 @@
 
                 if (data && typeof data === 'object') {
                     const bPhone = data.baileysPhone;
-                    const bOnline = data.baileysOnline;
+                    const bOnline = !!data.baileysOnline;
                     const baileysPhoneEl = document.getElementById('baileys-phone');
                     const baileysTextEl = document.getElementById('baileys-status-text');
                     const baileysDotEl = document.getElementById('baileys-status-dot');
 
-                    if (baileysPhoneEl && bPhone) {
-                        baileysPhoneEl.innerText = '📞 ' + bPhone;
-                        baileysPhoneEl.className = 'badge bg-success font-monospace px-3 py-1.5 dir-ltr';
+                    if (baileysPhoneEl) {
+                        if (bOnline && bPhone) {
+                            baileysPhoneEl.innerText = '📞 ' + bPhone;
+                            baileysPhoneEl.className = 'badge bg-success font-monospace px-3 py-1.5 dir-ltr';
+                        } else {
+                            baileysPhoneEl.innerText = 'غير مرتبط';
+                            baileysPhoneEl.className = 'badge bg-secondary font-monospace px-3 py-1.5 dir-ltr';
+                        }
                     }
-                    if (baileysTextEl && (bOnline || bPhone)) {
-                        baileysTextEl.innerText = 'متصل برقم الإشعارات والكنترول (Baileys)';
+                    if (baileysTextEl) {
+                        baileysTextEl.innerText = (bOnline && bPhone) ? 'متصل برقم الإشعارات والكنترول (Baileys)' : 'غير مرتبط برقم ثانوي للإشعارات';
                     }
-                    if (baileysDotEl && (bOnline || bPhone)) {
-                        baileysDotEl.className = 'status-dot status-online';
+                    if (baileysDotEl) {
+                        baileysDotEl.className = `status-dot ${(bOnline && bPhone) ? 'status-online' : 'status-offline'}`;
                     }
                 }
             });

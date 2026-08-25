@@ -2526,24 +2526,32 @@ export const stopSession = async (userId, io) => {
 export const logoutSession = async (userId, io) => {
     console.log(`Logout requested for user ${userId}`);
     try {
-        await User.update({ auto_reply: false, linked_phone_number: null, connection_status: 'not_registered' }, { where: { id: userId } });
+        const isMetaActive = !!(process.env.META_PHONE_NUMBER_ID && process.env.META_ACCESS_TOKEN);
+        await User.update({ auto_reply: false, linked_phone_number: null, notificationPhone: null, connection_status: isMetaActive ? 'meta_online' : 'not_registered' }, { where: { id: userId } });
         try {
             const mysqlAuth = await useMySQLAuthState(userId);
             await mysqlAuth.clearState();
         } catch (e) { console.error('Error clearing MySQL session state:', e); }
 
-        if (sessions.has(userId)) {
-            const sock = sessions.get(userId);
+        if (sessions.has(userId) || sessions.has(String(userId)) || sessions.has(parseInt(userId, 10))) {
+            const sock = sessions.get(userId) || sessions.get(String(userId)) || sessions.get(parseInt(userId, 10));
 
             // Remove listeners to prevent auto-reconnect logic from firing
-            sock.ev.removeAllListeners('connection.update');
+            if (sock && sock.ev) {
+                sock.ev.removeAllListeners('connection.update');
+                sock.ev.removeAllListeners('messages.upsert');
+            }
 
             try {
-                sock.end(undefined);
+                if (sock && typeof sock.end === 'function') {
+                    sock.end(undefined);
+                }
             } catch (e) {
                 console.error("Error closing socket:", e);
             }
             sessions.delete(userId);
+            sessions.delete(String(userId));
+            sessions.delete(parseInt(userId, 10));
         }
 
         // Wait a bit to ensure file locks are released on Windows
@@ -2558,9 +2566,16 @@ export const logoutSession = async (userId, io) => {
             }
         }
 
-        if (io) io.to(`user_${userId}`).emit('status', { status: 'not_registered' });
+        if (io) {
+            io.to(`user_${userId}`).emit('status', { 
+                status: isMetaActive ? 'meta_online' : 'not_registered',
+                phone: isMetaActive ? '201105757366' : '',
+                baileysOnline: false, 
+                baileysPhone: '' 
+            });
+        }
         console.log(`User ${userId} logged out and session deleted.`);
-        return { status: 'not_registered', message: 'Session Deleted' };
+        return { status: isMetaActive ? 'meta_online' : 'not_registered', baileysOnline: false, baileysPhone: '', message: 'Session Deleted' };
     } catch (error) {
         console.error("Logout Error:", error);
         return { status: 'error', message: error.message };
@@ -2588,7 +2603,7 @@ export const getStatus = async (userId) => {
 
         const sock = sessions.get(userId) || sessions.get(parseInt(userId, 10)) || sessions.get(String(userId));
         const baileysOnline = !!(sock && sock.user);
-        const baileysPhone = baileysOnline ? (sock.user.id.split(':')[0].split('@')[0]) : (user?.notificationPhone || '');
+        const baileysPhone = baileysOnline ? (sock.user.id.split(':')[0].split('@')[0]) : '';
 
         if (isMetaActive) {
             return {
@@ -2597,7 +2612,7 @@ export const getStatus = async (userId) => {
                 name: 'Fast Order (Meta API)',
                 mode: 'meta',
                 baileysOnline,
-                baileysPhone: baileysPhone || user?.notificationPhone || ''
+                baileysPhone: baileysOnline ? baileysPhone : ''
             };
         }
 

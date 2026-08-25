@@ -221,7 +221,7 @@ router.get('/', async (req, res) => {
         });
 
         const baileysOnline = statusResult.baileysOnline || false;
-        const baileysPhone = statusResult.baileysPhone || req.user.notificationPhone || '';
+        const baileysPhone = baileysOnline ? (statusResult.baileysPhone || '') : '';
 
         res.render('user_dashboard', {
             user: req.user,
