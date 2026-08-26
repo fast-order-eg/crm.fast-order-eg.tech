@@ -40,38 +40,52 @@ async function run() {
         for (const m of msgs) {
             console.log(`- [${m.createdAt}] ID: ${m.messageId} | Role: ${m.role} | Status: ${m.status} | Content: ${m.content ? m.content.substring(0, 70) : ''}`);
         }
-    } else {
-        console.log('Customer 201287349724 not found!');
     }
 
-    console.log('\n=== 2. LAST 10 FOLLOW-UPS ===');
+    console.log('\n=== 2. LAST 10 FOLLOW-UPS ANALYSIS ===\n');
     const lastFollowups = await FollowUp.findAll({
         order: [['createdAt', 'DESC']],
         limit: 10,
-        include: [{ model: Customer }]
+        include: [{ model: Customer, as: 'customer' }]
     });
 
+    let index = 1;
     for (const f of lastFollowups) {
-        const cust = f.Customer;
-        console.log(`\n--- FollowUp ID: ${f.id} | Type: ${f.type} | SentAt: ${f.sentAt || f.createdAt} ---`);
-        console.log(`Customer: ${cust ? `${cust.customerName} (${cust.phoneNumber}) [Code: ${cust.customerNumber}]` : 'N/A'}`);
-        console.log(`First Contact: ${cust?.firstContactAt}, Last Reply: ${cust?.lastReplyAt}`);
-        console.log(`FollowUp Status in DB: ${f.status}`);
-        
-        // Find associated message in messages table
-        if (cust) {
-            const relatedMsgs = await Message.findAll({
-                where: {
-                    remoteJid: { [Op.or]: [cust.remoteJid, `${cust.phoneNumber}@s.whatsapp.net`, cust.phoneNumber] },
-                    role: 'model'
-                },
-                order: [['createdAt', 'DESC']],
-                limit: 3
-            });
-            for (const rm of relatedMsgs) {
-                console.log(`  -> Msg in DB: [${rm.createdAt}] ID: ${rm.messageId} | Status: ${rm.status} | Content: ${rm.content?.substring(0, 50)}`);
-            }
+        const cust = f.customer;
+        if (!cust) continue;
+
+        const firstContact = new Date(cust.firstContactAt || cust.createdAt);
+        const sentTime = new Date(f.sentAt || f.createdAt);
+        const diffHours = ((sentTime - firstContact) / (1000 * 60 * 60)).toFixed(1);
+        const isUnder72Hours = (sentTime - firstContact) <= (72 * 60 * 60 * 1000);
+
+        console.log(`[#${index++}] العميل: ${cust.customerName || 'بدون اسم'} | 📱 الرقم: ${cust.phoneNumber} | كود: ${cust.customerNumber}`);
+        console.log(`   - نوع المتابعة: ${f.type === 'first' ? 'متابعة أولى' : 'متابعة نهائية'}`);
+        console.log(`   - وقت أول تواصل: ${firstContact.toISOString()}`);
+        console.log(`   - وقت الإرسال: ${sentTime.toISOString()}`);
+        console.log(`   - المدة من أول تواصل: ${diffHours} ساعة (أقل من 72 ساعة؟ ${isUnder72Hours ? '✅ نعم - مجاني' : '❌ لا - مدفوع'})`);
+        console.log(`   - حالة المتابعة في السجل: ${f.status}`);
+
+        // Find the actual message sent to this customer around or after sentTime
+        const msgs = await Message.findAll({
+            where: {
+                remoteJid: { [Op.or]: [cust.remoteJid, `${cust.phoneNumber}@s.whatsapp.net`, cust.phoneNumber] },
+                role: 'model'
+            },
+            order: [['createdAt', 'DESC']],
+            limit: 2
+        });
+
+        if (msgs.length > 0) {
+            const m = msgs[0];
+            console.log(`   - الرسالة في الشات: [${m.createdAt.toISOString()}]`);
+            console.log(`   - Message ID: ${m.messageId || 'NULL'}`);
+            console.log(`   - حالة الرسالة الحقيقية: ${m.status === 'read' ? '👀 مقروءة (Read)' : (m.status === 'delivered' ? '📬 استلمت (Delivered)' : (m.status === 'sent' ? '📤 أرسلت (Sent)' : '❌ فشلت (Failed)'))}`);
+            console.log(`   - جزء من النص: ${m.content ? m.content.substring(0, 60) : ''}...`);
+        } else {
+            console.log(`   - لا توجد رسالة مقابلة في جدول Messages`);
         }
+        console.log('--------------------------------------------------------------------------------');
     }
 
     process.exit(0);
