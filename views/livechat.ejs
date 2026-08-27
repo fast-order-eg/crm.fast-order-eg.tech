@@ -630,29 +630,28 @@
                 </div>
                 <div class="modal-body px-4 py-3">
                     <div class="mb-2">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <label for="chatNotesTextarea" class="form-label fw-bold small text-secondary mb-0">
-                                <i class="bi bi-pencil-square me-1 text-primary"></i> الملاحظات (تُحفظ مباشرة في بيانات العميل):
-                            </label>
-                            <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 rounded-pill" style="font-size: 11px;" onclick="insertTimestampToManual()" title="إدراج الوقت والتاريخ الحالي">
-                                <i class="bi bi-clock-history me-1"></i> إدراج الوقت (12h)
-                            </button>
+                        <label for="chatNotesTextarea" class="form-label fw-bold small text-secondary mb-2">
+                            <i class="bi bi-pencil-square me-1 text-primary"></i> الملاحظات (تُحفظ مباشرة في بيانات العميل):
+                        </label>
+                        <textarea id="chatNotesTextarea" name="notes" class="form-control rounded-3 font-monospace" rows="8" placeholder="اكتب ملاحظاتك على هذا العميل هنا..." style="font-size: 13px; line-height: 1.6;"></textarea>
+                        
+                        <!-- 🕒 Last Modified Timestamp Display -->
+                        <div class="d-flex justify-content-between align-items-center mt-2 px-1 text-muted" style="font-size: 11.5px;">
+                            <div>
+                                <i class="bi bi-clock-history text-secondary me-1"></i>
+                                <span>آخر تعديل: <span id="notesLastModifiedText" class="fw-bold text-dark">-</span></span>
+                            </div>
+                            <span id="notesSavingIndicator" class="text-success fw-semibold" style="display:none;">
+                                <i class="bi bi-check-circle-fill me-1"></i> تم الحفظ بنجاح!
+                            </span>
                         </div>
-                        <textarea id="chatNotesTextarea" name="notes" class="form-control rounded-3 font-monospace" rows="8" placeholder="اكتب ملاحظاتك على هذا العميل هنا... ويتم إضافة التاريخ والوقت تلقائياً عند الحفظ" style="font-size: 13px; line-height: 1.6;"></textarea>
                     </div>
                 </div>
-                <div class="modal-footer bg-light border-top-0 py-2 d-flex justify-content-between">
-                    <div>
-                        <span id="notesSavingIndicator" class="text-success small fw-semibold" style="display:none;">
-                            <i class="bi bi-check-circle-fill me-1"></i> تم الحفظ بنجاح!
-                        </span>
-                    </div>
-                    <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-secondary rounded-pill px-3" data-bs-dismiss="modal">إلغاء</button>
-                        <button type="button" class="btn btn-primary rounded-pill px-4 fw-bold shadow-sm" id="btnSaveChatNotes" onclick="saveChatNotes()">
-                            <i class="bi bi-save me-1"></i> حفظ الملاحظات
-                        </button>
-                    </div>
+                <div class="modal-footer bg-light border-top-0 py-2 d-flex justify-content-end gap-2">
+                    <button type="button" class="btn btn-secondary rounded-pill px-3" data-bs-dismiss="modal">إلغاء</button>
+                    <button type="button" class="btn btn-primary rounded-pill px-4 fw-bold shadow-sm" id="btnSaveChatNotes" onclick="saveChatNotes()">
+                        <i class="bi bi-save me-1"></i> حفظ الملاحظات
+                    </button>
                 </div>
             </div>
         </div>
@@ -665,6 +664,7 @@
     let currentCustomerId = null;
     let currentCustomerCode = '';
     let currentCustomerNotes = '';
+    let currentCustomerNotesUpdatedAt = null;
     let currentCustomerDisplayName = '';
     const io_=io();
     io_.on('connect',()=>io_.emit('join_room','user_<%= targetUserId %>'));
@@ -894,8 +894,10 @@
     }
 
     // --- 🕒 12-Hour (AM/PM) Note Timestamp Formatter ---
-    function formatNoteTimestamp(date = new Date()) {
+    function formatLastModifiedDisplay(date) {
+        if (!date) return 'لم يتم التعديل بعد';
         const d = new Date(date);
+        if (isNaN(d.getTime())) return 'لم يتم التعديل بعد';
         const day = String(d.getDate()).padStart(2, '0');
         const month = String(d.getMonth() + 1).padStart(2, '0');
         const year = d.getFullYear();
@@ -907,7 +909,7 @@
         hours = hours ? hours : 12;
         const strHours = String(hours).padStart(2, '0');
         
-        return `[${day}/${month}/${year} ${strHours}:${minutes} ${ampm}]`;
+        return `${day}/${month}/${year} ${strHours}:${minutes} ${ampm}`;
     }
 
     function openChatNotesModal() {
@@ -918,6 +920,7 @@
         document.getElementById('modalCustName').textContent = currentCustomerDisplayName || 'عميل';
         document.getElementById('modalCustCode').textContent = currentCustomerCode ? `كود: ${currentCustomerCode}` : '-';
         document.getElementById('chatNotesTextarea').value = currentCustomerNotes || '';
+        document.getElementById('notesLastModifiedText').textContent = formatLastModifiedDisplay(currentCustomerNotesUpdatedAt);
         const ind = document.getElementById('notesSavingIndicator');
         if (ind) ind.style.display = 'none';
 
@@ -926,29 +929,11 @@
         modal.show();
     }
 
-    function insertTimestampToManual() {
-        const textarea = document.getElementById('chatNotesTextarea');
-        const stamp = formatNoteTimestamp() + ' ';
-        const start = textarea.selectionStart;
-        const end = textarea.selectionEnd;
-        const text = textarea.value;
-        textarea.value = text.substring(0, start) + stamp + text.substring(end);
-        textarea.selectionStart = textarea.selectionEnd = start + stamp.length;
-        textarea.focus();
-    }
-
     async function saveChatNotes() {
         if (!curJid) return;
-        let notes = document.getElementById('chatNotesTextarea').value.trim();
+        const notes = document.getElementById('chatNotesTextarea').value.trim();
         const btn = document.getElementById('btnSaveChatNotes');
         const indicator = document.getElementById('notesSavingIndicator');
-        
-        // Auto prepend timestamp if text was written without timestamp at start
-        if (notes && !notes.startsWith('[')) {
-            const stamp = formatNoteTimestamp();
-            notes = `${stamp} ${notes}`;
-            document.getElementById('chatNotesTextarea').value = notes;
-        }
 
         if (btn) {
             btn.disabled = true;
@@ -974,11 +959,16 @@
                         currentCustomerCode = String(data.customer.customerNumber || data.customer.id);
                         document.getElementById('lcAv').textContent = currentCustomerCode;
                     }
+                    if (data.customer.notesUpdatedAt) {
+                        currentCustomerNotesUpdatedAt = data.customer.notesUpdatedAt;
+                        document.getElementById('notesLastModifiedText').textContent = formatLastModifiedDisplay(currentCustomerNotesUpdatedAt);
+                    }
                 }
                 const activeItem = document.querySelector(`.lc-item[data-jid="${curJid}"]`);
                 if (activeItem) {
                     activeItem.dataset.custNotes = notes;
                     if (currentCustomerCode) activeItem.dataset.custCode = currentCustomerCode;
+                    if (currentCustomerNotesUpdatedAt) activeItem.dataset.custNotesUpdatedAt = currentCustomerNotesUpdatedAt;
                 }
                 if (indicator) {
                     indicator.style.display = 'inline-block';
@@ -1055,6 +1045,7 @@
                 currentCustomerId = data.customer.id;
                 currentCustomerCode = String(data.customer.code || data.customer.customerNumber || data.customer.id);
                 currentCustomerNotes = data.customer.notes || '';
+                currentCustomerNotesUpdatedAt = data.customer.notesUpdatedAt || null;
                 
                 document.getElementById('lcAv').textContent = currentCustomerCode;
                 if (activeItem) {

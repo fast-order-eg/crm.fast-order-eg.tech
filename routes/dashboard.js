@@ -1249,7 +1249,8 @@ router.get('/livechat/:remoteJid/messages', async (req, res) => {
                 code: customer.customerNumber || customer.id,
                 customerName: customer.customerName,
                 phoneNumber: customer.phoneNumber,
-                notes: customer.notes || ''
+                notes: customer.notes || '',
+                notesUpdatedAt: customer.notesUpdatedAt || null
             } : null
         });
     } catch (err) {
@@ -3245,6 +3246,7 @@ router.post('/customers/update-notes', async (req, res) => {
         
         const oldNotes = customer.notes;
         customer.notes = notes;
+        customer.notesUpdatedAt = new Date();
         await customer.save();
 
         await logChange({
@@ -3263,7 +3265,8 @@ router.post('/customers/update-notes', async (req, res) => {
                 id: customer.id,
                 customerNumber: customer.customerNumber,
                 code: customer.customerNumber || customer.id,
-                notes: customer.notes
+                notes: customer.notes,
+                notesUpdatedAt: customer.notesUpdatedAt
             }
         });
 

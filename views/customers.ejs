@@ -312,13 +312,16 @@
                     <input type="hidden" id="editNotesCustomerId">
                     <div class="modal-body px-4 py-3">
                         <div class="mb-3">
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <label for="editNotesContent" class="form-label fw-bold small text-secondary mb-0">الملاحظات (يمكن التعديل والحفظ مباشرة):</label>
-                                <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 rounded-pill" onclick="insertTimestampToEditNotesManual()" style="font-size: 11px;">
-                                    <i class="bi bi-clock-history me-1"></i> إدراج الوقت (12h)
-                                </button>
+                            <label for="editNotesContent" class="form-label fw-bold small text-secondary mb-2">الملاحظات (يمكن التعديل والحفظ مباشرة):</label>
+                            <textarea id="editNotesContent" name="notes" class="form-control rounded-3 font-monospace" rows="8" placeholder="أدخل الملاحظات هنا..." style="font-size: 13px; line-height: 1.6;"></textarea>
+                            
+                            <!-- 🕒 Last Modified Timestamp Display -->
+                            <div class="d-flex justify-content-between align-items-center mt-2 px-1 text-muted" style="font-size: 11.5px;">
+                                <div>
+                                    <i class="bi bi-clock-history text-secondary me-1"></i>
+                                    <span>آخر تعديل: <span id="custPageNotesLastModifiedText" class="fw-bold text-dark">-</span></span>
+                                </div>
                             </div>
-                            <textarea id="editNotesContent" name="notes" class="form-control rounded-3 font-monospace" rows="8" placeholder="أدخل الملاحظات هنا... ويتم إضافة التاريخ والوقت تلقائياً عند الحفظ" style="font-size: 13px; line-height: 1.6;"></textarea>
                         </div>
                     </div>
                     <div class="modal-footer bg-light border-top-0 py-2">
@@ -490,14 +493,12 @@
 
                         <!-- Notes -->
                         <div class="mb-3">
-                            <div class="d-flex justify-content-between align-items-center mb-1">
-                                <label class="form-label small fw-bold text-secondary mb-0">الملاحظات</label>
-                                <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 rounded-pill" style="font-size: 11px;" onclick="insertTimestampToDetailsNotes()">
-                                    <i class="bi bi-clock-history me-1"></i> إدراج الوقت (12h)
-                                </button>
-                            </div>
+                            <label class="form-label small fw-bold text-secondary mb-1">الملاحظات</label>
                             <textarea id="detailsNotes" class="form-control form-control-sm font-monospace" rows="4" placeholder="اكتب ملاحظات المبيعات هنا..." style="font-size: 13px; line-height: 1.5;"></textarea>
-                            <div class="d-flex justify-content-end mt-2">
+                            <div class="d-flex justify-content-between align-items-center mt-2">
+                                <span class="text-muted" style="font-size: 11px;">
+                                    <i class="bi bi-clock-history me-1"></i> آخر تعديل: <span id="detailsNotesLastModifiedText" class="fw-semibold text-dark">-</span>
+                                </span>
                                 <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 fw-semibold" id="btnSaveNotes" onclick="detailsUpdateNotes()">
                                     <i class="bi bi-save me-1"></i> حفظ الملاحظات
                                 </button>
@@ -1212,8 +1213,11 @@
         let detailsModalInstance = null;
 
         
-        function formatNoteTimestamp(date = new Date()) {
+        // --- 🕒 12-Hour (AM/PM) Last Modified Timestamp Formatter ---
+        function formatLastModifiedDisplay(date) {
+            if (!date) return 'لم يتم التعديل بعد';
             const d = new Date(date);
+            if (isNaN(d.getTime())) return 'لم يتم التعديل بعد';
             const day = String(d.getDate()).padStart(2, '0');
             const month = String(d.getMonth() + 1).padStart(2, '0');
             const year = d.getFullYear();
@@ -1223,29 +1227,7 @@
             hours = hours % 12;
             hours = hours ? hours : 12;
             const strHours = String(hours).padStart(2, '0');
-            return `[${day}/${month}/${year} ${strHours}:${minutes} ${ampm}]`;
-        }
-
-        function insertTimestampToEditNotesManual() {
-            const textarea = document.getElementById('editNotesContent');
-            const stamp = formatNoteTimestamp() + ' ';
-            const start = textarea.selectionStart;
-            const end = textarea.selectionEnd;
-            const text = textarea.value;
-            textarea.value = text.substring(0, start) + stamp + text.substring(end);
-            textarea.selectionStart = textarea.selectionEnd = start + stamp.length;
-            textarea.focus();
-        }
-
-        function insertTimestampToDetailsNotes() {
-            const textarea = document.getElementById('detailsNotes');
-            const stamp = formatNoteTimestamp() + ' ';
-            const start = textarea.selectionStart;
-            const end = textarea.selectionEnd;
-            const text = textarea.value;
-            textarea.value = text.substring(0, start) + stamp + text.substring(end);
-            textarea.selectionStart = textarea.selectionEnd = start + stamp.length;
-            textarea.focus();
+            return `${day}/${month}/${year} ${strHours}:${minutes} ${ampm}`;
         }
 
         function openEditNoteModal(customerId) {
@@ -1253,6 +1235,8 @@
             const notes = cust ? (cust.notes || '') : '';
             document.getElementById('editNotesCustomerId').value = customerId;
             document.getElementById('editNotesContent').value = notes;
+            const modifiedEl = document.getElementById('custPageNotesLastModifiedText');
+            if (modifiedEl) modifiedEl.textContent = formatLastModifiedDisplay(cust ? cust.notesUpdatedAt : null);
             const modal = new bootstrap.Modal(document.getElementById('editNotesModal'));
             modal.show();
         }
@@ -1260,14 +1244,7 @@
         function submitEditNotes(event) {
             event.preventDefault();
             const id = document.getElementById('editNotesCustomerId').value;
-            let notes = document.getElementById('editNotesContent').value.trim();
-
-            // Auto-prepend 12-hour timestamp if newly typed without timestamp
-            if (notes && !notes.startsWith('[')) {
-                const stamp = formatNoteTimestamp();
-                notes = `${stamp} ${notes}`;
-                document.getElementById('editNotesContent').value = notes;
-            }
+            const notes = document.getElementById('editNotesContent').value.trim();
 
             fetch('/dashboard/customers/update-notes', {
                 method: 'POST',
@@ -1371,6 +1348,8 @@ function showCustomerDetails(customerId, serialNum) {
                         
                         // Notes
                         document.getElementById('detailsNotes').value = cust.notes || '';
+                        const detNotesModified = document.getElementById('detailsNotesLastModifiedText');
+                        if (detNotesModified) detNotesModified.textContent = formatLastModifiedDisplay(cust.notesUpdatedAt);
                         
                         // Status select styling & option
                         const statusSelect = document.getElementById('detailsStatusSelect');

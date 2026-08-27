@@ -119,6 +119,11 @@ const Customer = sequelize.define('Customer', {
         allowNull: true,
         comment: 'ملاحظات موظف المبيعات'
     },
+    notesUpdatedAt: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        comment: 'تاريخ ووقت آخر تعديل للملاحظات'
+    },
     currentFunnelStep: {
         type: DataTypes.STRING,
         allowNull: true,

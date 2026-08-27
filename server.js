@@ -252,7 +252,12 @@ cron.schedule('0 0 * * *', async () => {
 
 // Database & Server
 sequelize.sync().then(async () => {
-    console.log('Database synced (with alter)');
+    console.log('Database synced');
+    try {
+        await sequelize.query("ALTER TABLE customers ADD COLUMN IF NOT EXISTS notesUpdatedAt DATETIME NULL;").catch(async () => {
+            await sequelize.query("ALTER TABLE customers ADD COLUMN notesUpdatedAt DATETIME NULL;").catch(() => {});
+        });
+    } catch (e) {}
 
     // Create Super Admin if not exists
     const adminExists = await User.findOne({ where: { role: 'super_admin' } });
