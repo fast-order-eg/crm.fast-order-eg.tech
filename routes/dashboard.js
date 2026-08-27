@@ -1261,23 +1261,50 @@ router.get('/livechat/:remoteJid/messages', async (req, res) => {
 
 router.post(['/livechat/send', '/livechat/:remoteJid/send'], async (req, res) => {
     try {
-        const remoteJid = req.params.remoteJid || req.body.remoteJid;
+        const rawJid = req.params.remoteJid || req.body.remoteJid;
         const text = req.body.text;
-        if (!remoteJid || !text) return res.status(400).json({ error: 'remoteJid and text required' });
+        if (!rawJid || !text) return res.status(400).json({ error: 'remoteJid and text required' });
         
         const owner = await getOwnerUser(req.user);
-        let customer = await Customer.findOne({ where: { remoteJid } });
+        const targetUserId = owner.id;
+        const decodedJid = decodeURIComponent(rawJid);
+        const phone = decodedJid.split('@')[0].replace(/[^0-9]/g, '');
+        const phoneJid = `${phone}@s.whatsapp.net`;
+        const cleanNo2 = phone.startsWith('20') ? phone.substring(2) : phone;
+
+        let customer = await Customer.findOne({
+            where: {
+                UserId: targetUserId,
+                [Op.or]: [
+                    { remoteJid: decodedJid },
+                    { remoteJid: phoneJid },
+                    { phoneNumber: phone },
+                    { phoneNumber: cleanNo2 },
+                    { phoneNumber: '0' + cleanNo2 }
+                ]
+            }
+        });
+
         if (!customer) {
-            const phone = remoteJid.split('@')[0];
-            customer = await Customer.findOne({ where: { phoneNumber: phone } });
+            customer = await Customer.findOne({
+                where: {
+                    [Op.or]: [
+                        { remoteJid: decodedJid },
+                        { remoteJid: phoneJid },
+                        { phoneNumber: phone },
+                        { phoneNumber: cleanNo2 },
+                        { phoneNumber: '0' + cleanNo2 }
+                    ]
+                }
+            });
         }
 
-        const sessionUserId = customer ? (customer.UserId || owner.id) : owner.id;
+        const sessionUserId = targetUserId;
 
         // إرسال الرسالة باستخدام معرف مالك الجلسة و SocketIO
         const io = req.app.get('socketio');
         const senderName = req.user.fullName || req.user.username;
-        const savedMsg = await sendManualMessage(sessionUserId, remoteJid, text, senderName, io);
+        const savedMsg = await sendManualMessage(sessionUserId, decodedJid, text, senderName, io);
         
         // تسجيل رد الموظف وسرعة الاستجابة في نظام الـ KPI تلقائياً
         if (customer) {
@@ -1317,19 +1344,46 @@ const uploadLivechatMedia = multer({
 
 router.post(['/livechat/send-media', '/livechat/:remoteJid/send-media'], uploadLivechatMedia.single('mediaFile'), async (req, res) => {
     try {
-        const remoteJid = req.params.remoteJid || req.body.remoteJid;
-        if (!remoteJid || !req.file) {
+        const rawJid = req.params.remoteJid || req.body.remoteJid;
+        if (!rawJid || !req.file) {
             return res.status(400).json({ error: 'remoteJid and mediaFile required' });
         }
 
         const owner = await getOwnerUser(req.user);
-        let customer = await Customer.findOne({ where: { remoteJid } });
+        const targetUserId = owner.id;
+        const decodedJid = decodeURIComponent(rawJid);
+        const phone = decodedJid.split('@')[0].replace(/[^0-9]/g, '');
+        const phoneJid = `${phone}@s.whatsapp.net`;
+        const cleanNo2 = phone.startsWith('20') ? phone.substring(2) : phone;
+
+        let customer = await Customer.findOne({
+            where: {
+                UserId: targetUserId,
+                [Op.or]: [
+                    { remoteJid: decodedJid },
+                    { remoteJid: phoneJid },
+                    { phoneNumber: phone },
+                    { phoneNumber: cleanNo2 },
+                    { phoneNumber: '0' + cleanNo2 }
+                ]
+            }
+        });
+
         if (!customer) {
-            const phone = remoteJid.split('@')[0];
-            customer = await Customer.findOne({ where: { phoneNumber: phone } });
+            customer = await Customer.findOne({
+                where: {
+                    [Op.or]: [
+                        { remoteJid: decodedJid },
+                        { remoteJid: phoneJid },
+                        { phoneNumber: phone },
+                        { phoneNumber: cleanNo2 },
+                        { phoneNumber: '0' + cleanNo2 }
+                    ]
+                }
+            });
         }
 
-        const sessionUserId = customer ? (customer.UserId || owner.id) : owner.id;
+        const sessionUserId = targetUserId;
         let filename = req.file.filename;
         let filePath = req.file.path;
         const mime = req.file.mimetype || '';
