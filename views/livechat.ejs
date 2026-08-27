@@ -672,7 +672,7 @@
         const el=document.querySelector(`.lc-item[data-jid="${msg.remoteJid}"]`);
         let content = msg.content ? msg.content.replace(/\[M:\d+\]/g, '').trim() : '';
         if(el) el.querySelector('.lc-prev').textContent=content;
-        if(msg.remoteJid===curJid) addBbl(content, msg.role==='user', new Date(msg.createdAt), msg.media_url, msg.messageId, msg.status);
+        if(msg.remoteJid===curJid) addBbl(content, msg.role==='user', new Date(msg.createdAt), msg.media_url || msg.mediaUrl, msg.messageId, msg.status);
     });
     
     io_.on('message_status', (data) => {
@@ -1078,7 +1078,7 @@
 
             const msgsList = Array.isArray(data) ? data : (data.messages || []);
             if (msgsList.length > 0) {
-                msgsList.forEach(m => addBbl(m.content ? m.content.replace(/\[M:\d+\]/g, '').trim() : '', m.role==='user', new Date(m.createdAt), m.media_url, m.messageId, m.status));
+                msgsList.forEach(m => addBbl(m.content ? m.content.replace(/\[M:\d+\]/g, '').trim() : '', m.role==='user', new Date(m.createdAt), m.media_url || m.mediaUrl, m.messageId, m.status));
             } else {
                 msgsEl.innerHTML = '<div class="text-center p-4 text-muted" style="font-size:12px;"><i class="bi bi-chat-square" style="font-size:1.5rem;display:block;margin-bottom:6px;opacity:.4;"></i>لا توجد رسائل سابقة في هذه المحادثة</div>';
             }
@@ -1099,23 +1099,26 @@
         let contentHtml = '';
 
         if (mediaUrl) {
-            const ext = mediaUrl.split('.').pop().toLowerCase();
-            const isAudio = ['mp3', 'ogg', 'wav', 'm4a', 'opus'].includes(ext) || (text && (text.includes('audio') || text.includes('صوتية')));
-            const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext) || (text && text.includes('صورة'));
-            const isVideo = ['mp4', 'webm', 'mov'].includes(ext) || (text && text.includes('فيديو'));
+            const cleanUrl = mediaUrl.trim();
+            const ext = cleanUrl.split('?')[0].split('.').pop().toLowerCase();
+            const isAudio = ['mp3', 'ogg', 'wav', 'm4a', 'opus', 'webm'].includes(ext) || (text && (text.includes('audio') || text.includes('صوتية') || text.includes('فويس')));
+            const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(ext) || (text && (text.includes('صورة') || text.includes('image')));
+            const isVideo = ['mp4', 'webm', 'mov', 'mkv', 'avi'].includes(ext) || (text && (text.includes('فيديو') || text.includes('video')));
 
             if (isAudio) {
-                contentHtml += `<div class="media-bubble"><audio src="${mediaUrl}" controls></audio></div>`;
+                contentHtml += `<div class="media-bubble"><audio src="${cleanUrl}" controls preload="metadata" style="width:100%; min-width:210px;"></audio></div>`;
             } else if (isImage) {
-                contentHtml += `<div class="media-bubble"><a href="${mediaUrl}" target="_blank" title="انقر للعرض بالكامل أو التحميل"><img src="${mediaUrl}" alt="صورة"></a></div>`;
+                contentHtml += `<div class="media-bubble"><a href="${cleanUrl}" target="_blank" download title="انقر للعرض بالكامل أو التحميل"><img src="${cleanUrl}" alt="صورة" loading="lazy"></a></div>`;
             } else if (isVideo) {
-                contentHtml += `<div class="media-bubble"><video src="${mediaUrl}" controls></video></div>`;
+                contentHtml += `<div class="media-bubble"><video src="${cleanUrl}" controls style="width:100%; max-width:260px;"></video></div>`;
             } else {
-                contentHtml += `<div class="media-bubble"><a href="${mediaUrl}" target="_blank" download class="media-doc-card"><i class="bi bi-file-earmark-arrow-down-fill text-primary fs-4"></i><div><div class="fw-bold small">مستند / ميديا</div><div class="text-muted" style="font-size:10px;">انقر للتحميل 📥</div></div></a></div>`;
+                const fileName = cleanUrl.split('/').pop() || 'مستند';
+                contentHtml += `<div class="media-bubble"><a href="${cleanUrl}" target="_blank" download class="media-doc-card"><i class="bi bi-file-earmark-arrow-down-fill text-primary fs-4"></i><div><div class="fw-bold small text-truncate" style="max-width:160px;">${fileName}</div><div class="text-muted" style="font-size:10px;">انقر للتحميل 📥</div></div></a></div>`;
             }
         }
 
-        if (text) {
+        const isGenericPlaceholder = text && ['رسالة صوتية 🎙️', '📷 صورة', 'صورة 📷', '🎥 فيديو', 'فيديو 🎥', '📄 مستند'].some(p => text.trim().includes(p));
+        if (text && (!mediaUrl || !isGenericPlaceholder)) {
             contentHtml += `<div class="msg-text">${text}</div>`;
         }
 

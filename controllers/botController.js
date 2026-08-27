@@ -3801,7 +3801,7 @@ export async function sendManualMediaMessage(userId, remoteJid, mediaUrl, mediaT
                 remoteJid,
                 role: 'model',
                 content: displayContent,
-                mediaUrl: mediaUrl,
+                media_url: mediaUrl,
                 senderName: senderName,
                 messageId,
                 status: 'sent'
@@ -3852,7 +3852,7 @@ export async function sendManualMediaMessage(userId, remoteJid, mediaUrl, mediaT
         remoteJid,
         role: 'model',
         content: displayContent,
-        mediaUrl: mediaUrl,
+        media_url: mediaUrl,
         senderName: senderName,
         messageId,
         status: 'sent'
