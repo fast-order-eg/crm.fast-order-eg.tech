@@ -953,6 +953,37 @@ router.get('/livechat', async (req, res) => {
 
         const rawConversations = await Conversation.findAll(queryOptions);
         
+        // Auto-link Customer for conversations missing CustomerId
+        for (const conv of rawConversations) {
+            if (!conv.Customer && (conv.phoneNumber || conv.remoteJid)) {
+                const phone = (conv.phoneNumber || conv.remoteJid.split('@')[0]).replace(/[^0-9]/g, '');
+                if (phone && phone.length >= 8) {
+                    const cleanNo2 = phone.startsWith('20') ? phone.substring(2) : phone;
+                    const matchedCust = await Customer.findOne({
+                        where: {
+                            UserId: targetUserId,
+                            [Op.or]: [
+                                { phoneNumber: phone },
+                                { phoneNumber: cleanNo2 },
+                                { phoneNumber: '0' + cleanNo2 },
+                                { remoteJid: conv.remoteJid }
+                            ]
+                        },
+                        include: [{
+                            model: User,
+                            as: 'assignedTo',
+                            attributes: ['id', 'fullName', 'username']
+                        }]
+                    });
+                    if (matchedCust) {
+                        conv.CustomerId = matchedCust.id;
+                        conv.Customer = matchedCust;
+                        Conversation.update({ CustomerId: matchedCust.id }, { where: { id: conv.id } }).catch(() => {});
+                    }
+                }
+            }
+        }
+
         // Filter out duplicate LID conversations when primary @s.whatsapp.net conversation exists
         const seenKeys = new Set();
         const conversations = [];
@@ -1058,6 +1089,37 @@ router.get('/livechat/api/conversations', async (req, res) => {
             offset
         });
 
+        // Auto-link Customer for conversations missing CustomerId
+        for (const conv of rawConversations) {
+            if (!conv.Customer && (conv.phoneNumber || conv.remoteJid)) {
+                const phone = (conv.phoneNumber || conv.remoteJid.split('@')[0]).replace(/[^0-9]/g, '');
+                if (phone && phone.length >= 8) {
+                    const cleanNo2 = phone.startsWith('20') ? phone.substring(2) : phone;
+                    const matchedCust = await Customer.findOne({
+                        where: {
+                            UserId: targetUserId,
+                            [Op.or]: [
+                                { phoneNumber: phone },
+                                { phoneNumber: cleanNo2 },
+                                { phoneNumber: '0' + cleanNo2 },
+                                { remoteJid: conv.remoteJid }
+                            ]
+                        },
+                        include: [{
+                            model: User,
+                            as: 'assignedTo',
+                            attributes: ['id', 'fullName', 'username']
+                        }]
+                    });
+                    if (matchedCust) {
+                        conv.CustomerId = matchedCust.id;
+                        conv.Customer = matchedCust;
+                        Conversation.update({ CustomerId: matchedCust.id }, { where: { id: conv.id } }).catch(() => {});
+                    }
+                }
+            }
+        }
+
         // Filter out duplicate LID conversations when primary @s.whatsapp.net conversation exists
         const seenKeys = new Set();
         const conversations = [];
@@ -1101,16 +1163,34 @@ router.get('/livechat/:remoteJid/messages', async (req, res) => {
         const decodedJid = decodeURIComponent(remoteJid);
         const phone = decodedJid.split('@')[0].replace(/[^0-9]/g, '');
         const phoneJid = `${phone}@s.whatsapp.net`;
+        const cleanNo2 = phone.startsWith('20') ? phone.substring(2) : phone;
 
-        const customer = await Customer.findOne({
+        let customer = await Customer.findOne({
             where: {
+                UserId: targetUserId,
                 [Op.or]: [
                     { remoteJid: decodedJid },
                     { remoteJid: phoneJid },
-                    { phoneNumber: phone }
+                    { phoneNumber: phone },
+                    { phoneNumber: cleanNo2 },
+                    { phoneNumber: '0' + cleanNo2 }
                 ]
             }
         });
+
+        if (!customer) {
+            customer = await Customer.findOne({
+                where: {
+                    [Op.or]: [
+                        { remoteJid: decodedJid },
+                        { remoteJid: phoneJid },
+                        { phoneNumber: phone },
+                        { phoneNumber: cleanNo2 },
+                        { phoneNumber: '0' + cleanNo2 }
+                    ]
+                }
+            });
+        }
 
         const userIds = [targetUserId];
         if (customer && customer.UserId) userIds.push(customer.UserId);
@@ -1128,11 +1208,16 @@ router.get('/livechat/:remoteJid/messages', async (req, res) => {
             limit: 100
         });
 
-        // Reset unread count
+        // Reset unread count & auto-link conversation
         if (customer) {
             await Conversation.update(
+                { CustomerId: customer.id, unreadCount: 0 },
+                { where: { UserId: targetUserId, remoteJid: decodedJid } }
+            );
+        } else {
+            await Conversation.update(
                 { unreadCount: 0 },
-                { where: { id: customer.id } }
+                { where: { UserId: targetUserId, remoteJid: decodedJid } }
             );
         }
 
@@ -1157,7 +1242,15 @@ router.get('/livechat/:remoteJid/messages', async (req, res) => {
             messages,
             windowActive,
             remainingHours,
-            lastUserMsgTime
+            lastUserMsgTime,
+            customer: customer ? {
+                id: customer.id,
+                customerNumber: customer.customerNumber,
+                code: customer.customerNumber || customer.id,
+                customerName: customer.customerName,
+                phoneNumber: customer.phoneNumber,
+                notes: customer.notes || ''
+            } : null
         });
     } catch (err) {
         console.error('GetMessages error:', err);
@@ -3062,8 +3155,42 @@ const notesDebounceMap = new Map();
 
 router.post('/customers/update-notes', async (req, res) => {
     try {
-        const { id, notes } = req.body;
-        const customer = await Customer.findByPk(id);
+        const { id, remoteJid, phoneNumber, notes } = req.body;
+        let customer = null;
+        if (id) {
+            customer = await Customer.findByPk(id);
+        }
+        if (!customer && remoteJid) {
+            const decodedJid = decodeURIComponent(remoteJid);
+            const phone = decodedJid.split('@')[0].replace(/[^0-9]/g, '');
+            const phoneJid = `${phone}@s.whatsapp.net`;
+            const cleanNo2 = phone.startsWith('20') ? phone.substring(2) : phone;
+            customer = await Customer.findOne({
+                where: {
+                    [Op.or]: [
+                        { remoteJid: decodedJid },
+                        { remoteJid: phoneJid },
+                        { phoneNumber: phone },
+                        { phoneNumber: cleanNo2 },
+                        { phoneNumber: '0' + cleanNo2 }
+                    ]
+                }
+            });
+        }
+        if (!customer && phoneNumber) {
+            const cleanPhone = phoneNumber.replace(/[^0-9]/g, '');
+            const cleanNo2 = cleanPhone.startsWith('20') ? cleanPhone.substring(2) : cleanPhone;
+            customer = await Customer.findOne({
+                where: {
+                    [Op.or]: [
+                        { phoneNumber: cleanPhone },
+                        { phoneNumber: cleanNo2 },
+                        { phoneNumber: '0' + cleanNo2 },
+                        { remoteJid: { [Op.like]: `%${cleanNo2}%` } }
+                    ]
+                }
+            });
+        }
         if (!customer) {
             return res.status(404).json({ success: false, error: 'العميل غير موجود' });
         }
@@ -3074,9 +3201,9 @@ router.post('/customers/update-notes', async (req, res) => {
         }
 
         const now = Date.now();
-        const debounceKey = `${req.user.id}_${id}`;
-        if (notesDebounceMap.has(debounceKey) && (now - notesDebounceMap.get(debounceKey) < 4000)) {
-            return res.json({ success: true, message: 'ملاحظة مكررة تم حجبها' });
+        const debounceKey = `${req.user.id}_${customer.id}`;
+        if (notesDebounceMap.has(debounceKey) && (now - notesDebounceMap.get(debounceKey) < 2000)) {
+            return res.json({ success: true, message: 'ملاحظة مكررة تم حجبها', customer: { id: customer.id, customerNumber: customer.customerNumber, notes: customer.notes } });
         }
         notesDebounceMap.set(debounceKey, now);
         
@@ -3094,7 +3221,15 @@ router.post('/customers/update-notes', async (req, res) => {
             ownerId: customer.UserId
         });
 
-        res.json({ success: true });
+        res.json({
+            success: true,
+            customer: {
+                id: customer.id,
+                customerNumber: customer.customerNumber,
+                code: customer.customerNumber || customer.id,
+                notes: customer.notes
+            }
+        });
 
         setImmediate(async () => {
             try {
