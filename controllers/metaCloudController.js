@@ -47,11 +47,9 @@ export const sendMetaMessage = async (to, bodyText, options = {}) => {
             // Media Message (image, audio, video, document)
             payload.type = options.mediaType;
             let relPath = String(options.mediaUrl).replace(/\\/g, '/');
-            if (relPath.includes('public/')) {
-                relPath = relPath.substring(relPath.indexOf('public/') + 6);
-            }
-            if (!relPath.startsWith('/') && !relPath.startsWith('http')) {
-                relPath = '/' + relPath;
+            if (!relPath.startsWith('http')) {
+                relPath = relPath.replace(/^.*public\//, '/');
+                if (!relPath.startsWith('/')) relPath = '/' + relPath;
             }
             const fullLink = options.mediaUrl.startsWith('http') ? options.mediaUrl : `https://crm.fast-order-eg.tech${relPath}`;
             
@@ -148,6 +146,9 @@ export const handleWebhook = async (req, res) => {
         if (value.statuses && value.statuses.length > 0) {
             const status = value.statuses[0];
             console.log(`📊 [META_STATUS] Message ${status.id} -> ${status.status}`);
+            if (status.status === 'failed' && status.errors) {
+                console.error(`❌ [META_STATUS_FAILED] Message ${status.id} failed details:`, JSON.stringify(status.errors));
+            }
 
             try {
                 await Message.update(

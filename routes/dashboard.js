@@ -1298,8 +1298,7 @@ router.post(['/livechat/send', '/livechat/:remoteJid/send'], async (req, res) =>
 // 📎 Live Chat Outgoing Media Upload (Voice Notes, Images, Videos, Documents)
 const livechatMediaStorage = multer.diskStorage({
     destination: (req, file, cb) => {
-        const userId = req.user ? req.user.id : '1';
-        const dir = path.join(process.cwd(), 'public', 'uploads', 'media', String(userId));
+        const dir = path.join(process.cwd(), 'public', 'uploads', 'media');
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
         cb(null, dir);
     },
@@ -1330,13 +1329,50 @@ router.post(['/livechat/send-media', '/livechat/:remoteJid/send-media'], uploadL
         }
 
         const sessionUserId = customer ? (customer.UserId || owner.id) : owner.id;
-        const relativeUrl = `/uploads/media/${sessionUserId}/${req.file.filename}`;
-
+        let filename = req.file.filename;
+        let filePath = req.file.path;
         const mime = req.file.mimetype || '';
         let mediaType = 'document';
         if (mime.startsWith('image/')) mediaType = 'image';
-        else if (mime.startsWith('audio/')) mediaType = 'audio';
+        else if (mime.startsWith('audio/') || req.file.originalname.includes('voice_') || filename.startsWith('voice_')) mediaType = 'audio';
         else if (mime.startsWith('video/')) mediaType = 'video';
+
+        // 🎵 Convert webm/raw audio to standard WhatsApp voice note (ogg / opus) for Meta Cloud API & Baileys
+        if (mediaType === 'audio' && (filename.endsWith('.webm') || filename.endsWith('.bin') || mime.includes('webm') || filename.startsWith('voice_'))) {
+            try {
+                const ffmpegModule = await import('fluent-ffmpeg');
+                const ffmpeg = ffmpegModule.default || ffmpegModule;
+                const ffmpegPathModule = await import('ffmpeg-static');
+                const ffmpegPath = ffmpegPathModule.default || ffmpegPathModule;
+                if (ffmpegPath) ffmpeg.setFfmpegPath(ffmpegPath);
+
+                const oggFilename = `audio_${Date.now()}.ogg`;
+                const oggPath = path.join(process.cwd(), 'public', 'uploads', 'media', oggFilename);
+
+                await new Promise((resolve) => {
+                    ffmpeg(filePath)
+                        .audioCodec('libopus')
+                        .toFormat('ogg')
+                        .outputOptions('-avoid_negative_ts make_zero')
+                        .on('end', () => resolve())
+                        .on('error', (err) => {
+                            console.error('[send-media] FFmpeg audio conversion error:', err.message);
+                            resolve(); // Continue even if conversion fails
+                        })
+                        .save(oggPath);
+                });
+
+                if (fs.existsSync(oggPath) && fs.statSync(oggPath).size > 0) {
+                    try { fs.unlinkSync(filePath); } catch (e) {}
+                    filename = oggFilename;
+                    filePath = oggPath;
+                }
+            } catch (convErr) {
+                console.error('[send-media] Error during voice conversion:', convErr);
+            }
+        }
+
+        const relativeUrl = `/uploads/media/${filename}`;
 
         const caption = req.body.caption || '';
         const senderName = req.user.fullName || req.user.username;

@@ -603,11 +603,13 @@
 
                             <textarea id="lcIn" placeholder="اكتب ردك... (Enter=إرسال، Shift+Enter=سطر جديد)" rows="1"></textarea>
 
-                            <button type="button" class="btn btn-light btn-sm text-danger border-0 p-2" onclick="startRecording()" title="تسجيل فويس مباشر" style="border-radius:50%; width:36px; height:36px; display:flex; align-items:center; justify-content:center;">
+                            <!-- Voice Mic Button (Shows when input is empty) -->
+                            <button type="button" class="btn btn-light btn-sm text-danger border-0 p-2" id="btnVoiceRecord" onclick="startRecording()" title="تسجيل فويس مباشر" style="border-radius:50%; width:36px; height:36px; display:flex; align-items:center; justify-content:center;">
                                 <i class="bi bi-mic-fill fs-5"></i>
                             </button>
 
-                            <button class="btn-ls" onclick="sendMsg()" title="إرسال"><i class="bi bi-send-fill"></i></button>
+                            <!-- Send Button (Shows when input has text) -->
+                            <button class="btn-ls" id="btnSendMsg" onclick="sendMsg()" title="إرسال" style="display:none;"><i class="bi bi-send-fill"></i></button>
                         </div>
                     </div>
                 </div>
@@ -615,7 +617,7 @@
         </div>
     </div>
 
-    <!-- Chat Notes Modal -->
+    <!-- Chat Notes Modal (Single Clean Notes Box) -->
     <div class="modal fade" id="chatNotesModal" tabindex="-1" aria-labelledby="chatNotesModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content shadow-lg border-0 rounded-4">
@@ -627,40 +629,27 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body px-4 py-3">
-                    <!-- Quick Add Note with Automatic 12h AM/PM Timestamp -->
-                    <div class="p-3 mb-3 rounded-3" style="background-color: #f8fafc; border: 1px dashed #cbd5e1;">
-                        <label class="form-label fw-bold small text-secondary d-flex align-items-center justify-content-between mb-1">
-                            <span><i class="bi bi-plus-circle-fill text-success me-1"></i> إضافة ملاحظة جديدة</span>
-                            <span class="text-muted" style="font-size: 11px;">(تاريخ ووقت تلقائي نظام 12h)</span>
-                        </label>
-                        <div class="mb-2">
-                            <textarea id="quickNewNoteInput" class="form-control rounded-3" rows="2" placeholder="اكتب ملاحظة جديدة هنا وسيتم ختمها بالتاريخ والوقت تلقائياً..."></textarea>
-                        </div>
-                        <div class="d-flex justify-content-between align-items-center">
-                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="insertTimestampToManual()" style="font-size: 11px;">
-                                <i class="bi bi-clock-history me-1"></i> إدراج الوقت الآن يدويًا
-                            </button>
-                            <button type="button" class="btn btn-sm btn-success rounded-pill px-3 fw-bold" onclick="addNewNoteWithTimestamp()">
-                                <i class="bi bi-plus-lg me-1"></i> إضافة الملاحظة
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Full Notes View/Edit -->
                     <div class="mb-2">
-                        <label for="chatNotesTextarea" class="form-label fw-bold small text-secondary d-flex align-items-center justify-content-between">
-                            <span><i class="bi bi-file-text-fill text-primary me-1"></i> سجل الملاحظات الكامل (قابل للتعديل):</span>
-                        </label>
-                        <textarea id="chatNotesTextarea" name="notes" class="form-control rounded-3 font-monospace" rows="6" placeholder="لا توجد ملاحظات مسجلة بعد..." style="font-size: 12.5px; line-height: 1.6;"></textarea>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label for="chatNotesTextarea" class="form-label fw-bold small text-secondary mb-0">
+                                <i class="bi bi-pencil-square me-1 text-primary"></i> الملاحظات (تُحفظ مباشرة في بيانات العميل):
+                            </label>
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 rounded-pill" style="font-size: 11px;" onclick="insertTimestampToManual()" title="إدراج الوقت والتاريخ الحالي">
+                                <i class="bi bi-clock-history me-1"></i> إدراج الوقت (12h)
+                            </button>
+                        </div>
+                        <textarea id="chatNotesTextarea" name="notes" class="form-control rounded-3 font-monospace" rows="8" placeholder="اكتب ملاحظاتك على هذا العميل هنا... ويتم إضافة التاريخ والوقت تلقائياً عند الحفظ" style="font-size: 13px; line-height: 1.6;"></textarea>
                     </div>
                 </div>
                 <div class="modal-footer bg-light border-top-0 py-2 d-flex justify-content-between">
-                    <span id="notesSavingIndicator" class="text-success small fw-semibold" style="display:none;">
-                        <i class="bi bi-check-circle-fill me-1"></i> تم الحفظ بنجاح!
-                    </span>
-                    <div class="d-flex gap-2 ms-auto">
-                        <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">إغلاق</button>
-                        <button type="button" class="btn btn-primary rounded-pill px-4 fw-bold" id="btnSaveChatNotes" onclick="saveChatNotes()">
+                    <div>
+                        <span id="notesSavingIndicator" class="text-success small fw-semibold" style="display:none;">
+                            <i class="bi bi-check-circle-fill me-1"></i> تم الحفظ بنجاح!
+                        </span>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-secondary rounded-pill px-3" data-bs-dismiss="modal">إلغاء</button>
+                        <button type="button" class="btn btn-primary rounded-pill px-4 fw-bold shadow-sm" id="btnSaveChatNotes" onclick="saveChatNotes()">
                             <i class="bi bi-save me-1"></i> حفظ الملاحظات
                         </button>
                     </div>
@@ -928,7 +917,6 @@
         }
         document.getElementById('modalCustName').textContent = currentCustomerDisplayName || 'عميل';
         document.getElementById('modalCustCode').textContent = currentCustomerCode ? `كود: ${currentCustomerCode}` : '-';
-        document.getElementById('quickNewNoteInput').value = '';
         document.getElementById('chatNotesTextarea').value = currentCustomerNotes || '';
         const ind = document.getElementById('notesSavingIndicator');
         if (ind) ind.style.display = 'none';
@@ -949,32 +937,19 @@
         textarea.focus();
     }
 
-    function addNewNoteWithTimestamp() {
-        const input = document.getElementById('quickNewNoteInput');
-        const text = input.value.trim();
-        if (!text) {
-            alert('برجاء كتابة نص الملاحظة');
-            return;
-        }
-        const stamp = formatNoteTimestamp();
-        const formatted = `${stamp} ${text}`;
-        const textarea = document.getElementById('chatNotesTextarea');
-        const existing = textarea.value.trim();
-        if (existing) {
-            textarea.value = formatted + '\n' + existing;
-        } else {
-            textarea.value = formatted;
-        }
-        input.value = '';
-        saveChatNotes();
-    }
-
     async function saveChatNotes() {
         if (!curJid) return;
-        const notes = document.getElementById('chatNotesTextarea').value;
+        let notes = document.getElementById('chatNotesTextarea').value.trim();
         const btn = document.getElementById('btnSaveChatNotes');
         const indicator = document.getElementById('notesSavingIndicator');
         
+        // Auto prepend timestamp if text was written without timestamp at start
+        if (notes && !notes.startsWith('[')) {
+            const stamp = formatNoteTimestamp();
+            notes = `${stamp} ${notes}`;
+            document.getElementById('chatNotesTextarea').value = notes;
+        }
+
         if (btn) {
             btn.disabled = true;
             btn.innerHTML = '<i class="bi bi-arrow-repeat spin me-1"></i>جاري الحفظ...';
@@ -1206,10 +1181,31 @@
         }
     }
 
+    function syncSendBarButtons() {
+        const lcIn = document.getElementById('lcIn');
+        const btnVoice = document.getElementById('btnVoiceRecord');
+        const btnSend = document.getElementById('btnSendMsg');
+        if (!lcIn || !btnVoice || !btnSend) return;
+        const hasText = lcIn.value.trim().length > 0;
+        if (hasText) {
+            btnVoice.style.display = 'none';
+            btnSend.style.display = 'flex';
+        } else {
+            btnVoice.style.display = 'flex';
+            btnSend.style.display = 'none';
+        }
+    }
+
+    const lcInInput = document.getElementById('lcIn');
+    if (lcInInput) {
+        lcInInput.addEventListener('input', syncSendBarButtons);
+    }
+
     async function sendMsg(){
         const txt = document.getElementById('lcIn').value.trim();
         if(!txt || !curJid) return;
         document.getElementById('lcIn').value='';
+        syncSendBarButtons();
         
         const tempMsgId = 'temp-' + Date.now();
         addBbl(txt, false, new Date(), null, tempMsgId, 'pending');
