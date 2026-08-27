@@ -636,14 +636,9 @@
                         <textarea id="chatNotesTextarea" name="notes" class="form-control rounded-3 font-monospace" rows="8" placeholder="اكتب ملاحظاتك على هذا العميل هنا..." style="font-size: 13px; line-height: 1.6;"></textarea>
                         
                         <!-- 🕒 Last Modified Timestamp Display -->
-                        <div class="d-flex justify-content-between align-items-center mt-2 px-1 text-muted" style="font-size: 11.5px;">
-                            <div>
-                                <i class="bi bi-clock-history text-secondary me-1"></i>
-                                <span>آخر تعديل: <span id="notesLastModifiedText" class="fw-bold text-dark">-</span></span>
-                            </div>
-                            <span id="notesSavingIndicator" class="text-success fw-semibold" style="display:none;">
-                                <i class="bi bi-check-circle-fill me-1"></i> تم الحفظ بنجاح!
-                            </span>
+                        <div class="mt-2 px-1 text-muted" style="font-size: 11.5px;">
+                            <i class="bi bi-clock-history text-secondary me-1"></i>
+                            <span>آخر تعديل: <span id="notesLastModifiedText" class="fw-bold text-dark">-</span></span>
                         </div>
                     </div>
                 </div>
@@ -655,6 +650,12 @@
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- Floating Success Toast Notification (Appears outside modal for 2s) -->
+    <div id="livechatToast" style="display:none; position:fixed; top:28px; left:50%; transform:translateX(-50%); z-index:99999; background:#198754; color:#fff; padding:10px 24px; border-radius:30px; box-shadow:0 8px 24px rgba(0,0,0,0.22); font-size:14px; font-weight:600; align-items:center; gap:8px; pointer-events:none; transition:opacity 0.3s ease; opacity:0;">
+        <i class="bi bi-check-circle-fill fs-5 text-white"></i>
+        <span id="livechatToastText">تم الحفظ</span>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -912,6 +913,22 @@
         return `${day}/${month}/${year} ${strHours}:${minutes} ${ampm}`;
     }
 
+    let toastTimeout = null;
+    function showToastNotification(text, duration = 2000) {
+        const toast = document.getElementById('livechatToast');
+        const toastText = document.getElementById('livechatToastText');
+        if (!toast) return;
+        if (toastText) toastText.textContent = text || 'تم الحفظ';
+        toast.style.display = 'flex';
+        setTimeout(() => { toast.style.opacity = '1'; }, 10);
+        
+        if (toastTimeout) clearTimeout(toastTimeout);
+        toastTimeout = setTimeout(() => {
+            toast.style.opacity = '0';
+            setTimeout(() => { toast.style.display = 'none'; }, 300);
+        }, duration);
+    }
+
     function openChatNotesModal() {
         if (!curJid) {
             alert('برجاء اختيار محادثة عميل أولاً لعرض الملاحظات');
@@ -921,8 +938,6 @@
         document.getElementById('modalCustCode').textContent = currentCustomerCode ? `كود: ${currentCustomerCode}` : '-';
         document.getElementById('chatNotesTextarea').value = currentCustomerNotes || '';
         document.getElementById('notesLastModifiedText').textContent = formatLastModifiedDisplay(currentCustomerNotesUpdatedAt);
-        const ind = document.getElementById('notesSavingIndicator');
-        if (ind) ind.style.display = 'none';
 
         const modalEl = document.getElementById('chatNotesModal');
         const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
@@ -933,7 +948,6 @@
         if (!curJid) return;
         const notes = document.getElementById('chatNotesTextarea').value.trim();
         const btn = document.getElementById('btnSaveChatNotes');
-        const indicator = document.getElementById('notesSavingIndicator');
 
         if (btn) {
             btn.disabled = true;
@@ -970,10 +984,14 @@
                     if (currentCustomerCode) activeItem.dataset.custCode = currentCustomerCode;
                     if (currentCustomerNotesUpdatedAt) activeItem.dataset.custNotesUpdatedAt = currentCustomerNotesUpdatedAt;
                 }
-                if (indicator) {
-                    indicator.style.display = 'inline-block';
-                    setTimeout(() => { if (indicator) indicator.style.display = 'none'; }, 3000);
-                }
+
+                // 1. Automatically close the notes modal
+                const modalEl = document.getElementById('chatNotesModal');
+                const modal = bootstrap.Modal.getInstance(modalEl) || bootstrap.Modal.getOrCreateInstance(modalEl);
+                if (modal) modal.hide();
+
+                // 2. Show floating success toast outside the modal for 2 seconds
+                showToastNotification('تم الحفظ', 2000);
             } else {
                 alert('⚠️ فشل حفظ الملاحظات: ' + (data.error || 'خطأ غير معروف'));
             }
