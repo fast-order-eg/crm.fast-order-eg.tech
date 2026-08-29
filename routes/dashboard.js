@@ -90,10 +90,6 @@ router.use((req, res, next) => {
 });
 
 router.get('/', async (req, res) => {
-    if (req.user.role === 'super_admin') {
-        return res.redirect('/admin');
-    }
-
     try {
         const owner = await getOwnerUser(req.user);
         const ownerId = owner.id;

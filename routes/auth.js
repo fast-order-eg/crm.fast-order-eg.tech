@@ -29,9 +29,7 @@ router.post('/login', (req, res, next) => {
                 req.session.cookie.expires = false;
                 console.log("Session set to expire on browser close.");
             }
-            if (user.role === 'super_admin') {
-                res.redirect('/admin');
-            } else if (user.role === 'sales') {
+            if (user.role === 'sales') {
                 res.redirect('/dashboard/customers');
             } else {
                 res.redirect('/dashboard');

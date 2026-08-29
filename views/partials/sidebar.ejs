@@ -1,4 +1,19 @@
+<div id="sidebarBackdrop" class="sidebar-backdrop"></div>
+
 <div id="sidebar" class="fancy-sidebar">
+    <!-- Mobile Header inside Sidebar -->
+    <div class="sidebar-mobile-header d-flex d-lg-none align-items-center justify-content-between px-3 py-3 border-bottom mb-2 bg-light">
+        <div class="d-flex align-items-center gap-2">
+            <img src="/bird_crm_logo.png" alt="Bird CRM" class="rounded-circle" style="width: 36px; height: 36px; object-fit: cover;">
+            <span class="fw-bold fs-6 text-dark">القائمة الرئيسية</span>
+        </div>
+        <button type="button" id="sidebarCloseBtn" class="btn btn-sm btn-white rounded-circle p-1 d-flex align-items-center justify-content-center border shadow-sm" style="width: 32px; height: 32px; background: #fff;" aria-label="إغلاق">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-x-lg text-secondary" viewBox="0 0 16 16">
+                <path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8z"/>
+            </svg>
+        </button>
+    </div>
+
     <div class="sidebar-header text-center d-none d-lg-block">
         <img src="/bird_crm_logo.png" alt="Bird CRM" class="sidebar-logo rounded-circle border border-primary border-2 shadow">
     </div>
@@ -419,32 +434,72 @@
         margin-bottom: 1rem;
     }
 
+    /* Mobile Backdrop Overlay */
+    .sidebar-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(15, 23, 42, 0.5);
+        backdrop-filter: blur(4px);
+        -webkit-backdrop-filter: blur(4px);
+        z-index: 1045;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.3s ease, visibility 0.3s ease;
+    }
+
+    .sidebar-backdrop.show {
+        opacity: 1;
+        visibility: visible;
+    }
+
     /* Mobile Styles */
     @media (max-width: 992px) {
         .fancy-sidebar {
-            right: -320px;
-            top: 72px;
-            width: 280px;
-            height: calc(100vh - 72px);
+            right: -320px !important;
+            top: 0 !important;
+            bottom: 0 !important;
+            width: 290px !important;
+            max-width: 85vw !important;
+            height: 100vh !important;
             border-radius: 0 !important;
             border-top: none !important;
             border-bottom: none !important;
-            border-right: 1px solid rgba(0, 0, 0, 0.08) !important;
-        }
-
-        .fancy-sidebar .sidebar-label {
-            opacity: 1;
-            transform: translateX(0);
-            display: inline;
-        }
-
-        .fancy-sidebar .sidebar-version .sidebar-label {
-            display: inline;
+            border-left: 1px solid rgba(0, 0, 0, 0.08) !important;
+            border-right: none !important;
+            background: #ffffff !important;
+            box-shadow: none;
+            z-index: 1050 !important;
+            padding: 0 0 1rem 0 !important;
+            transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
         }
 
         .fancy-sidebar.mobile-active {
-            right: 0px;
-            box-shadow: -5px 0 25px rgba(0, 0, 0, 0.1);
+            right: 0px !important;
+            box-shadow: -8px 0 35px rgba(0, 0, 0, 0.2) !important;
+        }
+
+        .fancy-sidebar .sidebar-menu {
+            padding: 0 12px;
+            gap: 6px;
+        }
+
+        .fancy-sidebar .sidebar-label {
+            opacity: 1 !important;
+            transform: none !important;
+            display: inline-block !important;
+            font-size: 14px;
+        }
+
+        .fancy-sidebar .sidebar-version .sidebar-label {
+            display: inline-block !important;
+        }
+
+        .fancy-sidebar .sidebar-link {
+            padding: 10px 12px;
+            gap: 12px;
         }
     }
 </style>
