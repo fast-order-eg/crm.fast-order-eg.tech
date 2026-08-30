@@ -3414,11 +3414,12 @@ router.post('/customers/assign', async (req, res) => {
             });
         }
 
-        // إرسال إشعار لجروب الواتساب الخاص بالعمل
+        // إرسال إشعار لجروب الواتساب الخاص بالعمل عبر طابور الحماية في الخلفية
         if (targetUserId) {
             const whatsappMsg = `📢 *تم تعيين عميل جديد!*\n\n🔖 كود العميل: ${customer.customerNumber || customer.id}\n👤 العميل: ${customer.customerName || 'عميل واتساب'}\n📞 الرقم: ${customer.phoneNumber}\n👨‍💼 الموظف المسؤول: ${newEmployeeName}\n🕐 وقت التعيين: ${new Date().toLocaleString('en-US', { hour12: true })}`;
-            const { sendWhatsAppNotification } = await import('../services/notificationService.js');
-            await sendWhatsAppNotification(customer.UserId, whatsappMsg);
+            import('../services/notificationService.js').then(({ sendWhatsAppNotification }) => {
+                sendWhatsAppNotification(customer.UserId, whatsappMsg).catch(e => console.error('Error sending WhatsApp assign notification:', e));
+            }).catch(impErr => console.error('Error importing notificationService:', impErr));
         }
 
         res.json({ success: true });
