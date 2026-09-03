@@ -2495,6 +2495,96 @@ export async function handleIncomingUnifiedMessage({
             return;
         }
 
+        // 10.5 🎙️ Smart Voice Triggers (Automated Voice Note Delivery for Key Sales Moments)
+        if (text || isMediaMessage) {
+            const rawSearch = (text || '').toLowerCase();
+            const norm = rawSearch.replace(/[إأآا]/g, 'ا').replace(/[ة]/g, 'ه').replace(/[ى]/g, 'ي');
+
+            // Trigger A: سؤال العملاء هتيجي منين؟ / إزاي هسوق للمتجر؟
+            const trafficTriggers = [
+                'العملا هتيجي', 'الزباين هتيجي', 'الزبائن هتيجي', 'ازاي اجيب زباين', 'ازاي اجيب عملا',
+                'بيسوق لنفسه', 'مين هيسوق', 'العملا هتيجي منين', 'الزباين هتيجي منين', 'الناس هتعرف المتجر ازاي',
+                'هجيب مبيعات ازاي', 'العملا هتيجي علي المتجر', 'العملاء هتيجى منين', 'العملاء هتيجي منين'
+            ];
+            const isTrafficQuestion = trafficTriggers.some(t => norm.includes(t.replace(/[إأآا]/g, 'ا').replace(/[ة]/g, 'ه').replace(/[ى]/g, 'ي')));
+
+            if (isTrafficQuestion) {
+                console.log(`🎙️ [Smart Voice Trigger] Customer ${remoteJid} asked how customers/traffic come. Sending voice note.`);
+                const voicePath = path.join(process.cwd(), 'public', 'uploads', 'audio', 'voice_how_customers_come.ogg');
+                if (fs.existsSync(voicePath)) {
+                    await sendHumanMessage(sock, remoteJid, {
+                        audio: { url: voicePath },
+                        ptt: true,
+                        mimetype: 'audio/ogg; codecs=opus'
+                    }, { userId });
+
+                    const savedAudio = await Message.create({
+                        UserId: userId,
+                        remoteJid,
+                        role: 'model',
+                        content: '🎙️ رسالة صوتية: شرح كيفية وصول العملاء والمبيعات للمتجر',
+                        media_url: '/uploads/audio/voice_how_customers_come.ogg',
+                        status: 'sent'
+                    });
+                    if (io) io.to(`user_${userId}`).emit('new_message', savedAudio);
+
+                    const followText = `سؤالك في الجون ومهم جداً يا فندم! 🌸 استمع للريكورد الصوتي ده بيوضحلك بالظبط إزاي الزباين بتدخل متجرك وإزاي بنساعدك تعمل إعلانات تجيبلك أوردرات من أول يوم ✨`;
+                    await sendHumanMessage(sock, remoteJid, { text: followText }, { userId });
+                    const savedTxt = await Message.create({ UserId: userId, remoteJid, role: 'model', content: followText, status: 'sent' });
+                    if (io) io.to(`user_${userId}`).emit('new_message', savedTxt);
+                    return;
+                }
+            }
+
+            // Trigger B: إرسال صور المنتجات أو تفاصيل المنتجات أو رابط الصفحة
+            const productKeywords = [
+                'صور المنتجات', 'دي منتجاتي', 'رابط صفحتي', 'لينك صفحتي', 'صفحتي اهي',
+                'بعتلك الصور', 'شوف الصور', 'المنتجات دي', 'صور دي', 'facebook.com', 'instagram.com'
+            ];
+            const isProductText = productKeywords.some(t => norm.includes(t.replace(/[إأآا]/g, 'ا').replace(/[ة]/g, 'ه').replace(/[ى]/g, 'ي')));
+            const isProductImage = (messageType === 'imageMessage') && (
+                rawSearch.includes('منتج') || rawSearch.includes('سعر') || rawSearch.includes('صفح') ||
+                rawSearch.includes('جنيه') || rawSearch.includes('جنية') || rawSearch.includes('ستاند') ||
+                rawSearch.includes('شاحن') || rawSearch.includes('صور')
+            );
+
+            if (isProductText || isProductImage) {
+                console.log(`🎙️ [Smart Voice Trigger] Customer ${remoteJid} sent products or page. Sending voice note.`);
+                const voicePath = path.join(process.cwd(), 'public', 'uploads', 'audio', 'voice_received_products.ogg');
+                if (fs.existsSync(voicePath)) {
+                    await sendHumanMessage(sock, remoteJid, {
+                        audio: { url: voicePath },
+                        ptt: true,
+                        mimetype: 'audio/ogg; codecs=opus'
+                    }, { userId });
+
+                    const savedAudio = await Message.create({
+                        UserId: userId,
+                        remoteJid,
+                        role: 'model',
+                        content: '🎙️ رسالة صوتية: استلام المنتجات وتجهيز المتجر',
+                        media_url: '/uploads/audio/voice_received_products.ogg',
+                        status: 'sent'
+                    });
+                    if (io) io.to(`user_${userId}`).emit('new_message', savedAudio);
+
+                    const followText = `استلمت بيانات منتجاتك يا فندم بنجاح! 🚀 إحنا معاك خطوة بخطوة وهنساعدك نرفع أول منتجات على متجرك كهدية مننا.\n\nتقدر تسجل حسابك في دقيقة من هنا عشان نبدأ نرفعهم فوراً:\n👉 https://app.fast-order-eg.tech/register`;
+                    await sendHumanMessage(sock, remoteJid, { text: followText }, { userId });
+                    const savedTxt = await Message.create({ UserId: userId, remoteJid, role: 'model', content: followText, status: 'sent' });
+                    if (io) io.to(`user_${userId}`).emit('new_message', savedTxt);
+
+                    // Hot Lead Notification to Sales Control Group
+                    try {
+                        const notifyMsg = `🔥 *فرصة بيع ساخنة (العميل أرسل منتجاته / صفحته)!* 🔥\n\n👤 العميل: ${conversation.customerName || customerPhone}\n📱 الرقم: ${customerPhone || remoteJid.split('@')[0]}\n\nالعميل بعت صور أو بيانات منتجاته وجاري تجهيز المتجر له. يرجى المتابعة الفورية!`;
+                        await notifyControlGroup(userId, notifyMsg);
+                    } catch (e) {
+                        console.error('Failed to notify control group about hot product lead:', e);
+                    }
+                    return;
+                }
+            }
+        }
+
         // 11. Prepare Media Buffer if media exists
         if (incomingMediaUrl && !mediaBuffer) {
             try {
