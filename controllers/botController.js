@@ -399,10 +399,21 @@ async function callVertexAI(remoteJid, userText, mediaBuffer = null, mediaMime =
     systemInstruction += '\n\n 💡 **تعليمات هامة جداً لأسلوب الحوار والرد (يجب الالتزام بها):**\n';
     systemInstruction += '1. أنت مساعد مبيعات ذكي ومحترف، ردودك دائماً بالعامية المصرية اللطيفة والمهذبة كأنك شخص حقيقي شاطر وودود بيتكلم على واتساب.\n';
     systemInstruction += '2. 🗣️ **أسلوب الدردشة الطبيعي (Conversational Tone):** تجنب تماماً القوائم النقطية الطويلة أو الشروط الجافة؛ خلي ردك في فقرة أو فقرتين كلام طبيعي وسلس ومباشر زي دردشة الواتساب الحقيقية.\n';
-    systemInstruction += '3. 🤝 **طمأنة المبتدئين (Empathy & Reassurance):** إذا لاحظت أي تردد أو خوف من صعوبة البداية، طمّن العميل دائماً بروح دافية: "متشيلش هم خالص يا فندم! المنصة معمولة مخصوص عشان تكون سهلة جداً للمبتدئين من الموبايل وبدون أي تعقيد، وإحنا معاك خطوة بخطوة لحد ما تفتح وتبيع أول أوردر 🚀".\n';
+    systemInstruction += '3. 🤝 **طمأنة المبتدئين (Empathy & Reassurance):** إذا لاحظت تردد أو خوف من صعوبة البداية، طمّن العميل بروح دافية وأسلوب عفوي متنوع، وتجنب تكرار نفس الجملة بحذافيرها في كل رسالة.\n';
     systemInstruction += '4. يمنع منعاً باتاً تأليف أي معلومة أو سعر أو رابط من خيالك؛ التزم بما هو وارد في التعليمات فقط.\n';
     systemInstruction += '5. 🎯 **قاعدة استمرار الحوار (Question Hook):** احرص دائماً على إنهاء ردك بسؤال تفاعلي واحد ذكي ومرتبط بسياق كلام العميل، ليشجعه على اتخاذ الخطوة التالية مباشرة (مثل التسجيل في المتجر، إضافة أول منتج، أو مشاهدة فيديو الشرح المناسب).\n';
-    systemInstruction += '6. 📹 **إرسال روابط الشرح:** إذا سأل العميل عن طريقة عمل شيء في المتجر (مثل: التسجيل، إضافة منتجات، تعديل أسعار الشحن، البانر، الأقسام، المحفظة، الأوردرات)، اشرح له الخطوة في سطرين وأرسل له الرابط المناسب فقط من فيديوهات الشرح المتاحة في التعليمات.\n';
+    systemInstruction += '6. 📹 **إرسال روابط الشرح:** إذا سأل العميل عن طريقة عمل شيء في المتجر، اشرح له الخطوة في سطرين وأرسل له الرابط المناسب فقط لسؤاله من قائمة الفيديوهات التالية:\n';
+    systemInstruction += '   - كيفية التسجيل على المتجر: https://youtube.com/shorts/Enq-JEUI3pU?si=r5LljIhpVDWuX6hc\n';
+    systemInstruction += '   - كيفية شحن المحفظة: https://youtube.com/shorts/I5HOD7b3gYQ?si=u36ZCeytwKByiuY9\n';
+    systemInstruction += '   - شرح الباقات والأسعار: https://youtube.com/shorts/PIwmQYy_R8w?si=rOVsuZi74OTCLzPu\n';
+    systemInstruction += '   - كيفية تنزيل وإضافة المنتجات: https://youtube.com/shorts/tjeDdpg5n4g?si=EBnp5zBCke994hQ4\n';
+    systemInstruction += '   - معاينة الأوردرات وتغيير الحالة: https://youtube.com/shorts/iTJ61zqzbzA?si=pY_qXDrtV_J3JYyg\n';
+    systemInstruction += '   - تعديل أسعار الشحن: https://youtube.com/shorts/Ca0WSDowAzU?si=notf9jgEacRctxsO\n';
+    systemInstruction += '   - تعديل بيانات المنتج: https://youtube.com/shorts/Y4FWEtpyACU?si=2RAJi8PAV3cx6kEs\n';
+    systemInstruction += '   - كيفية عمل وتغيير بانر المتجر: https://youtube.com/shorts/PN8o_IIsf3U?si=8v8CO6GQLphb2i31\n';
+    systemInstruction += '   - زرار المتغير (الألوان والمقاسات): https://youtube.com/shorts/nNO3On-3H54?si=thBWH41buE0fY685\n';
+    systemInstruction += '   - إضافة الأقسام والتصنيفات الرئيسية: https://youtube.com/shorts/ngMxhr4GTbc?si=y6jI7fqiI5pIGifz\n';
+    systemInstruction += '   ⚠️ قاعدة هامة: أرسل فيديو واحد فقط محدد متعلق بسؤال العميل، ولا ترسل فيديوهات مجمعة.\n';
     systemInstruction += '7. إذا سألك العميل سؤالاً فنياً معقداً جداً لا تعرفه أو طلب صراحة التحدث لموظف بشري، يجب عليك الرد بكلمة واحدة فقط وهي بالضبط: [HANDOFF]\n';
     systemInstruction += '8. لا تكتب أي كلام آخر مع كلمة [HANDOFF].\n';
 
@@ -483,23 +494,43 @@ async function callVertexAI(remoteJid, userText, mediaBuffer = null, mediaMime =
         let parsedReply = { text: "عذراً، حدث خطأ في معالجة الرد.", show_products: [] };
         try {
             if (rawReply) {
-                const cleanJson = rawReply.replace(/^```json\s*/, "").replace(/\s*```$/, "").trim();
-                const tempParsed = JSON.parse(cleanJson);
+                const cleanJson = rawReply.replace(/^```json\s*/i, "").replace(/^```\s*/, "").replace(/\s*```$/, "").trim();
+                let tempParsed = null;
+                try {
+                    tempParsed = JSON.parse(cleanJson);
+                } catch (jsonErr) {
+                    // Regex fallback to extract text value from raw JSON like {"text": "..."}
+                    const textMatch = cleanJson.match(/"text"\s*:\s*"((?:\\.|[^"\\])*)"/s);
+                    if (textMatch && textMatch[1]) {
+                        tempParsed = {
+                            text: textMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\').trim(),
+                            show_products: []
+                        };
+                    }
+                }
+
                 if (typeof tempParsed === 'string') {
                     parsedReply.text = tempParsed;
                 } else if (typeof tempParsed === 'object' && tempParsed !== null) {
                     parsedReply = tempParsed;
-                    // Fix AI hallucinatory keys
                     if (!parsedReply.text) {
-                        parsedReply.text = parsedReply.response || parsedReply.greeting || parsedReply.answer || rawReply;
+                        parsedReply.text = parsedReply.response || parsedReply.greeting || parsedReply.answer || cleanJson;
                     }
                 } else {
-                    parsedReply.text = rawReply;
+                    parsedReply.text = cleanJson.startsWith('{') ? "أهلاً بك! كيف يمكنني مساعدتك اليوم؟" : rawReply;
                 }
             }
         } catch (e) {
             console.error("Failed to parse AI JSON:", rawReply);
-            if (rawReply) parsedReply.text = rawReply;
+            parsedReply.text = "أهلاً بك! كيف يمكنني مساعدتك اليوم؟";
+        }
+        
+        // Final safety check: If text somehow still has raw JSON structure, strip it
+        if (typeof parsedReply.text === 'string' && parsedReply.text.trim().startsWith('{') && parsedReply.text.includes('"text"')) {
+            const match = parsedReply.text.match(/"text"\s*:\s*"((?:\\.|[^"\\])*)"/s);
+            if (match && match[1]) {
+                parsedReply.text = match[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\').trim();
+            }
         }
         
         // DEBUG: Print AI reply to see what it actually returns
@@ -739,6 +770,22 @@ export async function sendInteractiveButtons(sock, remoteJid, userId, io, menuId
 
         if (buttons.length === 0) return false; // No buttons configured for this menu
 
+        // 🛡️ Anti-Spam / Cooldown: Avoid resending the exact same menu to this remoteJid within 30 seconds
+        const recentMenuMsg = await Message.findOne({
+            where: {
+                UserId: userId,
+                remoteJid,
+                role: 'model',
+                content: { [Op.like]: `%\n\n[M:${menu.id}]%` },
+                createdAt: { [Op.gte]: new Date(Date.now() - 30 * 1000) }
+            },
+            order: [['createdAt', 'DESC']]
+        });
+        if (recentMenuMsg) {
+            console.log(`⏳ [Text Menu Cooldown] Menu ${menu.id} was already sent to ${remoteJid} within the last 30s. Skipping duplicate send.`);
+            return false;
+        }
+
         // Use custom welcome message from menu
         const baseWelcome = menu.welcomeMessage || 'أهلاً بيك! 👋 اختار من القائمة:';
         const welcomeMsg = getDynamicGreeting(customerName, baseWelcome);
@@ -800,9 +847,27 @@ export async function handleButtonResponse(sock, remoteJid, buttonId, userId, io
                                 if (!sentCaption) {
                                     await sendHumanMessage(sock, remoteJid, { image: { url: imagePath }, caption: productCaption }, { userId });
                                     sentCaption = true;
+                                    const svProd = await Message.create({
+                                        UserId: userId,
+                                        remoteJid,
+                                        role: 'model',
+                                        content: productCaption,
+                                        media_url: img.url,
+                                        status: 'sent'
+                                    });
+                                    if (io) io.to(`user_${userId}`).emit('new_message', svProd);
                                 } else {
                                     await new Promise(r => setTimeout(r, 2000));
                                     await sendHumanMessage(sock, remoteJid, { image: { url: imagePath } }, { userId });
+                                    const svProdImg = await Message.create({
+                                        UserId: userId,
+                                        remoteJid,
+                                        role: 'model',
+                                        content: '📷 صورة',
+                                        media_url: img.url,
+                                        status: 'sent'
+                                    });
+                                    if (io) io.to(`user_${userId}`).emit('new_message', svProdImg);
                                 }
                             }
                         }
@@ -811,6 +876,14 @@ export async function handleButtonResponse(sock, remoteJid, buttonId, userId, io
                 
                 if (!sentCaption) {
                     await sendHumanMessage(sock, remoteJid, { text: productCaption }, { userId });
+                    const svProdTxt = await Message.create({
+                        UserId: userId,
+                        remoteJid,
+                        role: 'model',
+                        content: productCaption,
+                        status: 'sent'
+                    });
+                    if (io) io.to(`user_${userId}`).emit('new_message', svProdTxt);
                 }
                 
                 productDetailsMsg = productCaption;
@@ -1004,10 +1077,30 @@ export async function handleButtonResponse(sock, remoteJid, buttonId, userId, io
                                 video: { url: mediaPath },
                                 mimetype: 'video/mp4'
                             }, { userId });
+
+                            const savedVideoMsg = await Message.create({
+                                UserId: userId,
+                                remoteJid,
+                                role: 'model',
+                                content: '🎥 فيديو',
+                                media_url: mediaUrl,
+                                status: 'sent'
+                            });
+                            if (io) io.to(`user_${userId}`).emit('new_message', savedVideoMsg);
                         } else {
                             await sendHumanMessage(sock, remoteJid, {
                                 image: { url: mediaPath }
                             }, { userId });
+
+                            const savedImgMsg = await Message.create({
+                                UserId: userId,
+                                remoteJid,
+                                role: 'model',
+                                content: '📷 صورة',
+                                media_url: mediaUrl,
+                                status: 'sent'
+                            });
+                            if (io) io.to(`user_${userId}`).emit('new_message', savedImgMsg);
                         }
                     }
                     // Delay between media
@@ -2191,8 +2284,37 @@ export async function handleIncomingUnifiedMessage({
 
         // 4. 🛑 CRITICAL: Handoff Guard (Is Sales Representative Handling This Chat?)
         if (conversation.is_handoff) {
-            console.log(`🛑 [Handoff Active] Bot is paused for chat ${remoteJid}. Human agent is handling conversation.`);
-            return;
+            // Check if a real human agent has actually intervened and chatted with this customer
+            const humanMessageExists = await Message.findOne({
+                where: {
+                    UserId: userId,
+                    remoteJid,
+                    role: 'model',
+                    senderName: { [Op.ne]: null }
+                }
+            });
+
+            // Check if customer is interacting via button, number, or active button label
+            const isNumericChoice = text && !isNaN(text.trim()) && text.trim() !== '';
+            let isButtonLabelMatch = false;
+            if (text) {
+                const btnMatch = await InteractiveButton.findOne({
+                    where: { UserId: userId, isActive: true, label: text.trim() }
+                });
+                if (btnMatch) isButtonLabelMatch = true;
+            }
+
+            const isCustomerAction = buttonId || isNumericChoice || isButtonLabelMatch;
+
+            // If no human agent has stepped in yet, and customer took an action or was auto-handed off due to inactivity:
+            if (!humanMessageExists && (isCustomerAction || customer.status === 'awaiting_sales')) {
+                console.log(`🔄 [Auto-Handoff Recovery] Customer ${remoteJid} returned (${buttonId || text}) while awaiting sales. Reactivating bot.`);
+                await Conversation.update({ is_handoff: false }, { where: { UserId: userId, remoteJid } });
+                conversation.is_handoff = false;
+            } else {
+                console.log(`🛑 [Handoff Active] Bot is paused for chat ${remoteJid}. Human agent is handling conversation.`);
+                return;
+            }
         }
 
         // 5. Button / Quick Reply Selection
@@ -2200,6 +2322,19 @@ export async function handleIncomingUnifiedMessage({
             console.log(`🔘 [Buttons] Customer ${remoteJid} selected button: ${buttonId}`);
             await handleButtonResponse(sock, remoteJid, buttonId, userId, io, customerPhone);
             return;
+        }
+
+        // 5.5 Text Button Label Match (e.g. customer typed "متجر إلكتروني مجاني")
+        if (text && user.bot_mode !== 'ai_only' && !user.buttons_disabled) {
+            const cleanUserText = text.trim();
+            const matchedBtn = await InteractiveButton.findOne({
+                where: { UserId: userId, isActive: true, label: cleanUserText }
+            });
+            if (matchedBtn) {
+                console.log(`🔘 [Text Button Match] Customer ${remoteJid} typed button label: "${matchedBtn.label}"`);
+                await handleButtonResponse(sock, remoteJid, matchedBtn.buttonId, userId, io, customerPhone);
+                return;
+            }
         }
 
         // 6. Text Menu Numeric Selection Fallback (e.g. customer typed "1", "2")
@@ -2450,6 +2585,14 @@ export async function handleIncomingUnifiedMessage({
                     console.error('[AI Handoff] ❌ Failed to notify control group:', e);
                 }
                 return;
+            }
+
+            // Ensure NO raw JSON brackets or keys leak to the client
+            if (replyText.trim().startsWith('{') && replyText.includes('"text"')) {
+                const match = replyText.match(/"text"\s*:\s*"((?:\\.|[^"\\])*)"/s);
+                if (match && match[1]) {
+                    replyText = match[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\').trim();
+                }
             }
 
             // Clean Markdown Links
@@ -2897,23 +3040,24 @@ export const checkInactivitySummary = async () => {
                 const orderedMsgs = messages.reverse();
                 const chatLog = orderedMsgs.map(m => {
                     const roleLabel = m.role === 'user' ? '👤 عميل' : '🤖 بوت';
-                    let content = m.content || '';
+                    let content = (m.content || '').trim();
                     
                     if (m.role === 'model') {
-                        const isMenu = content.includes('1️⃣') || content.includes('2️⃣') || 
-                                       content.includes('1-') || content.includes('2-') || 
-                                       content.includes('اختر') || content.includes('قائمة') ||
-                                       content.length > 250;
+                        // Check if message is an actual menu (tagged with [M:ID] or contains multiple numbered options)
+                        const isRealMenu = content.includes('[M:') || (content.includes('1️⃣') && content.includes('2️⃣'));
                                        
-                        if (isMenu) {
-                            const lines = content.split('\n').map(l => l.trim()).filter(Boolean);
-                            const menuTitle = lines[0] || 'قائمة خيارات';
-                            content = `[أرسل قائمة الخيارات: ${menuTitle.substring(0, 60)}]`;
+                        if (isRealMenu) {
+                            const cleanLines = content.replace(/\[M:\d+\]/g, '').split('\n').map(l => l.trim()).filter(Boolean);
+                            const menuTitle = cleanLines[0] || 'قائمة خيارات';
+                            content = `[أرسل قائمة الخيارات: ${menuTitle.substring(0, 50)}]`;
                         } else {
-                            content = content.substring(0, 200);
+                            // Normal bot response (explanation, features, product info, video)
+                            const cleanContent = content.replace(/\[M:\d+\]/g, '').trim();
+                            content = cleanContent.length > 250 ? cleanContent.substring(0, 250) + '...' : cleanContent;
                         }
                     } else {
-                        content = content.substring(0, 200);
+                        // Customer message - keep full text (up to 300 chars) preserving multi-lines cleanly
+                        content = content.length > 300 ? content.substring(0, 300) + '...' : content;
                     }
                     
                     return `${roleLabel}: ${content}`;
