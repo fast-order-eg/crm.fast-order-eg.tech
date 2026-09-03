@@ -66,12 +66,19 @@ export function isEmployeeActiveNow(employee) {
 /**
  * تخصيص العميل تلقائياً لموظف مبيعات نشط (Round Robin) بناءً على الأقل عملاء.
  */
-export async function assignCustomerToSales(customerId, botOwnerId, io = null, skipNotification = false, preserveStatus = false) {
+export async function assignCustomerToSales(customerId, botOwnerId, io = null, skipNotification = false, preserveStatus = false, forceReassign = false) {
     try {
         const customer = await Customer.findByPk(customerId);
         if (!customer) {
             console.error(`[Assignment] Customer with ID ${customerId} not found.`);
             return null;
+        }
+
+        // 🛡️ قاعدة صارمة: إذا كان العميل معيناً بالفعل لموظف سيلز، لا يتم تغييره آلياً أبداً إلا يدوياً من الداشبورد
+        if (customer.assignedToUserId && !forceReassign) {
+            console.log(`🔒 [Assignment Guard] Customer ${customerId} is already assigned to User ${customer.assignedToUserId}. Skipping auto reassignment.`);
+            const existingRep = await User.findByPk(customer.assignedToUserId);
+            return existingRep;
         }
 
         // 1. Check Lead Routing Rules (Peak Round-Robin & Off-Peak Default Rep)
