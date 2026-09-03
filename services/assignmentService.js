@@ -222,16 +222,8 @@ export async function assignCustomerToSales(customerId, botOwnerId, io = null, s
             console.error('Error creating notification in auto-assignment:', notifErr);
         }
 
-        // إرسال إشعار لجروب الواتساب الخاص بالعمل
-        if (!skipNotification) {
-            try {
-                const whatsappMsg = `📢 *تم تعيين عميل جديد تلقائياً!*\n\n🔖 كود العميل: ${customer.customerNumber || customer.id}\n👤 العميل: ${customer.customerName || 'عميل واتساب'}\n📞 الرقم: ${customer.phoneNumber}\n👨‍💼 الموظف المسؤول: ${selectedEmp.fullName || selectedEmp.username}\n🕐 وقت التعيين: ${new Date().toLocaleString('en-GB', { timeZone: 'Africa/Cairo', hour12: true })}`;
-                const { sendWhatsAppNotification } = await import('./notificationService.js');
-                await sendWhatsAppNotification(botOwnerId, whatsappMsg);
-            } catch (wsErr) {
-                console.error('Error sending WhatsApp notification in auto-assignment:', wsErr);
-            }
-        }
+        // إرسال إشعار لجروب الواتساب الخاص بالعمل - تم إلغاؤه للاكتفاء بإشعار ملخص المحادثة فقط
+        // if (!skipNotification) { ... }
 
         console.log(`✅ [Assignment] Customer ${customer.customerName || customer.phoneNumber} assigned to ${selectedEmp.fullName} (Active customers count: ${typeof candidates !== "undefined" && candidates.length > 0 ? candidates[0].activeCount : "N/A (Shift Split)"})`);
         return selectedEmp;

@@ -3202,9 +3202,33 @@ export const checkInactivitySummary = async () => {
                 const customerDisplay = conv.customerName || conv.phoneNumber || (conv.remoteJid ? conv.remoteJid.split('@')[0] : 'Unknown');
                 const phoneDisplay = conv.phoneNumber || (conv.remoteJid ? conv.remoteJid.split('@')[0] : 'Unknown');
                 const customerCode = conv.Customer ? (conv.Customer.customerNumber || conv.Customer.id || 'غير معروف') : 'غير معروف';
+                const customerId = conv.Customer ? conv.Customer.id : (conv.CustomerId || '');
                 const assignedSales = conv.Customer && conv.Customer.assignedTo ? (conv.Customer.assignedTo.fullName || conv.Customer.assignedTo.username) : 'غير مخصص';
 
-                const summaryMsg = `📋 *ملخص محادثة منتهية (لا رد منذ 15 دقيقة)*\n\n🔖 كود العميل: ${customerCode}\n👤 العميل: ${customerDisplay}\n📱 الرقم: ${phoneDisplay}\n👨‍💼 الموظف المسؤول: ${assignedSales}\n📱 المنصة: واتساب\n🕐 آخر رسالة: ${conv.lastMessageAt?.toLocaleTimeString('ar-EG', { timeZone: 'Africa/Cairo' }) || '-'}\n\n─────────────────\n${chatLog}\n─────────────────\n\nيرجى المتابعة مع العميل إذا لزم الأمر.`;
+                // Format Last Message Time: English digits only, 12-hour format with AM/PM, no seconds (DD/MM/YYYY hh:mm A)
+                let lastMsgTimeFormatted = '-';
+                if (conv.lastMessageAt) {
+                    try {
+                        const parts = new Intl.DateTimeFormat('en-GB', {
+                            timeZone: 'Africa/Cairo',
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: true
+                        }).formatToParts(new Date(conv.lastMessageAt));
+                        const m = {};
+                        parts.forEach(p => m[p.type] = p.value);
+                        lastMsgTimeFormatted = `${m.day}/${m.month}/${m.year} ${m.hour}:${m.minute} ${(m.dayPeriod || '').toUpperCase()}`;
+                    } catch (e) {
+                        lastMsgTimeFormatted = conv.lastMessageAt.toISOString();
+                    }
+                }
+
+                const noteLink = customerId ? `\n\n🔗 *لإضافة ملاحظات للعميل مباشرة:*\nhttps://crm.fast-order-eg.tech/dashboard/customers?openNote=${customerId}` : '';
+
+                const summaryMsg = `📋 *ملخص محادثة منتهية (لا رد منذ 15 دقيقة)*\n\n🔖 كود العميل: ${customerCode}\n👤 العميل: ${customerDisplay}\n📱 الرقم: ${phoneDisplay}\n👨‍💼 الموظف المسؤول: ${assignedSales}\n📱 المنصة: واتساب\n🕐 آخر رسالة: ${lastMsgTimeFormatted}\n\n─────────────────\n${chatLog}\n─────────────────${noteLink}`;
 
                 await sendSystemNotification({
                     userId: user.id,

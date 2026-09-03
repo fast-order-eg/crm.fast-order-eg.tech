@@ -101,6 +101,12 @@ async function processNotificationQueue() {
  */
 export async function sendSystemNotification({ userId, assignedToUserId = null, message, type = 'general' }) {
     try {
+        // إدارة الإشعارات: إيقاف إشعارات التعيين اللحظي وتدخل المبيعات والاكتفاء بإشعار ملخص المحادثة بعد 15 دقيقة فقط
+        if (type === 'handoff' || type === 'auto_assignment' || type === 'sales_handoff') {
+            console.log(`🔇 [NotificationDispatcher] Muted "${type}" WhatsApp group notification per configuration.`);
+            return false;
+        }
+
         // 1. Get Global Notification Settings
         const enableNotifications = await getSetting('enable_whatsapp_notifications', userId);
         if (enableNotifications === false || enableNotifications === 'false') {
