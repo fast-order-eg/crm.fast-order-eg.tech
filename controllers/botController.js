@@ -790,16 +790,20 @@ export async function sendInteractiveButtons(sock, remoteJid, userId, io, menuId
         const baseWelcome = menu.welcomeMessage || 'أهلاً بيك! 👋 اختار من القائمة:';
         const welcomeMsg = getDynamicGreeting(customerName, baseWelcome);
 
-        // Bulletproof Fallback: Send as a Numbered Text Menu
-        let menuText = `${welcomeMsg}\n\n`;
-        buttons.forEach((btn, index) => {
-            const numberEmojis = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
-            const emoji = index < 10 ? numberEmojis[index] : `${index + 1}-`;
-            menuText += `${emoji} ${btn.label}\n`;
-        });
-        menuText += `\n👉 للاختيار، أرسل رقم الخدمة (مثلاً: 1)`;
+        // Clean Interactive Menu:
+        // Do NOT duplicate the button list or add "أرسل رقم الخدمة" when clickable buttons are displayed!
+        // The buttons appear directly below the welcome message for the customer to tap.
+        let menuText = welcomeMsg;
+        if (buttons.length > 3) {
+            menuText += `\n\n`;
+            buttons.forEach((btn, index) => {
+                const numberEmojis = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
+                const emoji = index < 10 ? numberEmojis[index] : `${index + 1}-`;
+                menuText += `${emoji} ${btn.label}\n`;
+            });
+        }
 
-        // Send CLEAN text to WhatsApp (User won't see the code)
+        // Send CLEAN text + buttons to WhatsApp (Customer taps button directly)
         const formattedButtons = buttons.map(b => ({ id: b.buttonId || `btn_${b.id}`, title: b.label }));
         await sendHumanMessage(sock, remoteJid, { text: menuText, buttons: formattedButtons }, { userId });
 
