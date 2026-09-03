@@ -855,7 +855,7 @@
             tbody.innerHTML = '';
 
             customers.forEach((cust, index) => {
-                const dateStart = cust.firstContactAt ? formatDateTime(cust.firstContactAt) : '—';
+                const dateStart = (cust.firstContactAt || cust.createdAt) ? formatDateTime(cust.firstContactAt || cust.createdAt) : '—';
                 const summaryText = cust.aiSummary || '';
                 const shortSummary = summaryText.length > 50 ? summaryText.substring(0, 50) + '...' : (summaryText || '—');
                 const serialNum = cust.customerNumber || cust.id;
@@ -906,7 +906,11 @@
                         <td class="small text-secondary fw-semibold">${serialNum}</td>
                         <td>
                             <div class="fw-bold text-dark">${cust.customerName || 'عميل واتساب'}</div>
-                            ${cust.email ? `<div class="small text-muted">${cust.email}</div>` : ''}
+                            <div class="small text-muted mt-1 d-flex align-items-center gap-1" style="font-size: 11.5px;">
+                                <i class="bi bi-clock-history text-secondary" style="font-size: 11px;"></i>
+                                <span>${dateStart}</span>
+                            </div>
+                            ${cust.email ? `<div class="small text-muted mt-0.5" style="font-size: 11px;">${cust.email}</div>` : ''}
                         </td>
                         <td class="text-center">
                             <div class="d-flex justify-content-center align-items-center gap-1" dir="ltr">

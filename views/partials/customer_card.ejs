@@ -6,7 +6,10 @@
                 <span class="badge bg-secondary opacity-75">#${cust.customerNumber || cust.id}</span>
                 <h6 class="fw-bold text-dark mb-0">${cust.customerName || 'عميل واتساب'}</h6>
             </div>
-            <code class="text-secondary small">${cust.phoneNumber}</code>
+            <div class="d-flex align-items-center gap-2 mt-1">
+                <code class="text-secondary small">${cust.phoneNumber}</code>
+                <span class="text-muted d-flex align-items-center gap-1" style="font-size: 11px;"><i class="bi bi-clock-history"></i>${dateStart}</span>
+            </div>
         </div>
         <div>
             <a href="https://wa.me/${cust.phoneNumber}" target="_blank" class="btn btn-sm btn-outline-success px-2 py-1 rounded me-1" title="محادثة واتساب">
