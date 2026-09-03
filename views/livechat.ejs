@@ -667,13 +667,31 @@
     let currentCustomerNotes = '';
     let currentCustomerNotesUpdatedAt = null;
     let currentCustomerDisplayName = '';
-    const io_=io();
-    io_.on('connect',()=>io_.emit('join_room','user_<%= targetUserId %>'));
+    const MENU_BUTTONS_MAP = {
+        11: [
+            { label: '📹 فيديو شرح التسجيل في 30 ثانية' },
+            { label: '🛍️ معاينة شكل متجر تجريبي حقيقي' },
+            { label: '💬 التحدث مع المبيعات / خدمات أخرى' }
+        ],
+        8: [
+            { label: '🎥 فيديوهات UGC' },
+            { label: '📊 باكدجات إدارة الصفحات' },
+            { label: '💻 متجر إلكتروني مجاني' },
+            { label: '🚀 الإعلانات الممولة' },
+            { label: '📱 الصفحات الجاهزة' },
+            { label: '📞 العنوان والتواصل' },
+            { label: '👨‍💼 خدمة عملاء' }
+        ]
+    };
+
     io_.on('new_message',msg=>{
         const el=document.querySelector(`.lc-item[data-jid="${msg.remoteJid}"]`);
-        let content = msg.content ? msg.content.replace(/\[M:\d+\]/g, '').trim() : '';
+        const rawContent = msg.content || '';
+        let content = rawContent.replace(/\[M:\d+\]/g, '').trim();
+        const menuMatch = rawContent.match(/\[M:(\d+)\]/);
+        const menuId = menuMatch ? parseInt(menuMatch[1]) : null;
         if(el) el.querySelector('.lc-prev').textContent=content;
-        if(msg.remoteJid===curJid) addBbl(content, msg.role==='user', new Date(msg.createdAt), msg.media_url || msg.mediaUrl, msg.messageId, msg.status);
+        if(msg.remoteJid===curJid) addBbl(content, msg.role==='user', new Date(msg.createdAt), msg.media_url || msg.mediaUrl, msg.messageId, msg.status, menuId);
     });
     
     io_.on('message_status', (data) => {
@@ -1096,7 +1114,13 @@
 
             const msgsList = Array.isArray(data) ? data : (data.messages || []);
             if (msgsList.length > 0) {
-                msgsList.forEach(m => addBbl(m.content ? m.content.replace(/\[M:\d+\]/g, '').trim() : '', m.role==='user', new Date(m.createdAt), m.media_url || m.mediaUrl, m.messageId, m.status));
+                msgsList.forEach(m => {
+                    const rawContent = m.content || '';
+                    const cleanText = rawContent.replace(/\[M:\d+\]/g, '').trim();
+                    const menuMatch = rawContent.match(/\[M:(\d+)\]/);
+                    const menuId = menuMatch ? parseInt(menuMatch[1]) : null;
+                    addBbl(cleanText, m.role==='user', new Date(m.createdAt), m.media_url || m.mediaUrl, m.messageId, m.status, menuId);
+                });
             } else {
                 msgsEl.innerHTML = '<div class="text-center p-4 text-muted" style="font-size:12px;"><i class="bi bi-chat-square" style="font-size:1.5rem;display:block;margin-bottom:6px;opacity:.4;"></i>لا توجد رسائل سابقة في هذه المحادثة</div>';
             }
@@ -1106,7 +1130,7 @@
         }
     }
 
-    function addBbl(text, isUser, date, mediaUrl, messageId, status){
+    function addBbl(text, isUser, date, mediaUrl, messageId, status, menuId = null){
         if (!text && !mediaUrl) return;
         const msgsEl = document.getElementById('lcMsgs');
         const div = document.createElement('div');
@@ -1138,6 +1162,18 @@
         const isGenericPlaceholder = text && ['رسالة صوتية 🎙️', '📷 صورة', 'صورة 📷', '🎥 فيديو', 'فيديو 🎥', '📄 مستند'].some(p => text.trim().includes(p));
         if (text && (!mediaUrl || !isGenericPlaceholder)) {
             contentHtml += `<div class="msg-text">${text}</div>`;
+        }
+
+        if (menuId && typeof MENU_BUTTONS_MAP !== 'undefined' && MENU_BUTTONS_MAP[menuId]) {
+            const btns = MENU_BUTTONS_MAP[menuId];
+            contentHtml += `
+                <div class="mt-2 pt-2 border-top border-light-subtle">
+                    <div class="small text-muted mb-1 fw-bold" style="font-size: 11px;"><i class="bi bi-ui-radios-grid text-primary"></i> أزرار تفاعلية مرسلة للعميل على الواتساب:</div>
+                    <div class="d-flex flex-wrap gap-1">
+                        ${btns.map(b => `<span class="badge bg-light text-dark border shadow-sm px-2 py-1" style="font-size: 11px;"><i class="bi bi-hand-index-thumb text-primary me-1"></i>${b.label}</span>`).join('')}
+                    </div>
+                </div>
+            `;
         }
 
         let statusHtml = '';
