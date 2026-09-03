@@ -2890,7 +2890,7 @@ router.get('/customers/data', async (req, res) => {
         const limit = parseInt(req.query.limit) || 10;
         const offset = (page - 1) * limit;
         
-        const { status, employeeId, search, dateFrom, dateTo, todayFollowUps } = req.query;
+        const { status, employeeId, search, dateFrom, dateTo, todayFollowUps, emptyNotes } = req.query;
         
         const whereClause = {};
         
@@ -2947,6 +2947,16 @@ router.get('/customers/data', async (req, res) => {
             whereClause.scheduledFollowUpAt = { [Op.not]: null };
         }
 
+        if (emptyNotes === 'true' || emptyNotes === true) {
+            whereClause[Op.and] = whereClause[Op.and] || [];
+            whereClause[Op.and].push({
+                [Op.or]: [
+                    { notes: null },
+                    { notes: '' },
+                    Sequelize.where(Sequelize.fn('TRIM', Sequelize.col('Customer.notes')), '')
+                ]
+            });
+        }
         
         const { count, rows } = await Customer.findAndCountAll({
             where: whereClause,
@@ -3547,11 +3557,22 @@ router.get('/customers/export', async (req, res) => {
             return res.status(403).send('غير مصرح لك بتصدير بيانات العملاء.');
         }
 
-        const { status, employeeId, search, dateFrom, dateTo, todayFollowUps } = req.query;
+        const { status, employeeId, search, dateFrom, dateTo, todayFollowUps, emptyNotes } = req.query;
         const whereClause = {};
 
         if (todayFollowUps === 'true') {
             whereClause.status = 'scheduled_follow_up';
+        }
+
+        if (emptyNotes === 'true' || emptyNotes === true) {
+            whereClause[Op.and] = whereClause[Op.and] || [];
+            whereClause[Op.and].push({
+                [Op.or]: [
+                    { notes: null },
+                    { notes: '' },
+                    Sequelize.where(Sequelize.fn('TRIM', Sequelize.col('notes')), '')
+                ]
+            });
         }
 
         if (employeeId && employeeId !== 'all') {

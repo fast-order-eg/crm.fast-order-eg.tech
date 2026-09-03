@@ -138,6 +138,9 @@
                     <button class="btn btn-primary rounded-circle d-flex align-items-center justify-content-center text-white shadow-sm" data-bs-toggle="modal" data-bs-target="#addCustomerModal" title="إضافة عميل" style="width: 40px; height: 40px; padding: 0;">
                         <i class="bi bi-person-plus-fill fs-5"></i>
                     </button>
+                    <button type="button" class="btn btn-outline-warning rounded-circle d-flex align-items-center justify-content-center" id="btnEmptyNotesToggle" onclick="toggleEmptyNotesFilter()" title="فلترة: عملاء بدون ملاحظات" style="width: 40px; height: 40px; padding: 0;">
+                        <i class="bi bi-journal-x fs-5"></i>
+                    </button>
                     <button type="button" class="btn btn-outline-primary rounded-circle d-flex align-items-center justify-content-center" id="btnViewTable" onclick="setViewMode('table')" title="عرض الجدول" style="width: 40px; height: 40px; padding: 0;">
                         <i class="bi bi-table fs-5"></i>
                     </button>
@@ -208,6 +211,12 @@
                         <div class="form-check form-switch mb-1">
                             <input class="form-check-input" type="checkbox" role="switch" id="filterTodayFollowUps" onchange="loadData(1)">
                             <label class="form-check-label small fw-bold text-danger" for="filterTodayFollowUps">المتابعات المجدولة</label>
+                        </div>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <div class="form-check form-switch mb-1">
+                            <input class="form-check-input" type="checkbox" role="switch" id="filterEmptyNotes" onchange="syncEmptyNotes(this.checked)">
+                            <label class="form-check-label small fw-bold text-warning" for="filterEmptyNotes">بدون ملاحظات</label>
                         </div>
                     </div>
                     
@@ -681,6 +690,46 @@
             }, 500);
         }
 
+        // Empty Notes Filter Handlers
+        let emptyNotesActive = false;
+
+        function toggleEmptyNotesFilter() {
+            emptyNotesActive = !emptyNotesActive;
+            const btn = document.getElementById('btnEmptyNotesToggle');
+            const chk = document.getElementById('filterEmptyNotes');
+            if (chk) chk.checked = emptyNotesActive;
+
+            if (btn) {
+                if (emptyNotesActive) {
+                    btn.classList.remove('btn-outline-warning');
+                    btn.classList.add('btn-warning', 'text-dark', 'shadow-sm');
+                    btn.setAttribute('title', 'إلغاء فلترة: عملاء بدون ملاحظات');
+                } else {
+                    btn.classList.remove('btn-warning', 'text-dark', 'shadow-sm');
+                    btn.classList.add('btn-outline-warning');
+                    btn.setAttribute('title', 'فلترة: عملاء بدون ملاحظات');
+                }
+            }
+            loadData(1);
+        }
+
+        function syncEmptyNotes(isChecked) {
+            emptyNotesActive = isChecked;
+            const btn = document.getElementById('btnEmptyNotesToggle');
+            if (btn) {
+                if (emptyNotesActive) {
+                    btn.classList.remove('btn-outline-warning');
+                    btn.classList.add('btn-warning', 'text-dark', 'shadow-sm');
+                    btn.setAttribute('title', 'إلغاء فلترة: عملاء بدون ملاحظات');
+                } else {
+                    btn.classList.remove('btn-warning', 'text-dark', 'shadow-sm');
+                    btn.classList.add('btn-outline-warning');
+                    btn.setAttribute('title', 'فلترة: عملاء بدون ملاحظات');
+                }
+            }
+            loadData(1);
+        }
+
         // Reset Filters function
         function resetFilters() {
             document.getElementById('filterSearch').value = '';
@@ -691,6 +740,17 @@
             document.getElementById('filterDateFrom').value = '';
             document.getElementById('filterDateTo').value = '';
             document.getElementById('filterTodayFollowUps').checked = false;
+            
+            emptyNotesActive = false;
+            const chkEmpty = document.getElementById('filterEmptyNotes');
+            if (chkEmpty) chkEmpty.checked = false;
+            const btnEmpty = document.getElementById('btnEmptyNotesToggle');
+            if (btnEmpty) {
+                btnEmpty.classList.remove('btn-warning', 'text-dark', 'shadow-sm');
+                btnEmpty.classList.add('btn-outline-warning');
+                btnEmpty.setAttribute('title', 'فلترة: عملاء بدون ملاحظات');
+            }
+
             loadData(1);
         }
 
@@ -702,8 +762,9 @@
             const dateFrom = document.getElementById('filterDateFrom').value;
             const dateTo = document.getElementById('filterDateTo').value;
             const todayFollowUps = document.getElementById('filterTodayFollowUps').checked;
+            const emptyNotes = emptyNotesActive || (document.getElementById('filterEmptyNotes') && document.getElementById('filterEmptyNotes').checked);
 
-            const url = `/dashboard/customers/export?search=${encodeURIComponent(search)}&status=${status}&employeeId=${employeeId}&dateFrom=${dateFrom}&dateTo=${dateTo}&todayFollowUps=${todayFollowUps}`;
+            const url = `/dashboard/customers/export?search=${encodeURIComponent(search)}&status=${status}&employeeId=${employeeId}&dateFrom=${dateFrom}&dateTo=${dateTo}&todayFollowUps=${todayFollowUps}&emptyNotes=${emptyNotes}`;
             window.location.href = url;
         }
 
@@ -716,6 +777,7 @@
             const dateFrom = document.getElementById('filterDateFrom').value;
             const dateTo = document.getElementById('filterDateTo').value;
             const todayFollowUps = document.getElementById('filterTodayFollowUps').checked;
+            const emptyNotes = emptyNotesActive || (document.getElementById('filterEmptyNotes') && document.getElementById('filterEmptyNotes').checked);
 
             document.getElementById('loader').classList.remove('d-none');
             document.getElementById('tableView').classList.add('d-none');
@@ -723,7 +785,7 @@
             document.getElementById('emptyState').classList.add('d-none');
             document.getElementById('paginationContainer').classList.add('d-none');
 
-            const url = `/dashboard/customers/data?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}&status=${status}&employeeId=${employeeId}&dateFrom=${dateFrom}&dateTo=${dateTo}&todayFollowUps=${todayFollowUps}`;
+            const url = `/dashboard/customers/data?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}&status=${status}&employeeId=${employeeId}&dateFrom=${dateFrom}&dateTo=${dateTo}&todayFollowUps=${todayFollowUps}&emptyNotes=${emptyNotes}`;
 
             fetch(url)
                 .then(res => res.json())
