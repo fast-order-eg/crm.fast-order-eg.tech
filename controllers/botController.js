@@ -2504,32 +2504,40 @@ export async function handleIncomingUnifiedMessage({
             const trafficTriggers = [
                 'العملا هتيجي', 'الزباين هتيجي', 'الزبائن هتيجي', 'ازاي اجيب زباين', 'ازاي اجيب عملا',
                 'بيسوق لنفسه', 'مين هيسوق', 'العملا هتيجي منين', 'الزباين هتيجي منين', 'الناس هتعرف المتجر ازاي',
-                'هجيب مبيعات ازاي', 'العملا هتيجي علي المتجر', 'العملاء هتيجى منين', 'العملاء هتيجي منين'
+                'هجيب مبيعات ازاي', 'العملا هتيجي علي المتجر', 'العملاء هتيجى منين', 'العملاء هتيجي منين',
+                'العملا بتيجي', 'الزباين بتيجي', 'ازاي هجيب زباين', 'ازاي هجيب عملا', 'تسويق المتجر', 'ازاي اسوق'
             ];
             const isTrafficQuestion = trafficTriggers.some(t => norm.includes(t.replace(/[إأآا]/g, 'ا').replace(/[ة]/g, 'ه').replace(/[ى]/g, 'ي')));
 
             if (isTrafficQuestion) {
-                console.log(`🎙️ [Smart Voice Trigger] Customer ${remoteJid} asked how customers/traffic come. Sending voice note.`);
-                const voicePath = path.join(process.cwd(), 'public', 'uploads', 'audio', 'voice_how_customers_come.ogg');
-                if (fs.existsSync(voicePath)) {
-                    await sendHumanMessage(sock, remoteJid, {
-                        audio: { url: voicePath },
-                        ptt: true,
-                        mimetype: 'audio/ogg; codecs=opus'
-                    }, { userId });
+                // منع التكرار: التأكد أن الفويس لم يُرسل لهذا العميل من قبل في نفس المحادثة
+                const alreadySentTrafficVoice = await Message.findOne({
+                    where: { UserId: userId, remoteJid, role: 'model', media_url: '/uploads/audio/voice_how_customers_come.ogg' }
+                });
 
-                    const voiceTranscript = `🎙️ [رسالة صوتية أرسلت للعميل: سؤالك مهم جداً وممتاز ومحتاج تعرف إجابته. بص يا سيدي، العملاء هتيجي منين للمتجر؟ المتجر ده بيكون زي المحل بتاعك، بس على النت. عشان الزباين تعرف محلك وتدخل تشتري، بنعمل إعلانات ممولة على الفيسبوك، انستجرام، وتيك توك، بتستهدف الناس المهتمة بنوع منتجاتك بالظبط. والجميل بقى إن المتجر بتاعنا مربوط بحاجة اسمها بيكسل إعلانات. دي بتسجل كل زبون دخل، وتقدر تعمل له إعادة استهداف، وتجيب لك ناس شبه اللي اشترت منك بالظبط، وده بيعلي مبيعاتك جداً وبأقل تكلفة إعلانات. المتجر هو اللي بيخلي العميل يطلب في ثواني بضغطة زرار، والدفع عند الاستلام. يعني الإعلانات بتجيب الزبون، والمتجر يقفل البيعة بضغطة زرار واحدة.]`;
+                if (!alreadySentTrafficVoice) {
+                    console.log(`🎙️ [Smart Voice Trigger] Customer ${remoteJid} asked how customers/traffic come. Sending voice note.`);
+                    const voicePath = path.join(process.cwd(), 'public', 'uploads', 'audio', 'voice_how_customers_come.ogg');
+                    if (fs.existsSync(voicePath)) {
+                        await sendHumanMessage(sock, remoteJid, {
+                            audio: { url: voicePath },
+                            ptt: true,
+                            mimetype: 'audio/ogg; codecs=opus'
+                        }, { userId });
 
-                    const savedAudio = await Message.create({
-                        UserId: userId,
-                        remoteJid,
-                        role: 'model',
-                        content: voiceTranscript,
-                        media_url: '/uploads/audio/voice_how_customers_come.ogg',
-                        status: 'sent'
-                    });
-                    if (io) io.to(`user_${userId}`).emit('new_message', savedAudio);
-                    return;
+                        const voiceTranscript = `🎙️ [رسالة صوتية أرسلت للعميل: سؤالك مهم جداً وممتاز ومحتاج تعرف إجابته. بص يا سيدي، العملاء هتيجي منين للمتجر؟ المتجر ده بيكون زي المحل بتاعك، بس على النت. عشان الزباين تعرف محلك وتدخل تشتري، بنعمل إعلانات ممولة على الفيسبوك، انستجرام، وتيك توك، بتستهدف الناس المهتمة بنوع منتجاتك بالظبط. والجميل بقى إن المتجر بتاعنا مربوط بحاجة اسمها بيكسل إعلانات. دي بتسجل كل زبون دخل، وتقدر تعمل له إعادة استهداف، وتجيب لك ناس شبه اللي اشترت منك بالظبط، وده بيعلي مبيعاتك جداً وبأقل تكلفة إعلانات. المتجر هو اللي بيخلي العميل يطلب في ثواني بضغطة زرار، والدفع عند الاستلام. يعني الإعلانات بتجيب الزبون، والمتجر يقفل البيعة بضغطة زرار واحدة.]`;
+
+                        const savedAudio = await Message.create({
+                            UserId: userId,
+                            remoteJid,
+                            role: 'model',
+                            content: voiceTranscript,
+                            media_url: '/uploads/audio/voice_how_customers_come.ogg',
+                            status: 'sent'
+                        });
+                        if (io) io.to(`user_${userId}`).emit('new_message', savedAudio);
+                        return;
+                    }
                 }
             }
 
@@ -2546,41 +2554,48 @@ export async function handleIncomingUnifiedMessage({
             );
 
             if (isProductText || isProductImage) {
-                console.log(`🎙️ [Smart Voice Trigger] Customer ${remoteJid} sent products or page. Sending voice note.`);
-                const voicePath = path.join(process.cwd(), 'public', 'uploads', 'audio', 'voice_received_products.ogg');
-                if (fs.existsSync(voicePath)) {
-                    await sendHumanMessage(sock, remoteJid, {
-                        audio: { url: voicePath },
-                        ptt: true,
-                        mimetype: 'audio/ogg; codecs=opus'
-                    }, { userId });
+                // منع التكرار: التأكد أن فويس استلام المنتجات لم يُرسل للعميل من قبل في نفس المحادثة
+                const alreadySentProductVoice = await Message.findOne({
+                    where: { UserId: userId, remoteJid, role: 'model', media_url: '/uploads/audio/voice_received_products.ogg' }
+                });
 
-                    const voiceTranscript = `🎙️ [رسالة صوتية أرسلت للعميل: استلمت منتجاتك ورابط صفحتك يا فندم، وزي ما اتفقنا، إحنا هنرفعلك أول منتجات كهدية مننا عشان تبدأ على طول. بس محتاج منك خطوة صغيرة: سجل حسابك على المنصة عشان يكون ليك لوحة تحكم خاصة بيك، ونقدر ندخل نرفع المنتجات جوا حسابك. هبعتلك رابط التسجيل حالا، سجّل وعرفني عشان نبدأ على طول.]`;
+                if (!alreadySentProductVoice) {
+                    console.log(`🎙️ [Smart Voice Trigger] Customer ${remoteJid} sent products or page. Sending voice note.`);
+                    const voicePath = path.join(process.cwd(), 'public', 'uploads', 'audio', 'voice_received_products.ogg');
+                    if (fs.existsSync(voicePath)) {
+                        await sendHumanMessage(sock, remoteJid, {
+                            audio: { url: voicePath },
+                            ptt: true,
+                            mimetype: 'audio/ogg; codecs=opus'
+                        }, { userId });
 
-                    const savedAudio = await Message.create({
-                        UserId: userId,
-                        remoteJid,
-                        role: 'model',
-                        content: voiceTranscript,
-                        media_url: '/uploads/audio/voice_received_products.ogg',
-                        status: 'sent'
-                    });
-                    if (io) io.to(`user_${userId}`).emit('new_message', savedAudio);
+                        const voiceTranscript = `🎙️ [رسالة صوتية أرسلت للعميل: استلمت منتجاتك ورابط صفحتك يا فندم، وزي ما اتفقنا، إحنا هنرفعلك أول منتجات كهدية مننا عشان تبدأ على طول. بس محتاج منك خطوة صغيرة: سجل حسابك على المنصة عشان يكون ليك لوحة تحكم خاصة بيك، ونقدر ندخل نرفع المنتجات جوا حسابك. هبعتلك رابط التسجيل حالا، سجّل وعرفني عشان نبدأ على طول.]`;
 
-                    // نرسل الرابط فقط الذي وعد به الفويس بدون تكرار الكلام
-                    const linkOnly = `👉 رابط التسجيل:\nhttps://app.fast-order-eg.tech/register`;
-                    await sendHumanMessage(sock, remoteJid, { text: linkOnly }, { userId });
-                    const savedTxt = await Message.create({ UserId: userId, remoteJid, role: 'model', content: linkOnly, status: 'sent' });
-                    if (io) io.to(`user_${userId}`).emit('new_message', savedTxt);
+                        const savedAudio = await Message.create({
+                            UserId: userId,
+                            remoteJid,
+                            role: 'model',
+                            content: voiceTranscript,
+                            media_url: '/uploads/audio/voice_received_products.ogg',
+                            status: 'sent'
+                        });
+                        if (io) io.to(`user_${userId}`).emit('new_message', savedAudio);
 
-                    // Hot Lead Notification to Sales Control Group
-                    try {
-                        const notifyMsg = `🔥 *فرصة بيع ساخنة (العميل أرسل منتجاته / صفحته)!* 🔥\n\n👤 العميل: ${conversation.customerName || customerPhone}\n📱 الرقم: ${customerPhone || remoteJid.split('@')[0]}\n\nالعميل بعت صور أو بيانات منتجاته وجاري تجهيز المتجر له. يرجى المتابعة الفورية!`;
-                        await notifyControlGroup(userId, notifyMsg);
-                    } catch (e) {
-                        console.error('Failed to notify control group about hot product lead:', e);
+                        // نرسل الرابط فقط الذي وعد به الفويس بدون تكرار الكلام
+                        const linkOnly = `👉 رابط التسجيل:\nhttps://app.fast-order-eg.tech/register`;
+                        await sendHumanMessage(sock, remoteJid, { text: linkOnly }, { userId });
+                        const savedTxt = await Message.create({ UserId: userId, remoteJid, role: 'model', content: linkOnly, status: 'sent' });
+                        if (io) io.to(`user_${userId}`).emit('new_message', savedTxt);
+
+                        // Hot Lead Notification to Sales Control Group
+                        try {
+                            const notifyMsg = `🔥 *فرصة بيع ساخنة (العميل أرسل منتجاته / صفحته)!* 🔥\n\n👤 العميل: ${conversation.customerName || customerPhone}\n📱 الرقم: ${customerPhone || remoteJid.split('@')[0]}\n\nالعميل بعت صور أو بيانات منتجاته وجاري تجهيز المتجر له. يرجى المتابعة الفورية!`;
+                            await notifyControlGroup(userId, notifyMsg);
+                        } catch (e) {
+                            console.error('Failed to notify control group about hot product lead:', e);
+                        }
+                        return;
                     }
-                    return;
                 }
             }
         }
