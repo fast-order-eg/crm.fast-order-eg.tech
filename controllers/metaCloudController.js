@@ -1,10 +1,64 @@
 import 'dotenv/config';
 import axios from 'axios';
+import fs from 'fs';
+import path from 'path';
 import Customer from '../models/Customer.js';
 import Conversation from '../models/Conversation.js';
 import Message from '../models/Message.js';
 import User from '../models/User.js';
 import { handleFunnelStep, sendInteractiveButtons, handleButtonResponse, handleIncomingUnifiedMessage } from './botController.js';
+
+/**
+ * Download media from Meta Graph API and save locally to public/uploads/whatsapp/
+ */
+export async function downloadMetaMedia(mediaId) {
+    try {
+        const accessToken = process.env.META_ACCESS_TOKEN;
+        if (!mediaId || !accessToken) return null;
+
+        const metaRes = await axios.get(`https://graph.facebook.com/v18.0/${mediaId}`, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+            timeout: 10000
+        });
+
+        const downloadUrl = metaRes.data?.url;
+        const mimeType = metaRes.data?.mime_type || 'image/jpeg';
+        if (!downloadUrl) return null;
+
+        const fileRes = await axios.get(downloadUrl, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+            responseType: 'arraybuffer',
+            timeout: 20000
+        });
+
+        const buffer = Buffer.from(fileRes.data);
+
+        let ext = 'bin';
+        if (mimeType.includes('jpeg') || mimeType.includes('jpg')) ext = 'jpg';
+        else if (mimeType.includes('png')) ext = 'png';
+        else if (mimeType.includes('webp')) ext = 'webp';
+        else if (mimeType.includes('ogg') || mimeType.includes('opus')) ext = 'ogg';
+        else if (mimeType.includes('mp3') || mimeType.includes('mpeg')) ext = 'mp3';
+        else if (mimeType.includes('mp4')) ext = 'mp4';
+        else if (mimeType.includes('pdf')) ext = 'pdf';
+
+        const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'whatsapp');
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+        }
+
+        const fileName = `meta_${Date.now()}_${mediaId}.${ext}`;
+        const filePath = path.join(uploadDir, fileName);
+        fs.writeFileSync(filePath, buffer);
+
+        const localUrl = `/uploads/whatsapp/${fileName}`;
+        console.log(`📥 [META_MEDIA_DOWNLOADED] Media ${mediaId} saved to ${localUrl} (${mimeType}, ${buffer.length} bytes)`);
+        return { buffer, mimeType, localUrl, filePath };
+    } catch (err) {
+        console.error(`⚠️ [downloadMetaMedia Error for ${mediaId}]:`, err.response?.data || err.message);
+        return null;
+    }
+}
 
 // Webhook Verification (GET /api/whatsapp/meta-webhook)
 export const verifyWebhook = (req, res) => {
@@ -191,33 +245,70 @@ export const handleWebhook = async (req, res) => {
             let textContent = '';
             let mediaUrl = null;
             let buttonId = null;
+            let mediaBuffer = null;
+            let mediaMime = null;
 
             if (msg.type === 'text') {
                 textContent = msg.text.body;
             } else if (msg.type === 'audio' || msg.type === 'voice') {
                 const audioObj = msg.audio || msg.voice;
                 if (audioObj && audioObj.id) {
-                    mediaUrl = `/api/whatsapp/meta-media/${audioObj.id}`;
+                    const downloaded = await downloadMetaMedia(audioObj.id);
+                    if (downloaded) {
+                        mediaBuffer = downloaded.buffer;
+                        mediaMime = downloaded.mimeType;
+                        mediaUrl = downloaded.localUrl;
+                    } else {
+                        mediaUrl = `/api/whatsapp/meta-media/${audioObj.id}`;
+                    }
                 }
                 textContent = '🎤 [رسالة صوتية]';
             } else if (msg.type === 'image') {
                 if (msg.image && msg.image.id) {
-                    mediaUrl = `/api/whatsapp/meta-media/${msg.image.id}`;
+                    const downloaded = await downloadMetaMedia(msg.image.id);
+                    if (downloaded) {
+                        mediaBuffer = downloaded.buffer;
+                        mediaMime = downloaded.mimeType;
+                        mediaUrl = downloaded.localUrl;
+                    } else {
+                        mediaUrl = `/api/whatsapp/meta-media/${msg.image.id}`;
+                    }
                 }
                 textContent = msg.image?.caption || '📷 [صورة]';
             } else if (msg.type === 'video') {
                 if (msg.video && msg.video.id) {
-                    mediaUrl = `/api/whatsapp/meta-media/${msg.video.id}`;
+                    const downloaded = await downloadMetaMedia(msg.video.id);
+                    if (downloaded) {
+                        mediaBuffer = downloaded.buffer;
+                        mediaMime = downloaded.mimeType;
+                        mediaUrl = downloaded.localUrl;
+                    } else {
+                        mediaUrl = `/api/whatsapp/meta-media/${msg.video.id}`;
+                    }
                 }
                 textContent = msg.video?.caption || '🎥 [فيديو]';
             } else if (msg.type === 'document') {
                 if (msg.document && msg.document.id) {
-                    mediaUrl = `/api/whatsapp/meta-media/${msg.document.id}`;
+                    const downloaded = await downloadMetaMedia(msg.document.id);
+                    if (downloaded) {
+                        mediaBuffer = downloaded.buffer;
+                        mediaMime = downloaded.mimeType;
+                        mediaUrl = downloaded.localUrl;
+                    } else {
+                        mediaUrl = `/api/whatsapp/meta-media/${msg.document.id}`;
+                    }
                 }
                 textContent = msg.document?.filename || '📄 [ملف]';
             } else if (msg.type === 'sticker') {
                 if (msg.sticker && msg.sticker.id) {
-                    mediaUrl = `/api/whatsapp/meta-media/${msg.sticker.id}`;
+                    const downloaded = await downloadMetaMedia(msg.sticker.id);
+                    if (downloaded) {
+                        mediaBuffer = downloaded.buffer;
+                        mediaMime = downloaded.mimeType;
+                        mediaUrl = downloaded.localUrl;
+                    } else {
+                        mediaUrl = `/api/whatsapp/meta-media/${msg.sticker.id}`;
+                    }
                 }
                 textContent = '🎨 [ملصق]';
             } else if (msg.type === 'button') {
@@ -397,7 +488,7 @@ export const handleWebhook = async (req, res) => {
 
             // Trigger Unified Bot Processing (Hybrid Mode, Vertex AI Gemini, Menus, Numeric Selection, Sales Handoff)
             try {
-                console.log(`🤖 [META_BOT] Delegating message from ${targetId} to unified bot handler...`);
+                console.log(`🤖 [META_BOT] Delegating message from ${targetId} to unified bot handler (hasMediaBuffer: ${!!mediaBuffer})...`);
                 await handleIncomingUnifiedMessage({
                     sock: metaSock,
                     remoteJid,
@@ -406,6 +497,8 @@ export const handleWebhook = async (req, res) => {
                     text: textContent,
                     messageType: msg.type,
                     incomingMediaUrl: mediaUrl,
+                    mediaBuffer,
+                    mediaMime,
                     buttonId,
                     userId,
                     io,

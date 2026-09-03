@@ -2603,32 +2603,42 @@ export async function handleIncomingUnifiedMessage({
         // 11. Prepare Media Buffer if media exists
         if (incomingMediaUrl && !mediaBuffer) {
             try {
-                const localPath = path.join(process.cwd(), 'public', incomingMediaUrl);
-                if (fs.existsSync(localPath)) {
-                    const isAudio = incomingMediaUrl.endsWith('.ogg') || incomingMediaUrl.endsWith('.opus') || incomingMediaUrl.endsWith('.mp3') || incomingMediaUrl.endsWith('.wav');
-                    if (isAudio) {
-                        try {
-                            const tempMp3 = path.join(os.tmpdir(), `voice_${Date.now()}.mp3`);
-                            await new Promise((resolve, reject) => {
-                                ffmpeg(localPath)
-                                    .toFormat('mp3')
-                                    .on('end', resolve)
-                                    .on('error', reject)
-                                    .save(tempMp3);
-                            });
-                            if (fs.existsSync(tempMp3)) {
-                                mediaBuffer = fs.readFileSync(tempMp3);
-                                mediaMime = 'audio/mp3';
-                                fs.unlinkSync(tempMp3);
+                if (incomingMediaUrl.startsWith('/api/whatsapp/meta-media/')) {
+                    const mediaId = incomingMediaUrl.split('/').pop();
+                    const { downloadMetaMedia } = await import('./metaCloudController.js');
+                    const downloaded = await downloadMetaMedia(mediaId);
+                    if (downloaded) {
+                        mediaBuffer = downloaded.buffer;
+                        mediaMime = downloaded.mimeType;
+                    }
+                } else {
+                    const localPath = path.join(process.cwd(), 'public', incomingMediaUrl);
+                    if (fs.existsSync(localPath)) {
+                        const isAudio = incomingMediaUrl.endsWith('.ogg') || incomingMediaUrl.endsWith('.opus') || incomingMediaUrl.endsWith('.mp3') || incomingMediaUrl.endsWith('.wav');
+                        if (isAudio) {
+                            try {
+                                const tempMp3 = path.join(os.tmpdir(), `voice_${Date.now()}.mp3`);
+                                await new Promise((resolve, reject) => {
+                                    ffmpeg(localPath)
+                                        .toFormat('mp3')
+                                        .on('end', resolve)
+                                        .on('error', reject)
+                                        .save(tempMp3);
+                                });
+                                if (fs.existsSync(tempMp3)) {
+                                    mediaBuffer = fs.readFileSync(tempMp3);
+                                    mediaMime = 'audio/mp3';
+                                    fs.unlinkSync(tempMp3);
+                                }
+                            } catch (convErr) {
+                                console.warn("⚠️ [Audio Convert Fallback]: Using raw audio buffer", convErr.message);
+                                mediaBuffer = fs.readFileSync(localPath);
+                                mediaMime = 'audio/ogg';
                             }
-                        } catch (convErr) {
-                            console.warn("⚠️ [Audio Convert Fallback]: Using raw audio buffer", convErr.message);
+                        } else if (incomingMediaUrl.match(/\.(jpg|jpeg|png|webp|gif)$/i)) {
                             mediaBuffer = fs.readFileSync(localPath);
-                            mediaMime = 'audio/ogg';
+                            mediaMime = incomingMediaUrl.endsWith('.png') ? 'image/png' : 'image/jpeg';
                         }
-                    } else if (incomingMediaUrl.match(/\.(jpg|jpeg|png|webp|gif)$/i)) {
-                        mediaBuffer = fs.readFileSync(localPath);
-                        mediaMime = incomingMediaUrl.endsWith('.png') ? 'image/png' : 'image/jpeg';
                     }
                 }
             } catch (mediaErr) {
@@ -2646,7 +2656,7 @@ export async function handleIncomingUnifiedMessage({
             const isVoice = mediaMime && mediaMime.startsWith('audio/');
             const promptText = isVoice
                 ? "رسالة صوتية من العميل استمع إليها وأجب بالعامية المصرية بدقة واحترافية وفقاً لتعليمات المتجر والخدمات"
-                : (text || "ميديا من العميل");
+                : (text && !text.includes('[صورة]') && !text.includes('[فيديو]') ? text : "انظر إلى هذه الصورة وافحصها بدقة، ثم أجب على العميل بخصوص ما يظهر فيها وبالعامية المصرية وفقاً لتعليمات المتجر والخدمات");
             aiResponse = await callVertexAI(remoteJid, promptText, mediaBuffer, mediaMime || "image/jpeg", userId);
         } else {
             aiResponse = await callVertexAI(remoteJid, text, null, null, userId);
