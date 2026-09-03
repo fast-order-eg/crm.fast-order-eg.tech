@@ -1073,6 +1073,7 @@ export async function handleButtonResponse(sock, remoteJid, buttonId, userId, io
                 const mediaItems = button.responseImage.split(',').filter(i => i.trim() !== '');
                 for (const mediaUrl of mediaItems) {
                     const isVideo = mediaUrl.match(/\.(mp4|mov|webm|mkv|avi|3gp)$/i);
+                    const isAudio = mediaUrl.match(/\.(ogg|opus|mp3|wav|m4a|aac)$/i);
                     const mediaPath = mediaUrl.startsWith('http') ? mediaUrl : path.join(process.cwd(), 'public', mediaUrl);
 
                     if (mediaUrl.startsWith('http') || fs.existsSync(mediaPath)) {
@@ -1091,6 +1092,22 @@ export async function handleButtonResponse(sock, remoteJid, buttonId, userId, io
                                 status: 'sent'
                             });
                             if (io) io.to(`user_${userId}`).emit('new_message', savedVideoMsg);
+                        } else if (isAudio) {
+                            await sendHumanMessage(sock, remoteJid, {
+                                audio: { url: mediaPath },
+                                ptt: true,
+                                mimetype: 'audio/ogg; codecs=opus'
+                            }, { userId });
+
+                            const savedAudioMsg = await Message.create({
+                                UserId: userId,
+                                remoteJid,
+                                role: 'model',
+                                content: '🎙️ رسالة صوتية',
+                                media_url: mediaUrl,
+                                status: 'sent'
+                            });
+                            if (io) io.to(`user_${userId}`).emit('new_message', savedAudioMsg);
                         } else {
                             await sendHumanMessage(sock, remoteJid, {
                                 image: { url: mediaPath }

@@ -18,6 +18,7 @@ const __dirname = dirname(__filename);
 // Upload directories
 const uploadDir = path.join(__dirname, '../public/uploads/instructions');
 const videoUploadDir = path.join(__dirname, '../public/uploads/videos');
+const audioUploadDir = path.join(__dirname, '../public/uploads/audio');
 
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
@@ -25,22 +26,26 @@ if (!fs.existsSync(uploadDir)) {
 if (!fs.existsSync(videoUploadDir)) {
     fs.mkdirSync(videoUploadDir, { recursive: true });
 }
+if (!fs.existsSync(audioUploadDir)) {
+    fs.mkdirSync(audioUploadDir, { recursive: true });
+}
 
 // Multer configuration - store in memory
 const storage = multer.memoryStorage();
 
-// File filter - accept images AND videos
+// File filter - accept images, videos, AND audios
 const fileFilter = (req, file, cb) => {
     const allowedTypes = [
         'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif',
-        'video/mp4', 'video/quicktime', 'video/webm', 'video/mkv', 'video/x-matroska', 'video/avi', 'video/3gpp'
+        'video/mp4', 'video/quicktime', 'video/webm', 'video/mkv', 'video/x-matroska', 'video/avi', 'video/3gpp',
+        'audio/ogg', 'audio/opus', 'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/mp4', 'audio/aac', 'audio/x-m4a'
     ];
-    const isAllowedExt = file.originalname && file.originalname.match(/\.(jpg|jpeg|png|webp|gif|mp4|mov|webm|mkv|avi|3gp)$/i);
+    const isAllowedExt = file.originalname && file.originalname.match(/\.(jpg|jpeg|png|webp|gif|mp4|mov|webm|mkv|avi|3gp|ogg|opus|mp3|wav|m4a|aac)$/i);
     
     if (allowedTypes.includes(file.mimetype) || isAllowedExt) {
         cb(null, true);
     } else {
-        cb(new Error('Invalid file type. Only images (JPEG, PNG, WebP) and videos (MP4, MOV, WebM) are allowed.'), false);
+        cb(new Error('Invalid file type. Only images, videos, and audios are allowed.'), false);
     }
 };
 
@@ -79,9 +84,20 @@ export const compressAndSaveImage = async (fileOrBuffer, originalname = '') => {
         }
 
         const isVideo = (mime && mime.startsWith('video/')) || (name && name.match(/\.(mp4|mov|webm|mkv|avi|3gp)$/i));
+        const isAudio = (mime && mime.startsWith('audio/')) || (name && name.match(/\.(ogg|opus|mp3|wav|m4a|aac)$/i));
 
         const timestamp = Date.now();
         const randomString = Math.random().toString(36).substring(7);
+
+        if (isAudio) {
+            console.log(`🎙️ [Audio Save] Processing audio ${name}...`);
+            const ext = name && name.endsWith('.ogg') ? 'ogg' : (name && name.endsWith('.opus') ? 'opus' : 'mp3');
+            const outputFilename = `voice_${timestamp}_${randomString}.${ext}`;
+            const outputPath = path.join(audioUploadDir, outputFilename);
+            fs.writeFileSync(outputPath, nodeBuffer);
+            console.log(`✅ [Audio Save] Saved audio: ${outputFilename}`);
+            return `/uploads/audio/${outputFilename}`;
+        }
 
         if (isVideo) {
             console.log(`🎬 [Video Compression] Processing video ${name}...`);

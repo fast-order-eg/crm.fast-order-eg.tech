@@ -345,6 +345,8 @@
                                                         <% if (btn.responseImage) { %>
                                                             <% if (btn.responseImage.match(/\.(mp4|mov|webm|mkv|avi|3gp)/i)) { %>
                                                                 <span class="btn-meta-tag tag-platform-whatsapp">🎥 فيديو</span>
+                                                            <% } else if (btn.responseImage.match(/\.(ogg|opus|mp3|wav|m4a|aac)/i)) { %>
+                                                                <span class="btn-meta-tag tag-platform-whatsapp">🎙️ ريكورد صوتي</span>
                                                             <% } else { %>
                                                                 <span class="btn-meta-tag tag-platform-whatsapp">📷 صور</span>
                                                             <% } %>
@@ -452,9 +454,9 @@
                             <textarea name="responseText" class="form-control" required style="min-height: 120px;"></textarea>
                         </div>
                         <div class="mb-4">
-                            <label class="form-label fw-bold text-dark">📷 صور أو 🎥 فيديو مرفق (اختياري)</label>
-                            <input type="file" name="responseImageFile" class="form-control" accept="image/*,video/*" multiple>
-                            <div class="form-text">يمكنك رفع صور أو فيديو (MP4) وسيتم ضغطه وتحسينه تلقائياً لسرعة الإرسال على الواتساب.</div>
+                            <label class="form-label fw-bold text-dark">📷 صور أو 🎥 فيديو أو 🎙️ ريكورد صوتي مرفق (اختياري)</label>
+                            <input type="file" name="responseImageFile" class="form-control" accept="image/*,video/*,audio/*" multiple>
+                            <div class="form-text">يمكنك رفع صور أو فيديو (MP4) أو تسجيل صوتي (OGG / MP3) وسيتم إرساله كـ Voice Note حقيقي على الواتساب.</div>
                             <input type="hidden" name="responseImage" id="addResponseImage">
                         </div>
                         <div class="row mb-4">
@@ -546,11 +548,11 @@
                             <textarea name="responseText" id="editResponse" class="form-control" required style="min-height: 120px;"></textarea>
                         </div>
                         <div class="mb-4">
-                            <label class="form-label fw-bold text-dark">📷 صور أو 🎥 فيديو مرفق (اختياري)</label>
+                            <label class="form-label fw-bold text-dark">📷 صور أو 🎥 فيديو أو 🎙️ ريكورد صوتي مرفق (اختياري)</label>
                             <div id="editImagePreview" class="mb-2 d-flex flex-wrap gap-2" style="display:none;">
                             </div>
-                            <input type="file" name="responseImageFile" class="form-control" accept="image/*,video/*" multiple>
-                            <div class="form-text">يمكنك رفع صور أو فيديو (MP4) وسيتم ضغطه وتحسينه تلقائياً لسرعة الإرسال على الواتساب.</div>
+                            <input type="file" name="responseImageFile" class="form-control" accept="image/*,video/*,audio/*" multiple>
+                            <div class="form-text">يمكنك رفع صور أو فيديو (MP4) أو تسجيل صوتي (OGG / MP3) وسيتم إرساله كـ Voice Note حقيقي على الواتساب.</div>
                             <input type="hidden" name="responseImage" id="editImage">
                         </div>
                         <div class="row mb-4">
