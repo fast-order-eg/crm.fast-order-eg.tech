@@ -887,7 +887,7 @@ export async function handleButtonResponse(sock, remoteJid, buttonId, userId, io
                     responseTextToSend = handoffMessages[Math.floor(Math.random() * handoffMessages.length)];
                 }
 
-                const transferTime = new Date().toLocaleString('en-US', { timeZone: 'Africa/Cairo', hour12: true, dateStyle: 'short', timeStyle: 'short' });
+                const transferTime = new Date().toLocaleString('en-GB', { timeZone: 'Africa/Cairo', hour12: true, dateStyle: 'short', timeStyle: 'short' });
                 
                 // Generate AI summary
                 const summary = await generateCustomerSummary(customer.id, userId);
@@ -2307,7 +2307,7 @@ export async function handleIncomingUnifiedMessage({
                 // Notify Control Group
                 try {
                     const summary = conversation.CustomerId ? await generateCustomerSummary(conversation.CustomerId, userId) : "لا يوجد رسائل سابقة لتلخيصها.";
-                    const transferTime = new Date().toLocaleString('en-US', { timeZone: 'Africa/Cairo', hour12: true, dateStyle: 'short', timeStyle: 'short' });
+                    const transferTime = new Date().toLocaleString('en-GB', { timeZone: 'Africa/Cairo', hour12: true, dateStyle: 'short', timeStyle: 'short' });
                     const notifyMsg = `🚨 *طلب تدخل فريق المبيعات*\n\n🔢 كود العميل: ${customer.customerNumber || customer.id}\n👤 العميل: ${conversation.customerName || customerPhone}\n📞 الرقم: ${customerPhone || remoteJid.split('@')[0]}\nالمسؤول: ${assignedSalesName}\n⏰ وقت التحويل: ${transferTime}\n\n🤖 *ملخص المحادثة بالذكاء الاصطناعي:*\n${summary}`;
                     await notifyControlGroup(userId, notifyMsg);
                 } catch (e) {
@@ -2442,7 +2442,7 @@ export async function handleIncomingUnifiedMessage({
 
                 try {
                     const summary = conversation.CustomerId ? await generateCustomerSummary(conversation.CustomerId, userId) : "لا يوجد رسائل سابقة لتلخيصها.";
-                    const transferTime = new Date().toLocaleString('en-US', { timeZone: 'Africa/Cairo', hour12: true, dateStyle: 'short', timeStyle: 'short' });
+                    const transferTime = new Date().toLocaleString('en-GB', { timeZone: 'Africa/Cairo', hour12: true, dateStyle: 'short', timeStyle: 'short' });
                     const nightBadge = isInsideWorkTime ? '' : ' 🌙 *(خارج مواعيد العمل / عطلة - للمتابعة الصباحية)*';
                     const notifyMsg = `🚨 *طلب تدخل فريق المبيعات*${nightBadge}\n\n🔢 كود العميل: ${customer.customerNumber || customer.id}\n👤 العميل: ${conversation.customerName || customerPhone}\n📞 الرقم: ${customerPhone || remoteJid.split('@')[0]}\nالمسؤول: ${assignedSalesName}\n⏰ وقت التحويل: ${transferTime}\n\n🤖 *ملخص المحادثة بالذكاء الاصطناعي:*\n${summary}`;
                     await notifyControlGroup(userId, notifyMsg);
@@ -4046,7 +4046,7 @@ export const checkNoActionCustomers = async (io) => {
                     const handoffMsg = handoffMessages[Math.floor(Math.random() * handoffMessages.length)];
                     await sock.sendMessage(conversation.remoteJid, { text: handoffMsg });
 
-                    const transferTime = new Date().toLocaleString('en-US', { timeZone: 'Africa/Cairo', hour12: true, dateStyle: 'short', timeStyle: 'short' });
+                    const transferTime = new Date().toLocaleString('en-GB', { timeZone: 'Africa/Cairo', hour12: true, dateStyle: 'short', timeStyle: 'short' });
                     
                     // توليد ملخص المحادثة بالذكاء الاصطناعي
                     const summary = await generateCustomerSummary(customer.id, userId);

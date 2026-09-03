@@ -1790,7 +1790,7 @@ router.post('/broadcast/send', async (req, res) => {
             return res.json({ 
                 success: true, 
                 campaignId: campaign.id, 
-                message: `تم جدولة الحملة بنجاح لـ ${targets.length} عميل في تاريخ ${parsedScheduledAt.toLocaleString('en-US', { hour12: true })}` 
+                message: `تم جدولة الحملة بنجاح لـ ${targets.length} عميل في تاريخ ${parsedScheduledAt.toLocaleString('en-GB', { timeZone: 'Africa/Cairo', hour12: true })}` 
             });
         }
 
@@ -3071,7 +3071,7 @@ router.post('/customers/update-status', async (req, res) => {
         if ((status === 'first_follow_up' || status === 'final_follow_up') && customer.scheduledFollowUpAt) {
             await logChange({
                 action: 'schedule_followup',
-                description: `تم تعيين / تغيير المتابعة إلى وقت وتاريخ ${new Date(customer.scheduledFollowUpAt).toLocaleString('en-US', { hour12: true })}`,
+                description: `تم تعيين / تغيير المتابعة إلى وقت وتاريخ ${new Date(customer.scheduledFollowUpAt).toLocaleString('en-GB', { timeZone: 'Africa/Cairo', hour12: true })}`,
                 customerId: customer.id,
                 performedByUserId: req.user.id,
                 ownerId: customer.UserId
@@ -3426,7 +3426,7 @@ router.post('/customers/assign', async (req, res) => {
 
         // إرسال إشعار لجروب الواتساب الخاص بالعمل عبر طابور الحماية في الخلفية
         if (targetUserId) {
-            const whatsappMsg = `📢 *تم تعيين عميل جديد!*\n\n🔖 كود العميل: ${customer.customerNumber || customer.id}\n👤 العميل: ${customer.customerName || 'عميل واتساب'}\n📞 الرقم: ${customer.phoneNumber}\n👨‍💼 الموظف المسؤول: ${newEmployeeName}\n🕐 وقت التعيين: ${new Date().toLocaleString('en-US', { hour12: true })}`;
+            const whatsappMsg = `📢 *تم تعيين عميل جديد!*\n\n🔖 كود العميل: ${customer.customerNumber || customer.id}\n👤 العميل: ${customer.customerName || 'عميل واتساب'}\n📞 الرقم: ${customer.phoneNumber}\n👨‍💼 الموظف المسؤول: ${newEmployeeName}\n🕐 وقت التعيين: ${new Date().toLocaleString('en-GB', { timeZone: 'Africa/Cairo', hour12: true })}`;
             import('../services/notificationService.js').then(({ sendWhatsAppNotification }) => {
                 sendWhatsAppNotification(customer.UserId, whatsappMsg).catch(e => console.error('Error sending WhatsApp assign notification:', e));
             }).catch(impErr => console.error('Error importing notificationService:', impErr));
@@ -3471,7 +3471,7 @@ router.post('/customers/schedule-followup', async (req, res) => {
         await logChange({
             action: 'status_change',
             description: date 
-                ? `جدولة متابعة للعميل بتاريخ ${new Date(date).toLocaleString('en-US', { hour12: true })} وتغيير الحالة إلى "متابعة بتاريخ"`
+                ? `جدولة متابعة للعميل بتاريخ ${new Date(date).toLocaleString('en-GB', { timeZone: 'Africa/Cairo', hour12: true })} وتغيير الحالة إلى "متابعة بتاريخ"`
                 : `إلغاء المتابعة المجدولة للعميل وتغيير الحالة إلى "متابعة بتاريخ"`,
             oldValue: oldDate ? new Date(oldDate).toISOString() : null,
             newValue: date ? new Date(date).toISOString() : null,

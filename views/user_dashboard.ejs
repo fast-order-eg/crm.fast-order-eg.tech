@@ -547,7 +547,18 @@
                                             </td>
                                             <td class="font-monospace text-secondary text-center" dir="ltr" style="text-align: center !important;"><%= cust.phoneNumber %></td>
                                             <td class="text-secondary small">
-                                                <%= new Date(cust.firstContactAt).toLocaleString('en-US', { hour12: true, dateStyle: 'medium', timeStyle: 'short' }) %>
+                                                <% 
+                                                    const fcDate = new Date(cust.firstContactAt || cust.createdAt);
+                                                    const dDay = String(fcDate.getDate()).padStart(2, '0');
+                                                    const dMonth = String(fcDate.getMonth() + 1).padStart(2, '0');
+                                                    const dYear = fcDate.getFullYear();
+                                                    let dHours = fcDate.getHours();
+                                                    const dMins = String(fcDate.getMinutes()).padStart(2, '0');
+                                                    const dAmPm = dHours >= 12 ? 'PM' : 'AM';
+                                                    dHours = dHours % 12 || 12;
+                                                    const dStrHours = String(dHours).padStart(2, '0');
+                                                %>
+                                                <%= `${dDay}/${dMonth}/${dYear}, ${dStrHours}:${dMins} ${dAmPm}` %>
                                             </td>
                                             <td class="text-secondary fw-medium">
                                                 <%= cust.assignedTo ? cust.assignedTo.fullName : 'غير مخصص' %>

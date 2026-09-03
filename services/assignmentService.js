@@ -218,7 +218,7 @@ export async function assignCustomerToSales(customerId, botOwnerId, io = null, s
         // إرسال إشعار لجروب الواتساب الخاص بالعمل
         if (!skipNotification) {
             try {
-                const whatsappMsg = `📢 *تم تعيين عميل جديد تلقائياً!*\n\n🔖 كود العميل: ${customer.customerNumber || customer.id}\n👤 العميل: ${customer.customerName || 'عميل واتساب'}\n📞 الرقم: ${customer.phoneNumber}\n👨‍💼 الموظف المسؤول: ${selectedEmp.fullName || selectedEmp.username}\n🕐 وقت التعيين: ${new Date().toLocaleString('en-US', { hour12: true })}`;
+                const whatsappMsg = `📢 *تم تعيين عميل جديد تلقائياً!*\n\n🔖 كود العميل: ${customer.customerNumber || customer.id}\n👤 العميل: ${customer.customerName || 'عميل واتساب'}\n📞 الرقم: ${customer.phoneNumber}\n👨‍💼 الموظف المسؤول: ${selectedEmp.fullName || selectedEmp.username}\n🕐 وقت التعيين: ${new Date().toLocaleString('en-GB', { timeZone: 'Africa/Cairo', hour12: true })}`;
                 const { sendWhatsAppNotification } = await import('./notificationService.js');
                 await sendWhatsAppNotification(botOwnerId, whatsappMsg);
             } catch (wsErr) {

@@ -146,13 +146,29 @@
                 });
         }
 
+        function formatDateTime(date) {
+            if (!date) return '—';
+            const d = new Date(date);
+            if (isNaN(d.getTime())) return '—';
+            const day = String(d.getDate()).padStart(2, '0');
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const year = d.getFullYear();
+            let hours = d.getHours();
+            const minutes = String(d.getMinutes()).padStart(2, '0');
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12;
+            hours = hours ? hours : 12;
+            const strHours = String(hours).padStart(2, '0');
+            return `${day}/${month}/${year}, ${strHours}:${minutes} ${ampm}`;
+        }
+
         function renderNotificationsList(notifications) {
             const container = document.getElementById('notificationsContainer');
             container.innerHTML = '';
 
             notifications.forEach(notif => {
                 const isUnreadClass = notif.isRead ? '' : 'notif-unread';
-                const dateStr = notif.createdAt ? new Date(notif.createdAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short', hour12: true }) : '—';
+                const dateStr = notif.createdAt ? formatDateTime(notif.createdAt) : '—';
                 
                 let iconClass = 'icon-system';
                 let iconSymbol = 'bi-bell-fill';
