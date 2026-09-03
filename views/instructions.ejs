@@ -264,6 +264,17 @@
                                                             <% } else { %>
                                                                 <span class="badge-kw-topic mt-1 d-inline-block">موضوع</span>
                                                             <% } %>
+                                                            <% if (inst.imageUrl) { %>
+                                                                <% if (inst.imageUrl.match(/\.(ogg|opus|mp3|wav|m4a|aac)/i)) { %>
+                                                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle mt-1 d-inline-flex align-items-center gap-1 px-2 py-1 rounded small">
+                                                                        <i class="bi bi-mic-fill"></i> ريكورد صوتي
+                                                                    </span>
+                                                                <% } else { %>
+                                                                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle mt-1 d-inline-flex align-items-center gap-1 px-2 py-1 rounded small">
+                                                                        <i class="bi bi-image"></i> ميديا مرفقة
+                                                                    </span>
+                                                                <% } %>
+                                                            <% } %>
                                                         </td>
                                                         <td>
                                                             <div class="text-secondary mb-2 mt-1 lh-base" style="white-space: pre-wrap; max-height: 160px; overflow-y: auto; font-size: 14.5px;"><%= inst.content %></div>
@@ -365,6 +376,25 @@
                                                 placeholder="اكتب كل التفاصيل اللي عايز البوت يعرفها هنا.&#10;مثال:&#10;- سعر التيشرت 200ج والمقاسات من L لـ XXL.&#10;- الشحن بياخد 3 أيام ومجاني لو اشتريت بـ 1000ج.&#10;- عندنا فرع في المهندسين وفرع في التجمع."
                                                 style="min-height: 250px;"></textarea>
                                         </div>
+
+                                        <div class="mb-4">
+                                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                                <label class="form-label text-dark fw-bold m-0">🎙️ المرفقات (تسجيل صوتي أو صور)</label>
+                                                <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3" id="addMoreImagesBtn">
+                                                    <i class="bi bi-cloud-arrow-up"></i> رفع ريكورد / ملف
+                                                </button>
+                                            </div>
+                                            <input type="file" id="addGalleryInput" class="d-none" accept="audio/*,image/*,video/*">
+                                            <div class="d-flex align-items-center gap-2 mb-2">
+                                                <span id="addUploadSpinner" class="spinner-border spinner-border-sm text-primary d-none" role="status"></span>
+                                                <span id="addUploadStatus" class="small text-muted"></span>
+                                            </div>
+                                            <div id="addImagesContainer" class="d-flex flex-wrap gap-2 p-2 border rounded bg-light" style="min-height: 60px;">
+                                                <span class="text-muted small m-auto" id="addEmptyGalleryText">لا توجد مرفقات صوتية أو صور</span>
+                                            </div>
+                                            <input type="hidden" name="imageUrl" id="addImageUrlJson">
+                                            <div class="form-text text-muted mt-1">يمكنك رفع ريكورد صوتي (OGG / MP3) أو صور لتكون مرفقة مع هذه التعليمة.</div>
+                                        </div>
                                         
                                         <div class="mb-4">
                                             <div class="d-flex align-items-center mb-2">
@@ -446,6 +476,25 @@
                                             </div>
                                             <input type="hidden" name="keywords" id="editKeywords">
                                             <div class="form-text text-secondary mt-1">تعديل الكلمات المفتاحية بالاضافة والحذف. (اكتب الكلمة واضغط Enter)</div>
+                                        </div>
+
+                                        <div class="mb-4">
+                                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                                <label class="form-label text-dark fw-bold m-0">🎙️ المرفقات (تسجيل صوتي أو صور)</label>
+                                                <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3" id="editMoreImagesBtn">
+                                                    <i class="bi bi-cloud-arrow-up"></i> رفع ريكورد / ملف
+                                                </button>
+                                            </div>
+                                            <input type="file" id="editGalleryInput" class="d-none" accept="audio/*,image/*,video/*">
+                                            <div class="d-flex align-items-center gap-2 mb-2">
+                                                <span id="editUploadSpinner" class="spinner-border spinner-border-sm text-primary d-none" role="status"></span>
+                                                <span id="editUploadStatus" class="small text-muted"></span>
+                                            </div>
+                                            <div id="editImagesContainer" class="d-flex flex-wrap gap-2 p-2 border rounded bg-light" style="min-height: 60px;">
+                                                <span class="text-muted small m-auto" id="editEmptyGalleryText">لا توجد مرفقات صوتية أو صور</span>
+                                            </div>
+                                            <input type="hidden" name="imageUrl" id="editImageUrlJson">
+                                            <div class="form-text text-muted mt-1">يمكنك الاستماع للتسجيل الصوتي مباشرة أو حذفه أو رفع تسجيل جديد.</div>
                                         </div>
 
                                         <div class="mb-3">

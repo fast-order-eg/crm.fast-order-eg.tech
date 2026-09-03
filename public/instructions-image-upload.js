@@ -61,37 +61,66 @@ function renderAddGallery() {
     if (!container) return;
     container.innerHTML = '';
 
+    if (!addImages || addImages.length === 0) {
+        container.innerHTML = '<span class="text-muted small m-auto py-2">لا توجد مرفقات صوتية أو صور</span>';
+        const jsonInput = document.getElementById('addImageUrlJson');
+        if (jsonInput) jsonInput.value = '';
+        return;
+    }
+
     addImages.forEach((img, index) => {
         const item = document.createElement('div');
-        item.className = 'gallery-item-card';
+        item.className = 'gallery-item-card p-2 border rounded bg-white shadow-sm position-relative';
+        item.style.minWidth = '240px';
+        const isAudio = img.url && img.url.match(/\.(ogg|opus|mp3|wav|m4a|aac)$/i);
+        const isVideo = img.url && img.url.match(/\.(mp4|webm|mov|mkv)$/i);
+
+        let mediaHtml = '';
+        if (isAudio) {
+            mediaHtml = `
+                <div class="p-2 text-center bg-light rounded mb-2">
+                    <div class="small text-primary fw-bold mb-1"><i class="bi bi-mic-fill"></i> ريكورد صوتي</div>
+                    <audio controls src="${img.url}" style="max-width: 100%; height: 36px;"></audio>
+                </div>
+            `;
+        } else if (isVideo) {
+            mediaHtml = `<video src="${img.url}" controls class="gallery-item-img rounded mb-2" style="max-height: 120px; width: 100%; object-fit: cover;"></video>`;
+        } else {
+            mediaHtml = `<img src="${img.url}" class="gallery-item-img rounded mb-2" style="max-height: 120px; width: 100%; object-fit: cover;">`;
+        }
+
         item.innerHTML = `
-            <button type="button" class="gallery-item-delete" onclick="removeAddImage(${index})" title="حذف">
+            <button type="button" class="btn btn-sm btn-danger position-absolute top-0 end-0 m-1 rounded-circle" onclick="removeAddImage(${index})" title="حذف المرفق" style="width: 24px; height: 24px; padding: 0; line-height: 1; z-index: 5;">
                 <i class="bi bi-x"></i>
             </button>
-            <img src="${img.url}" class="gallery-item-img">
+            ${mediaHtml}
             <div class="gallery-item-desc">
-                <input type="text" class="form-control bg-dark text-white border-secondary" 
-                    placeholder="وصف الصورة (مثال: أحمر)" 
-                    value="${img.description}" 
+                <input type="text" class="form-control form-control-sm border-secondary" 
+                    placeholder="وصف المرفق (اختياري)" 
+                    value="${img.description || ''}" 
                     onchange="updateAddDescription(${index}, this.value)">
             </div>
         `;
         container.appendChild(item);
     });
 
-    // Update hidden input
-    document.getElementById('addImageUrlJson').value = JSON.stringify(addImages);
+    const jsonInput = document.getElementById('addImageUrlJson');
+    if (jsonInput) {
+        jsonInput.value = addImages.length === 1 ? addImages[0].url : JSON.stringify(addImages);
+    }
 }
 
 function updateAddDescription(index, value) {
-    addImages[index].description = value;
-    document.getElementById('addImageUrlJson').value = JSON.stringify(addImages);
+    if (addImages[index]) {
+        addImages[index].description = value;
+        const jsonInput = document.getElementById('addImageUrlJson');
+        if (jsonInput) {
+            jsonInput.value = addImages.length === 1 ? addImages[0].url : JSON.stringify(addImages);
+        }
+    }
 }
 
 function removeAddImage(index) {
-    // Optional: Delete from server (can be skipped for simplicity, or implemented if strict cleanup needed)
-    // fetch('/dashboard/instructions/delete-image', ...) 
-
     addImages.splice(index, 1);
     renderAddGallery();
 }
@@ -157,17 +186,42 @@ function renderEditGallery() {
     if (!container) return;
     container.innerHTML = '';
 
+    if (!editImages || editImages.length === 0) {
+        container.innerHTML = '<span class="text-muted small m-auto py-2">لا توجد مرفقات صوتية أو صور</span>';
+        const jsonInput = document.getElementById('editImageUrlJson');
+        if (jsonInput) jsonInput.value = '';
+        return;
+    }
+
     editImages.forEach((img, index) => {
         const item = document.createElement('div');
-        item.className = 'gallery-item-card';
+        item.className = 'gallery-item-card p-2 border rounded bg-white shadow-sm position-relative';
+        item.style.minWidth = '240px';
+        const isAudio = img.url && img.url.match(/\.(ogg|opus|mp3|wav|m4a|aac)$/i);
+        const isVideo = img.url && img.url.match(/\.(mp4|webm|mov|mkv)$/i);
+
+        let mediaHtml = '';
+        if (isAudio) {
+            mediaHtml = `
+                <div class="p-2 text-center bg-light rounded mb-2">
+                    <div class="small text-primary fw-bold mb-1"><i class="bi bi-mic-fill"></i> ريكورد صوتي</div>
+                    <audio controls src="${img.url}" style="max-width: 100%; height: 36px;"></audio>
+                </div>
+            `;
+        } else if (isVideo) {
+            mediaHtml = `<video src="${img.url}" controls class="gallery-item-img rounded mb-2" style="max-height: 120px; width: 100%; object-fit: cover;"></video>`;
+        } else {
+            mediaHtml = `<img src="${img.url}" class="gallery-item-img rounded mb-2" style="max-height: 120px; width: 100%; object-fit: cover;">`;
+        }
+
         item.innerHTML = `
-            <button type="button" class="gallery-item-delete" onclick="removeEditImage(${index})" title="حذف">
+            <button type="button" class="btn btn-sm btn-danger position-absolute top-0 end-0 m-1 rounded-circle" onclick="removeEditImage(${index})" title="حذف المرفق" style="width: 24px; height: 24px; padding: 0; line-height: 1; z-index: 5;">
                 <i class="bi bi-x"></i>
             </button>
-            <img src="${img.url}" class="gallery-item-img">
+            ${mediaHtml}
             <div class="gallery-item-desc">
-                <input type="text" class="form-control bg-dark text-white border-secondary" 
-                    placeholder="وصف الصورة" 
+                <input type="text" class="form-control form-control-sm border-secondary" 
+                    placeholder="وصف المرفق (اختياري)" 
                     value="${img.description || ''}" 
                     onchange="updateEditDescription(${index}, this.value)">
             </div>
@@ -175,12 +229,20 @@ function renderEditGallery() {
         container.appendChild(item);
     });
 
-    document.getElementById('editImageUrlJson').value = JSON.stringify(editImages);
+    const jsonInput = document.getElementById('editImageUrlJson');
+    if (jsonInput) {
+        jsonInput.value = editImages.length === 1 ? editImages[0].url : JSON.stringify(editImages);
+    }
 }
 
 function updateEditDescription(index, value) {
-    editImages[index].description = value;
-    document.getElementById('editImageUrlJson').value = JSON.stringify(editImages);
+    if (editImages[index]) {
+        editImages[index].description = value;
+        const jsonInput = document.getElementById('editImageUrlJson');
+        if (jsonInput) {
+            jsonInput.value = editImages.length === 1 ? editImages[0].url : JSON.stringify(editImages);
+        }
+    }
 }
 
 function removeEditImage(index) {
@@ -273,11 +335,13 @@ window.editInstruction = function (btn) {
                     editImages = JSON.parse(imageUrlRaw);
                 } else {
                     // Legacy support for single string URL
-                    editImages = [{ url: imageUrlRaw, description: 'صورة' }];
+                    const isAud = imageUrlRaw.match(/\.(ogg|opus|mp3|wav|m4a|aac)$/i);
+                    editImages = [{ url: imageUrlRaw, description: isAud ? 'ريكورد صوتي' : 'مرفق' }];
                 }
             } catch (e) {
                 console.error("Failed to parse image JSON", e);
-                editImages = [{ url: imageUrlRaw, description: 'صورة' }];
+                const isAud = imageUrlRaw.match(/\.(ogg|opus|mp3|wav|m4a|aac)$/i);
+                editImages = [{ url: imageUrlRaw, description: isAud ? 'ريكورد صوتي' : 'مرفق' }];
             }
         }
 

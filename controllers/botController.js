@@ -2518,20 +2518,17 @@ export async function handleIncomingUnifiedMessage({
                         mimetype: 'audio/ogg; codecs=opus'
                     }, { userId });
 
+                    const voiceTranscript = `🎙️ [رسالة صوتية أرسلت للعميل: سؤالك مهم جداً وممتاز ومحتاج تعرف إجابته. بص يا سيدي، العملاء هتيجي منين للمتجر؟ المتجر ده بيكون زي المحل بتاعك، بس على النت. عشان الزباين تعرف محلك وتدخل تشتري، بنعمل إعلانات ممولة على الفيسبوك، انستجرام، وتيك توك، بتستهدف الناس المهتمة بنوع منتجاتك بالظبط. والجميل بقى إن المتجر بتاعنا مربوط بحاجة اسمها بيكسل إعلانات. دي بتسجل كل زبون دخل، وتقدر تعمل له إعادة استهداف، وتجيب لك ناس شبه اللي اشترت منك بالظبط، وده بيعلي مبيعاتك جداً وبأقل تكلفة إعلانات. المتجر هو اللي بيخلي العميل يطلب في ثواني بضغطة زرار، والدفع عند الاستلام. يعني الإعلانات بتجيب الزبون، والمتجر يقفل البيعة بضغطة زرار واحدة.]`;
+
                     const savedAudio = await Message.create({
                         UserId: userId,
                         remoteJid,
                         role: 'model',
-                        content: '🎙️ رسالة صوتية: شرح كيفية وصول العملاء والمبيعات للمتجر',
+                        content: voiceTranscript,
                         media_url: '/uploads/audio/voice_how_customers_come.ogg',
                         status: 'sent'
                     });
                     if (io) io.to(`user_${userId}`).emit('new_message', savedAudio);
-
-                    const followText = `سؤالك في الجون ومهم جداً يا فندم! 🌸 استمع للريكورد الصوتي ده بيوضحلك بالظبط إزاي الزباين بتدخل متجرك وإزاي بنساعدك تعمل إعلانات تجيبلك أوردرات من أول يوم ✨`;
-                    await sendHumanMessage(sock, remoteJid, { text: followText }, { userId });
-                    const savedTxt = await Message.create({ UserId: userId, remoteJid, role: 'model', content: followText, status: 'sent' });
-                    if (io) io.to(`user_${userId}`).emit('new_message', savedTxt);
                     return;
                 }
             }
@@ -2558,19 +2555,22 @@ export async function handleIncomingUnifiedMessage({
                         mimetype: 'audio/ogg; codecs=opus'
                     }, { userId });
 
+                    const voiceTranscript = `🎙️ [رسالة صوتية أرسلت للعميل: استلمت منتجاتك ورابط صفحتك يا فندم، وزي ما اتفقنا، إحنا هنرفعلك أول منتجات كهدية مننا عشان تبدأ على طول. بس محتاج منك خطوة صغيرة: سجل حسابك على المنصة عشان يكون ليك لوحة تحكم خاصة بيك، ونقدر ندخل نرفع المنتجات جوا حسابك. هبعتلك رابط التسجيل حالا، سجّل وعرفني عشان نبدأ على طول.]`;
+
                     const savedAudio = await Message.create({
                         UserId: userId,
                         remoteJid,
                         role: 'model',
-                        content: '🎙️ رسالة صوتية: استلام المنتجات وتجهيز المتجر',
+                        content: voiceTranscript,
                         media_url: '/uploads/audio/voice_received_products.ogg',
                         status: 'sent'
                     });
                     if (io) io.to(`user_${userId}`).emit('new_message', savedAudio);
 
-                    const followText = `استلمت بيانات منتجاتك يا فندم بنجاح! 🚀 إحنا معاك خطوة بخطوة وهنساعدك نرفع أول منتجات على متجرك كهدية مننا.\n\nتقدر تسجل حسابك في دقيقة من هنا عشان نبدأ نرفعهم فوراً:\n👉 https://app.fast-order-eg.tech/register`;
-                    await sendHumanMessage(sock, remoteJid, { text: followText }, { userId });
-                    const savedTxt = await Message.create({ UserId: userId, remoteJid, role: 'model', content: followText, status: 'sent' });
+                    // نرسل الرابط فقط الذي وعد به الفويس بدون تكرار الكلام
+                    const linkOnly = `👉 رابط التسجيل:\nhttps://app.fast-order-eg.tech/register`;
+                    await sendHumanMessage(sock, remoteJid, { text: linkOnly }, { userId });
+                    const savedTxt = await Message.create({ UserId: userId, remoteJid, role: 'model', content: linkOnly, status: 'sent' });
                     if (io) io.to(`user_${userId}`).emit('new_message', savedTxt);
 
                     // Hot Lead Notification to Sales Control Group
