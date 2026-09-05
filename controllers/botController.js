@@ -4357,9 +4357,8 @@ export const checkNoActionCustomers = async (io) => {
                     // توليد ملخص المحادثة بالذكاء الاصطناعي
                     const summary = await generateCustomerSummary(customer.id, userId);
                     
-                    const notifyMsg = `🚨 *طلب تدخل فريق المبيعات (Auto-Handoff)*\n\n🔖 كود العميل: ${customer.customerNumber || customer.id}\n👤 العميل: ${customer.customerName || 'عميل واتساب'}\n📞 الرقم: ${customer.phoneNumber}\nالمسؤول: ${assignedSalesName}\n🕒 وقت التحويل: ${transferTime}\n\n🤖 *ملخص المحادثة بالذكاء الاصطناعي:*\n${summary}\n\n🔗 *لإضافة ملاحظات للعميل مباشرة:*\nhttps://crm.bird-technology.com/dashboard/customers?openNote=${customer.id}`;
-                    
-                    await notifyControlGroup(userId, notifyMsg);
+                    // تم إيقاف إشعار Auto-Handoff لجروب الواتساب بناءً على طلب العميل
+                    // await notifyControlGroup(userId, notifyMsg, customer.assignedToUserId, 'handoff');
 
                     if (!assignedEmp) {
                         await notificationService.createNotification({
@@ -4475,7 +4474,10 @@ export async function generateCustomerSummary(customerId, userId) {
         // إذا لم يكن هناك رد من العميل بعد الترحيب
         const userMsgs = messages.filter(m => m.role === 'user');
         if (userMsgs.length === 0) {
-            return 'العميل لم يرد بعد رسالة الترحيب.';
+            const defaultSummary = `📌 الخدمة المطلوبة: غير محدد\n💬 حالة العميل: العميل لم يرد بعد رسالة الترحيب.\n👉 المطلوب: التواصل الودي مع العميل لمعرفة اهتماماته والخدمة التي يحتاجها لمتجره.`;
+            customer.aiSummary = defaultSummary;
+            await customer.save().catch(() => {});
+            return defaultSummary;
         }
 
         // Format conversation log
@@ -4487,16 +4489,18 @@ export async function generateCustomerSummary(customerId, userId) {
 
         const salesNotes = customer.notes || 'لا توجد ملاحظات من المبيعات.';
 
-        const systemInstruction = `أنت مساعد ذكي ومحلل محادثات مبيعات في نظام Bird CRM.
-مهمتك هي صياغة ملخص مباشر، مختصر جداً، ومنسق في أسطر منفصلة (Bullet points) بدون أي مقدمات أو زيادات:
+        const systemInstruction = `أنت مساعد ذكي ومحلل محادثات مبيعات محترف لمنصة Fast Order (منصة إنشاء المتاجر الإلكترونية المتكاملة وإدارتها وحلول خدمة العملاء).
+مهمتك هي صياغة ملخص مبيعات عملي ودقيق ومباشر جداً، ومنسق في 3 أسطر محددة بدون أي مقدمات أو حشو:
 
-📌 الخدمة المطلوب: [اسم الخدمة أو "غير محدد"]
-💬 حالة العميل: [موقفه حالياً]
-👉 التوصية: [الخطوة القادمة للمبيعات]
+📌 الخدمة المطلوبة: [حدد بدقة الخدمة التي يهتم بها العميل: متجر إلكتروني مجاني (7 أيام)، باقة المتجر، خدمة عملاء، ربط بيكسل وإعلانات، أو استفسار محدد]
+💬 حالة العميل: [لخص باختصار شديد ما قاله العميل، طبيعة نشاطه إن وُجدت، أو وضعه الحالي]
+👉 المطلوب: [اكتب الإجراء العملي المحدد والمطلوب تنفيذه من مسؤول المبيعات فوراً لدفع العميل نحو الاشتراك أو إتمام طلبه، مثلاً: التواصل لشرح كيفية ربط المتجر، إرسال فيديو الشرح ورابط المعاينة، الرد على استفسار كذا، أو المتابعة لمعرفة متطلباته]
 
-قواعد صارمة:
-- لا تضف أي كلام إنشائي أو ترحيب.
-- إذا كان العميل لم يطلب شيئاً واضحاً ولم يرد بعد الترحيب، اكتب فقط: "العميل لم يرد بعد رسالة الترحيب."`;
+تعليمات وقواعد صارمة:
+1. ممنوع استخدام كلمة "توصية" أو "التوصية" نهائياً، استخدم دائماً بدلاً منها "👉 المطلوب:".
+2. خانة "👉 المطلوب:" يجب أن تحتوي على إجراء تنفيذي واضح للمبيعات (Call to Action واضح ومفيد)، ولا تكتفِ بعبارات سلبية مثل "انتظار رد العميل".
+3. اعتمد على سجل الحوار وملاحظات المبيعات المرفقة لتحديد المطلوب بدقة.
+4. لا تضف أي مقدمة أو خاتمة، واكتفِ بالأسطر الثلاثة فقط.`;
 
         const promptText = `سجل المحادثة:\n${chatLog}\n\nملاحظات المبيعات:\n${salesNotes}\n\nاكتب الملخص الآن:`;
 
@@ -4547,7 +4551,11 @@ export async function generateCustomerSummary(customerId, userId) {
         const rawSummary = data.candidates?.[0]?.content?.parts?.[0]?.text;
         
         if (rawSummary) {
-            const cleanSummary = rawSummary.trim();
+            let cleanSummary = rawSummary.trim();
+            // استبدال أي ظهور لكلمة التوصية بـ المطلوب
+            cleanSummary = cleanSummary
+                .replace(/👉?\s*التوصية:/g, '👉 المطلوب:')
+                .replace(/📌\s*الخدمة المطلوب:/g, '📌 الخدمة المطلوبة:');
             customer.aiSummary = cleanSummary;
             await customer.save();
             return cleanSummary;

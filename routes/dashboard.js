@@ -3338,6 +3338,9 @@ router.post('/customers/update-notes', async (req, res) => {
         setImmediate(async () => {
             try {
                 const summary = await generateCustomerSummary(customer.id, customer.UserId);
+                const cleanSummary = (summary || '')
+                    .replace(/👉?\s*التوصية:/g, '👉 المطلوب:')
+                    .replace(/📌\s*الخدمة المطلوب:/g, '📌 الخدمة المطلوبة:');
                 const whatsappMsg = `📝 *تقرير إضافة/تحديث ملاحظات*
 
 🔖 كود العميل: ${customer.customerNumber || customer.id}
@@ -3346,7 +3349,7 @@ router.post('/customers/update-notes', async (req, res) => {
 👨‍💼 الموظف: ${req.user.fullName || req.user.username}
 
 🤖 *ملخص المحادثة بالذكاء الاصطناعي:*
-${summary}
+${cleanSummary}
 
 📝 *الملاحظات:*
 ${notes}`;

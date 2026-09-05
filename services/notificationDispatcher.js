@@ -111,6 +111,20 @@ async function processNotificationQueue() {
  */
 export async function sendSystemNotification({ userId, assignedToUserId = null, message, type = 'general' }) {
     try {
+        // إدارة الإشعارات: إيقاف إشعارات طلب التدخل وتدخل المبيعات والـ Auto-Handoff نهائياً حسب طلب العميل
+        const isHandoffNotice = (message && (
+            message.includes('طلب تدخل فريق المبيعات') ||
+            message.includes('طلب تدخل بشري') ||
+            message.includes('Auto-Handoff') ||
+            message.includes('طلب تدخل') ||
+            message.includes('تم تعيين عميل جديد')
+        )) || type === 'handoff' || type === 'auto_handoff' || type === 'sales_handoff' || type === 'auto_assignment';
+
+        if (isHandoffNotice) {
+            console.log(`🔇 [NotificationDispatcher] Muted handoff/intervention WhatsApp group notification per user request.`);
+            return false;
+        }
+
         // حماية هامة: رسائل الملاحظات، ملخصات المحادثة، وتأكيدات الاشتراكات مسموح بها دائماً وتصل للجروب فوراً
         const isProtectedNotice = (message && (
             message.includes('تقرير إضافة/تحديث ملاحظات') ||
@@ -118,12 +132,6 @@ export async function sendSystemNotification({ userId, assignedToUserId = null, 
             message.includes('تفعيل اشتراك') ||
             message.includes('ملخص محادثة منتهية')
         )) || type === 'note_report' || type === 'inactivity_summary' || type === 'payment_confirmed';
-
-        // إدارة الإشعارات: إيقاف إشعارات التعيين اللحظي وتدخل المبيعات فقط
-        if (!isProtectedNotice && (type === 'handoff' || type === 'auto_assignment' || type === 'sales_handoff')) {
-            console.log(`🔇 [NotificationDispatcher] Muted "${type}" WhatsApp group notification per configuration.`);
-            return false;
-        }
 
         // 1. Get Global Notification Settings
         const enableNotifications = await getSetting('enable_whatsapp_notifications', userId);

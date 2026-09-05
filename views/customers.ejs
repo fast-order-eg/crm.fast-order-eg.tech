@@ -1474,7 +1474,10 @@ function showCustomerDetails(customerId, serialNum) {
                         paymentSelect.classList.add(`status-${cust.paymentStatus || 'pending'}`);
                         
                         // AI Summary
-                        document.getElementById('detailsSummaryContainer').textContent = cust.aiSummary || 'لا يوجد ملخص متاح حالياً لهذه المحادثة.';
+                        const cleanSummary = (cust.aiSummary || 'لا يوجد ملخص متاح حالياً لهذه المحادثة.')
+                            .replace(/👉?\s*التوصية:/g, '👉 المطلوب:')
+                            .replace(/📌\s*الخدمة المطلوب:/g, '📌 الخدمة المطلوبة:');
+                        document.getElementById('detailsSummaryContainer').textContent = cleanSummary;
                         
                         // WhatsApp Link
                         document.getElementById('detailsWhatsAppBtn').href = `https://wa.me/${(cust.phoneNumber || '').replace('@', '')}`;
