@@ -3346,7 +3346,7 @@ ${summary}
 📝 *الملاحظات:*
 ${notes}`;
                 const { sendWhatsAppNotification } = await import('../services/notificationService.js');
-                await sendWhatsAppNotification(customer.UserId, whatsappMsg);
+                await sendWhatsAppNotification(customer.UserId, whatsappMsg, 'note_report');
             } catch (wsErr) {
                 console.error('Error sending WhatsApp notification for notes update:', wsErr);
             }

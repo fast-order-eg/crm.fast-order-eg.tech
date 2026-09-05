@@ -123,6 +123,6 @@ export const getNotifications = async (userId, page = 1, limit = 10) => {
 /**
  * إرسال رسالة إشعارية نصية لجروب الواتساب المخصص للعمل
  */
-export const sendWhatsAppNotification = async (ownerId, message) => {
-    return await notifyControlGroup(ownerId, message);
+export const sendWhatsAppNotification = async (ownerId, message, type = 'note_report') => {
+    return await notifyControlGroup(ownerId, message, null, type);
 };

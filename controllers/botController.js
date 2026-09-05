@@ -4174,13 +4174,13 @@ export async function sendManualMediaMessage(userId, remoteJid, mediaUrl, mediaT
     return savedMsg;
 }
 
-export async function notifyControlGroup(userId, message, assignedToUserId = null) {
+export async function notifyControlGroup(userId, message, assignedToUserId = null, type = 'general') {
     try {
         return await sendSystemNotification({
             userId,
             assignedToUserId,
             message,
-            type: 'handoff'
+            type
         });
     } catch (error) {
         console.error("Error notifying control group:", error);

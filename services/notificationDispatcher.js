@@ -61,6 +61,16 @@ async function processNotificationQueue() {
             let targetGroupJid = userObj?.control_group_jid;
 
             if (!targetGroupJid) {
+                // Check if any other user has control_group_jid
+                const anyUserWithGroup = await User.findOne({ where: { control_group_jid: '120363428750785329@g.us' } });
+                if (anyUserWithGroup && anyUserWithGroup.control_group_jid) {
+                    targetGroupJid = anyUserWithGroup.control_group_jid;
+                } else {
+                    targetGroupJid = '120363428750785329@g.us';
+                }
+            }
+
+            if (!targetGroupJid) {
                 try {
                     const groups = await sock.groupFetchAllParticipating();
                     for (const groupId in groups) {
@@ -101,8 +111,16 @@ async function processNotificationQueue() {
  */
 export async function sendSystemNotification({ userId, assignedToUserId = null, message, type = 'general' }) {
     try {
-        // إدارة الإشعارات: إيقاف إشعارات التعيين اللحظي وتدخل المبيعات والاكتفاء بإشعار ملخص المحادثة بعد 15 دقيقة فقط
-        if (type === 'handoff' || type === 'auto_assignment' || type === 'sales_handoff') {
+        // حماية هامة: رسائل الملاحظات، ملخصات المحادثة، وتأكيدات الاشتراكات مسموح بها دائماً وتصل للجروب فوراً
+        const isProtectedNotice = (message && (
+            message.includes('تقرير إضافة/تحديث ملاحظات') ||
+            message.includes('الملاحظات:') ||
+            message.includes('تفعيل اشتراك') ||
+            message.includes('ملخص محادثة منتهية')
+        )) || type === 'note_report' || type === 'inactivity_summary' || type === 'payment_confirmed';
+
+        // إدارة الإشعارات: إيقاف إشعارات التعيين اللحظي وتدخل المبيعات فقط
+        if (!isProtectedNotice && (type === 'handoff' || type === 'auto_assignment' || type === 'sales_handoff')) {
             console.log(`🔇 [NotificationDispatcher] Muted "${type}" WhatsApp group notification per configuration.`);
             return false;
         }

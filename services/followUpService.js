@@ -125,6 +125,7 @@ export const checkPendingFollowUps = async (io) => {
                         const shouldUseMetaTemplate = firstFollowupType === 'meta_template' || isWindowExpired;
 
                         let firstMsgId = null;
+                        let customerFirstMsg = firstFollowupMessage || 'أهلاً بك، بنتابع مع حضرتك بخصوص المتجر الإلكتروني وحابين نطمن عليك ونساعدك في أي استفسار 🌸';
                         if (shouldUseMetaTemplate) {
                             const templateName = await getSystemSetting('first_followup_template_name', userId) || 'followup_3days_';
                             console.log(`[FollowUpService Smart Fallback] Customer ${customer.phoneNumber} activity was ${hoursPassed.toFixed(1)}h ago (Window Expired: ${isWindowExpired}). Auto-switching to Meta Template: ${templateName}`);
