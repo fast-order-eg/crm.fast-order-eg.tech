@@ -1157,8 +1157,9 @@ router.get('/livechat/:remoteJid/messages', async (req, res) => {
 
         const { remoteJid } = req.params;
         const decodedJid = decodeURIComponent(remoteJid);
-        const phone = decodedJid.split('@')[0].replace(/[^0-9]/g, '');
-        const phoneJid = `${phone}@s.whatsapp.net`;
+        const isBsuid = decodedJid.includes('.');
+        const phone = isBsuid ? decodedJid.split('@')[0] : decodedJid.split('@')[0].replace(/[^0-9]/g, '');
+        const phoneJid = isBsuid ? decodedJid : `${phone}@s.whatsapp.net`;
         const cleanNo2 = phone.startsWith('20') ? phone.substring(2) : phone;
 
         let customer = await Customer.findOne({
@@ -1264,8 +1265,9 @@ router.post(['/livechat/send', '/livechat/:remoteJid/send'], async (req, res) =>
         const owner = await getOwnerUser(req.user);
         const targetUserId = owner.id;
         const decodedJid = decodeURIComponent(rawJid);
-        const phone = decodedJid.split('@')[0].replace(/[^0-9]/g, '');
-        const phoneJid = `${phone}@s.whatsapp.net`;
+        const isBsuid = decodedJid.includes('.');
+        const phone = isBsuid ? decodedJid.split('@')[0] : decodedJid.split('@')[0].replace(/[^0-9]/g, '');
+        const phoneJid = isBsuid ? decodedJid : `${phone}@s.whatsapp.net`;
         const cleanNo2 = phone.startsWith('20') ? phone.substring(2) : phone;
 
         let customer = await Customer.findOne({
@@ -1348,8 +1350,9 @@ router.post(['/livechat/send-media', '/livechat/:remoteJid/send-media'], uploadL
         const owner = await getOwnerUser(req.user);
         const targetUserId = owner.id;
         const decodedJid = decodeURIComponent(rawJid);
-        const phone = decodedJid.split('@')[0].replace(/[^0-9]/g, '');
-        const phoneJid = `${phone}@s.whatsapp.net`;
+        const isBsuid = decodedJid.includes('.');
+        const phone = isBsuid ? decodedJid.split('@')[0] : decodedJid.split('@')[0].replace(/[^0-9]/g, '');
+        const phoneJid = isBsuid ? decodedJid : `${phone}@s.whatsapp.net`;
         const cleanNo2 = phone.startsWith('20') ? phone.substring(2) : phone;
 
         let customer = await Customer.findOne({
@@ -3259,8 +3262,9 @@ router.post('/customers/update-notes', async (req, res) => {
         }
         if (!customer && remoteJid) {
             const decodedJid = decodeURIComponent(remoteJid);
-            const phone = decodedJid.split('@')[0].replace(/[^0-9]/g, '');
-            const phoneJid = `${phone}@s.whatsapp.net`;
+            const isBsuid = decodedJid.includes('.');
+            const phone = isBsuid ? decodedJid.split('@')[0] : decodedJid.split('@')[0].replace(/[^0-9]/g, '');
+            const phoneJid = isBsuid ? decodedJid : `${phone}@s.whatsapp.net`;
             const cleanNo2 = phone.startsWith('20') ? phone.substring(2) : phone;
             customer = await Customer.findOne({
                 where: {
@@ -3280,10 +3284,11 @@ router.post('/customers/update-notes', async (req, res) => {
             customer = await Customer.findOne({
                 where: {
                     [Op.or]: [
+                        { phoneNumber: phoneNumber },
                         { phoneNumber: cleanPhone },
                         { phoneNumber: cleanNo2 },
                         { phoneNumber: '0' + cleanNo2 },
-                        { remoteJid: { [Op.like]: `%${cleanNo2}%` } }
+                        { remoteJid: { [Op.like]: `%${cleanNo2 || phoneNumber}%` } }
                     ]
                 }
             });

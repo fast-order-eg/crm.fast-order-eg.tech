@@ -956,7 +956,7 @@
                                 <a href="/dashboard/livechat?jid=${encodeURIComponent(cust.remoteJid || '')}&phone=${encodeURIComponent(cust.phoneNumber || '')}&name=${encodeURIComponent(cust.customerName || '')}" class="btn btn-sm btn-outline-primary px-2 py-1 rounded" title="فتح المحادثة في اللايف شات">
                                     <i class="bi bi-chat-text-fill"></i>
                                 </a>
-                                <a href="https://wa.me/${cust.phoneNumber}" target="_blank" class="btn btn-sm btn-outline-success px-2 py-1 rounded" title="محادثة واتساب">
+                                <a href="https://wa.me/${(cust.phoneNumber || '').replace('@', '')}" target="_blank" class="btn btn-sm btn-outline-success px-2 py-1 rounded" title="محادثة واتساب">
                                     <i class="bi bi-whatsapp"></i>
                                 </a>
 
@@ -1477,7 +1477,7 @@ function showCustomerDetails(customerId, serialNum) {
                         document.getElementById('detailsSummaryContainer').textContent = cust.aiSummary || 'لا يوجد ملخص متاح حالياً لهذه المحادثة.';
                         
                         // WhatsApp Link
-                        document.getElementById('detailsWhatsAppBtn').href = `https://wa.me/${cust.phoneNumber}`;
+                        document.getElementById('detailsWhatsAppBtn').href = `https://wa.me/${(cust.phoneNumber || '').replace('@', '')}`;
                         
                         // Toggle view
                         loader.classList.add('d-none');

@@ -3939,8 +3939,9 @@ export async function sendManualMessage(userId, remoteJid, text, senderName = nu
         try {
             const { sendMetaMessage } = await import('./metaCloudController.js');
             const rawId = remoteJid ? remoteJid.split('@')[0] : '';
+            const isBsuid = rawId.includes('.');
             const digits = rawId.replace(/[^0-9]/g, '');
-            const targetPhone = (digits && digits.length >= 5) ? digits : rawId;
+            const targetPhone = isBsuid ? rawId : ((digits && digits.length >= 5) ? digits : rawId);
             
             if (!targetPhone) {
                 throw new Error('رقم الهاتف أو المعرف الخاص بهذا العميل غير متوفر أو غير صحيح.');
@@ -4081,8 +4082,9 @@ export async function sendManualMediaMessage(userId, remoteJid, mediaUrl, mediaT
         try {
             const { sendMetaMessage } = await import('./metaCloudController.js');
             const rawId = remoteJid ? remoteJid.split('@')[0] : '';
+            const isBsuid = rawId.includes('.');
             const digits = rawId.replace(/[^0-9]/g, '');
-            const targetPhone = (digits && digits.length >= 5) ? digits : rawId;
+            const targetPhone = isBsuid ? rawId : ((digits && digits.length >= 5) ? digits : rawId);
             
             if (!targetPhone) {
                 throw new Error('رقم الهاتف أو المعرف الخاص بهذا العميل غير متوفر أو غير صحيح.');

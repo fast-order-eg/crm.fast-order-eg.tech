@@ -449,10 +449,14 @@
                         <% conversations.forEach(c => {
                             const isLid = c.remoteJid.endsWith('@lid');
                             let phone = c.phoneNumber || ((!isLid && c.remoteJid.endsWith('@s.whatsapp.net')) ? c.remoteJid.split('@')[0] : '');
-                            if (phone && phone.startsWith('01') && phone.length === 11) phone = '2' + phone;
-                            let nm = c.customerName || (phone ? '+' + phone : (isLid ? 'عميل' : c.remoteJid.split('@')[0]));
-                            if (nm.startsWith('01') && nm.length === 11) nm = '+2' + nm;
-                            else if (nm.startsWith('201') && !nm.startsWith('+')) nm = '+' + nm;
+                            const isUsername = phone && phone.startsWith('@');
+                            const isBsuid = phone && phone.includes('.');
+                            if (!isUsername && !isBsuid && phone && phone.startsWith('01') && phone.length === 11) phone = '2' + phone;
+                            let nm = c.customerName || (phone ? (isUsername ? phone : '+' + phone) : (isLid ? 'عميل' : c.remoteJid.split('@')[0]));
+                            if (!isUsername && !isBsuid) {
+                                if (nm.startsWith('01') && nm.length === 11) nm = '+2' + nm;
+                                else if (nm.startsWith('201') && !nm.startsWith('+')) nm = '+' + nm;
+                            }
                             const ts = new Date(c.lastMessageAt).toLocaleTimeString('en-US',{timeZone: 'Africa/Cairo', hour:'2-digit',minute:'2-digit',hour12:true});
 
                             let badgeBg = 'background-color: #f1f5f9; color: #475569 !important; border: 1px solid #cbd5e1;';
@@ -501,7 +505,17 @@
                                         <i class="bi bi-person-badge me-1"></i>المسؤول: <%= assignedSales %>
                                     </span>
                                 </div>
-                                <% if (phone) { %><div class="lc-phone"><span class="d-none d-md-inline">📞 </span>+<%= phone.replace(/^\+/, '') %></div><% } %>
+                                <% if (phone) { %>
+                                    <div class="lc-phone">
+                                        <% if (isUsername) { %>
+                                            <span class="d-none d-md-inline">👤 </span><%= phone %>
+                                        <% } else if (isBsuid) { %>
+                                            <span class="d-none d-md-inline">🆔 </span><%= phone %>
+                                        <% } else { %>
+                                            <span class="d-none d-md-inline">📞 </span>+<%= phone.replace(/^\+/, '') %>
+                                        <% } %>
+                                    </div>
+                                <% } %>
                                 <div class="lc-prev"><%= c.lastMessageText ? c.lastMessageText.replace(/\[M:\d+\]/g, '').trim() : '...' %></div>
                             </div>
                             <div class="lc-meta">
@@ -761,10 +775,14 @@
     function createConvItemHtml(c) {
         const isLid = c.remoteJid.endsWith('@lid');
         let phone = c.phoneNumber || ((!isLid && c.remoteJid.endsWith('@s.whatsapp.net')) ? c.remoteJid.split('@')[0] : '');
-        if (phone && phone.startsWith('01') && phone.length === 11) phone = '2' + phone;
-        let nm = c.customerName || (phone ? '+' + phone : (isLid ? 'عميل' : c.remoteJid.split('@')[0]));
-        if (nm.startsWith('01') && nm.length === 11) nm = '+2' + nm;
-        else if (nm.startsWith('201') && !nm.startsWith('+')) nm = '+' + nm;
+        const isUsername = phone && phone.startsWith('@');
+        const isBsuid = phone && phone.includes('.');
+        if (!isUsername && !isBsuid && phone && phone.startsWith('01') && phone.length === 11) phone = '2' + phone;
+        let nm = c.customerName || (phone ? (isUsername ? phone : '+' + phone) : (isLid ? 'عميل' : c.remoteJid.split('@')[0]));
+        if (!isUsername && !isBsuid) {
+            if (nm.startsWith('01') && nm.length === 11) nm = '+2' + nm;
+            else if (nm.startsWith('201') && !nm.startsWith('+')) nm = '+' + nm;
+        }
         const ts = c.lastMessageAt ? new Date(c.lastMessageAt).toLocaleTimeString('en-US',{timeZone: 'Africa/Cairo', hour:'2-digit',minute:'2-digit',hour12:true}) : '';
 
         let badgeBg = 'background-color: #f1f5f9; color: #475569 !important; border: 1px solid #cbd5e1;';
@@ -780,7 +798,16 @@
         const safeNm = (nm || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
         const prevText = c.lastMessageText ? c.lastMessageText.replace(/\[M:\d+\]/g, '').trim() : '...';
         const unreadHtml = c.unreadCount > 0 ? `<span class="unread-pill">${c.unreadCount}</span>` : '';
-        const phoneHtml = phone ? `<div class="lc-phone"><span class="d-none d-md-inline">📞 </span>+${phone.replace(/^\+/, '')}</div>` : '';
+        let phoneHtml = '';
+        if (phone) {
+            if (isUsername) {
+                phoneHtml = `<div class="lc-phone"><span class="d-none d-md-inline">👤 </span>${phone}</div>`;
+            } else if (isBsuid) {
+                phoneHtml = `<div class="lc-phone"><span class="d-none d-md-inline">🆔 </span>${phone}</div>`;
+            } else {
+                phoneHtml = `<div class="lc-phone"><span class="d-none d-md-inline">📞 </span>+${phone.replace(/^\+/, '')}</div>`;
+            }
+        }
         const activeClass = (c.remoteJid === curJid) ? 'active' : '';
         const custCode = getCustomerCode(c, nm);
         const custId = c.Customer ? c.Customer.id : (c.CustomerId || '');
@@ -1038,11 +1065,15 @@
         const activeItem = document.querySelector(`.lc-item[data-jid="${jid}"]`);
         if (activeItem) activeItem.classList.add('active');
 
-        let displayPhone = (phone || '').replace(/[^0-9]/g, '');
-        if (displayPhone && displayPhone.startsWith('01') && displayPhone.length === 11) displayPhone = '2' + displayPhone;
+        const isUsername = (phone || '').startsWith('@');
+        const isBsuid = (phone || '').includes('.');
+        let displayPhone = (!isUsername && !isBsuid) ? (phone || '').replace(/[^0-9]/g, '') : phone;
+        if (!isUsername && !isBsuid && displayPhone && displayPhone.startsWith('01') && displayPhone.length === 11) displayPhone = '2' + displayPhone;
         let displayNm = nm || '';
-        if (displayNm.startsWith('01') && displayNm.length === 11) displayNm = '+2' + displayNm;
-        else if (displayNm.startsWith('201') && !displayNm.startsWith('+')) displayNm = '+' + displayNm;
+        if (!isUsername && !isBsuid) {
+            if (displayNm.startsWith('01') && displayNm.length === 11) displayNm = '+2' + displayNm;
+            else if (displayNm.startsWith('201') && !displayNm.startsWith('+')) displayNm = '+' + displayNm;
+        }
 
         currentCustomerDisplayName = displayNm;
         currentCustomerId = passedCustId || (activeItem ? activeItem.dataset.custId : null);
@@ -1058,9 +1089,18 @@
         const waLink = document.getElementById('lcWaLink');
         
         if (displayPhone) {
-            phoneSpan.textContent = '+' + displayPhone;
-            waLink.href = 'https://wa.me/' + displayPhone;
-            phoneActions.style.display = 'inline-flex';
+            if (isUsername) {
+                phoneSpan.textContent = displayPhone;
+                waLink.href = 'https://wa.me/' + displayPhone.replace('@', '');
+                phoneActions.style.display = 'inline-flex';
+            } else if (isBsuid) {
+                phoneSpan.textContent = displayPhone;
+                phoneActions.style.display = 'none';
+            } else {
+                phoneSpan.textContent = '+' + displayPhone;
+                waLink.href = 'https://wa.me/' + displayPhone;
+                phoneActions.style.display = 'inline-flex';
+            }
         } else {
             phoneSpan.textContent = jid;
             phoneActions.style.display = 'none';

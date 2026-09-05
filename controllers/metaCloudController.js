@@ -85,7 +85,20 @@ export const sendMetaMessage = async (to, bodyText, options = {}) => {
         const accessToken = process.env.META_ACCESS_TOKEN;
         console.log(`🔍 [META_SEND_DEBUG] PhoneId: ${phoneId}, Token Len: ${accessToken ? accessToken.length : 0}, Token Prefix: ${accessToken ? accessToken.substring(0, 20) : 'NONE'}`);
 
-        const rawTarget = String(to || '').trim();
+        let rawTarget = String(to || '').trim();
+        if (rawTarget.startsWith('@')) {
+            // Support username resolution to BSUID or phone number
+            try {
+                const { default: Customer } = await import('../models/Customer.js');
+                const cust = await Customer.findOne({ where: { phoneNumber: rawTarget } });
+                if (cust && cust.remoteJid) {
+                    rawTarget = cust.remoteJid.split('@')[0];
+                }
+            } catch (custLookupErr) {
+                console.error('⚠️ [sendMetaMessage] Username resolution error:', custLookupErr.message);
+            }
+        }
+
         const isBsuid = rawTarget.includes('.');
 
         let payload = {
@@ -236,6 +249,7 @@ export const handleWebhook = async (req, res) => {
             const msg = value.messages[0];
             const contact = value.contacts?.[0];
             const bsuid = msg.from_user_id || contact?.user_id || null;
+            const username = contact?.profile?.username ? `@${contact.profile.username}` : null;
             const rawFrom = String(msg.from || bsuid || '').trim();
             
             if (!rawFrom) {
@@ -249,7 +263,9 @@ export const handleWebhook = async (req, res) => {
             const targetId = isPhone ? digitsOnly : rawFrom;
             const remoteJid = isPhone ? `${digitsOnly}@s.whatsapp.net` : (rawFrom.includes('@') ? rawFrom : `${rawFrom}@s.whatsapp.net`);
 
-            const senderName = contact?.profile?.name || (isPhone ? `عميل ${digitsOnly}` : (bsuid ? `مستخدم ${bsuid}` : `عميل ${rawFrom}`));
+            // If phone is available use it; otherwise use username (e.g. @3mrMekky) if available, else BSUID
+            const displayPhone = isPhone ? targetId : (username || targetId);
+            const senderName = contact?.profile?.name || (isPhone ? `عميل ${digitsOnly}` : (username || (bsuid ? `مستخدم ${bsuid}` : `عميل ${rawFrom}`)));
             // Primary Admin User ID for Meta API (User rady = ID 3)
             const activeAdmin = await User.findOne({ where: { username: 'rady' } });
             const userId = activeAdmin ? activeAdmin.id : 3;
@@ -373,11 +389,11 @@ export const handleWebhook = async (req, res) => {
             }
 
             // Find or Create Customer
-            let [customer] = await Customer.findOrCreate({
+            let [customer, custCreated] = await Customer.findOrCreate({
                 where: { UserId: userId, remoteJid: remoteJid },
                 defaults: {
                     UserId: userId,
-                    phoneNumber: targetId,
+                    phoneNumber: displayPhone,
                     customerName: senderName,
                     remoteJid: remoteJid,
                     status: 'new',
@@ -385,6 +401,17 @@ export const handleWebhook = async (req, res) => {
                     lastReplyAt: new Date()
                 }
             });
+
+            if (!custCreated) {
+                const custUpdates = { lastReplyAt: new Date() };
+                if (customer.phoneNumber.includes('EG.') && username) {
+                    custUpdates.phoneNumber = username;
+                }
+                if (contact?.profile?.name && customer.customerName !== contact.profile.name) {
+                    custUpdates.customerName = contact.profile.name;
+                }
+                await customer.update(custUpdates);
+            }
 
             // Auto-merge any temporary Baileys LID duplicate customer into real customer
             try {
@@ -406,12 +433,12 @@ export const handleWebhook = async (req, res) => {
             }
 
             // Find or Create Conversation
-            let [conversation] = await Conversation.findOrCreate({
+            let [conversation, convCreated] = await Conversation.findOrCreate({
                 where: { UserId: userId, remoteJid: remoteJid },
                 defaults: {
                     UserId: userId,
                     remoteJid: remoteJid,
-                    phoneNumber: targetId,
+                    phoneNumber: displayPhone,
                     customerName: senderName,
                     CustomerId: customer.id,
                     platform: 'whatsapp',
@@ -419,6 +446,19 @@ export const handleWebhook = async (req, res) => {
                     lastMessageAt: new Date()
                 }
             });
+
+            if (!convCreated) {
+                const convUpdates = {};
+                if (conversation.phoneNumber.includes('EG.') && username) {
+                    convUpdates.phoneNumber = username;
+                }
+                if (contact?.profile?.name && conversation.customerName !== contact.profile.name) {
+                    convUpdates.customerName = contact.profile.name;
+                }
+                if (Object.keys(convUpdates).length > 0) {
+                    await conversation.update(convUpdates);
+                }
+            }
 
             // Save Incoming Message
             const savedIncomingMsg = await Message.create({
