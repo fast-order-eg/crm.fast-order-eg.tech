@@ -484,16 +484,18 @@
                             }
                             const custId = c.Customer ? c.Customer.id : (c.CustomerId || '');
                             const custNotes = (c.Customer && c.Customer.notes) ? c.Customer.notes : '';
+                            const safeNmAttr = (nm || '').replace(/['"\r\n\\]/g, ' ').trim();
+                            const safeNotesAttr = (custNotes || '').replace(/"/g, '&quot;').replace(/[\r\n]+/g, ' ');
                         %>
                         <div class="lc-item"
                              data-jid="<%= c.remoteJid %>"
                              data-handoff="<%= c.is_handoff %>"
-                             data-name="<%= nm.replace(/"/g,'') %>"
+                             data-name="<%= safeNmAttr %>"
                              data-phone="<%= phone %>"
                              data-cust-code="<%= custCode %>"
                              data-cust-id="<%= custId %>"
-                             data-cust-notes="<%= custNotes.replace(/"/g, '&quot;') %>"
-                             onclick="loadChat('<%= c.remoteJid %>','<%= nm.replace(/'/g,'') %>',<%= c.is_handoff %>,'<%= phone %>','<%= custCode %>','<%= custId %>')">
+                             data-cust-notes="<%= safeNotesAttr %>"
+                             onclick="loadChat('<%= c.remoteJid %>','<%= safeNmAttr %>',<%= c.is_handoff %>,'<%= phone %>','<%= custCode %>','<%= custId %>')">
                             <div class="lc-av <%= c.is_handoff ? 'handoff-av' : '' %>" title="كود العميل: <%= custCode %>">
                                 <%= custCode %>
                                 <% if (c.is_handoff) { %><div class="h-dot"></div><% } %>
@@ -675,6 +677,9 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/socket.io/socket.io.js"></script>
     <script>
+    const io_ = io();
+    io_.on('connect', () => io_.emit('join_room', 'user_<%= targetUserId %>'));
+
     let curJid=null, curHO=false;
     let currentCustomerId = null;
     let currentCustomerCode = '';
@@ -795,7 +800,7 @@
             badgeBg = 'background-color: #e0e7ff; color: #3730a3 !important; border: 1px solid #a5b4fc;';
         }
 
-        const safeNm = (nm || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        const safeNm = (nm || '').replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/[\r\n]+/g, ' ');
         const prevText = c.lastMessageText ? c.lastMessageText.replace(/\[M:\d+\]/g, '').trim() : '...';
         const unreadHtml = c.unreadCount > 0 ? `<span class="unread-pill">${c.unreadCount}</span>` : '';
         let phoneHtml = '';
@@ -811,7 +816,7 @@
         const activeClass = (c.remoteJid === curJid) ? 'active' : '';
         const custCode = getCustomerCode(c, nm);
         const custId = c.Customer ? c.Customer.id : (c.CustomerId || '');
-        const custNotes = (c.Customer && c.Customer.notes) ? c.Customer.notes.replace(/"/g, '&quot;') : '';
+        const custNotes = (c.Customer && c.Customer.notes) ? c.Customer.notes.replace(/"/g, '&quot;').replace(/[\r\n]+/g, ' ') : '';
 
         return `
         <div class="lc-item ${activeClass}"
@@ -1481,41 +1486,65 @@
         }
     }
 
-    window.addEventListener('load', () => {
+    window.addEventListener('load', async () => {
         const urlParams = new URLSearchParams(window.location.search);
         const targetJid = urlParams.get('jid');
         const targetPhone = urlParams.get('phone');
         const targetName = urlParams.get('name') || targetPhone || 'عميل';
 
         if (targetJid || targetPhone) {
-            setTimeout(() => {
-                let targetEl = null;
-                if (targetJid) {
-                    targetEl = document.querySelector(`.lc-item[data-jid="${targetJid}"]`);
-                }
-                if (!targetEl && targetPhone) {
-                    const cleanP = targetPhone.replace(/[^0-9]/g, '');
-                    const cleanNoZero = cleanP.startsWith('01') ? ('20' + cleanP.substring(1)) : cleanP;
-                    document.querySelectorAll('.lc-item').forEach(el => {
-                        const itemJid = el.getAttribute('data-jid') || '';
-                        const itemPhone = el.getAttribute('data-phone') || '';
-                        if (itemJid.includes(cleanNoZero) || itemPhone.includes(cleanNoZero)) {
-                            targetEl = el;
-                        }
-                    });
-                }
-                if (targetEl) {
-                    targetEl.click();
-                    targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    console.log('✅ Auto-opened chat from list:', targetJid || targetPhone);
-                } else {
-                    const finalJid = targetJid || (targetPhone ? (targetPhone.replace(/[^0-9]/g, '') + '@s.whatsapp.net') : null);
-                    if (finalJid) {
-                        loadChat(finalJid, targetName, false, targetPhone || '');
-                        console.log('✅ Directly opened chat:', finalJid);
+            let targetEl = null;
+            if (targetJid) {
+                targetEl = document.querySelector(`.lc-item[data-jid="${targetJid}"]`);
+            }
+            if (!targetEl && targetPhone) {
+                const cleanP = targetPhone.replace(/[^0-9]/g, '');
+                const cleanNoZero = cleanP.startsWith('01') ? ('20' + cleanP.substring(1)) : cleanP;
+                document.querySelectorAll('.lc-item').forEach(el => {
+                    const itemJid = el.getAttribute('data-jid') || '';
+                    const itemPhone = el.getAttribute('data-phone') || '';
+                    if ((cleanNoZero && itemJid.includes(cleanNoZero)) || (cleanNoZero && itemPhone.includes(cleanNoZero))) {
+                        targetEl = el;
                     }
+                });
+            }
+
+            if (targetEl) {
+                targetEl.click();
+                targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                console.log('✅ Auto-opened chat from list:', targetJid || targetPhone);
+            } else {
+                const finalJid = targetJid || (targetPhone ? (targetPhone.replace(/[^0-9]/g, '') + '@s.whatsapp.net') : null);
+                const searchKey = targetPhone || (targetJid ? targetJid.split('@')[0] : '');
+                
+                try {
+                    const res = await fetch(`/dashboard/livechat/api/conversations?page=1&limit=5&search=${encodeURIComponent(searchKey)}`);
+                    const data = await res.json();
+                    if (data.success && Array.isArray(data.conversations) && data.conversations.length > 0) {
+                        const cleanTarget = targetPhone ? targetPhone.replace(/[^0-9]/g, '') : (targetJid ? targetJid.split('@')[0] : '');
+                        const foundConv = data.conversations.find(c => c.remoteJid === finalJid || (cleanTarget && c.remoteJid && c.remoteJid.includes(cleanTarget)) || (cleanTarget && c.phoneNumber && c.phoneNumber.includes(cleanTarget))) || data.conversations[0];
+                        if (foundConv) {
+                            if (contactsListEl) {
+                                contactsListEl.insertAdjacentHTML('afterbegin', createConvItemHtml(foundConv));
+                            }
+                            targetEl = document.querySelector(`.lc-item[data-jid="${foundConv.remoteJid}"]`);
+                            if (targetEl) {
+                                targetEl.click();
+                                targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                console.log('✅ Preloaded and opened chat via API:', foundConv.remoteJid);
+                                return;
+                            }
+                        }
+                    }
+                } catch(e) {
+                    console.error('Error preloading target conversation from API:', e);
                 }
-            }, 400);
+
+                if (finalJid) {
+                    loadChat(finalJid, targetName, false, targetPhone || '');
+                    console.log('✅ Directly opened chat fallback:', finalJid);
+                }
+            }
         }
     });
     </script>

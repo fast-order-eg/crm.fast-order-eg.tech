@@ -948,6 +948,45 @@ router.get('/livechat', async (req, res) => {
         };
 
         const rawConversations = await Conversation.findAll(queryOptions);
+
+        if (req.query.jid || req.query.phone) {
+            const qJid = req.query.jid ? req.query.jid.trim() : null;
+            const qPhone = req.query.phone ? req.query.phone.trim() : null;
+            const orList = [];
+            if (qJid) orList.push({ remoteJid: qJid });
+            if (qPhone) {
+                const cleanP = qPhone.replace(/[^0-9]/g, '');
+                orList.push({ phoneNumber: qPhone });
+                if (cleanP) {
+                    orList.push({ phoneNumber: cleanP });
+                    orList.push({ remoteJid: `${cleanP}@s.whatsapp.net` });
+                    if (cleanP.startsWith('01')) {
+                        orList.push({ phoneNumber: '2' + cleanP });
+                        orList.push({ remoteJid: `2${cleanP}@s.whatsapp.net` });
+                    }
+                }
+            }
+            if (orList.length > 0) {
+                const specificConv = await Conversation.findOne({
+                    where: {
+                        UserId: targetUserId,
+                        [Op.or]: orList
+                    },
+                    include: [{
+                        model: Customer,
+                        as: 'Customer',
+                        include: [{
+                            model: User,
+                            as: 'assignedTo',
+                            attributes: ['id', 'fullName', 'username']
+                        }]
+                    }]
+                });
+                if (specificConv && !rawConversations.some(c => c.id === specificConv.id)) {
+                    rawConversations.unshift(specificConv);
+                }
+            }
+        }
         
         // Auto-link Customer for conversations missing CustomerId
         for (const conv of rawConversations) {
@@ -1039,11 +1078,57 @@ router.get('/livechat/api/conversations', async (req, res) => {
 
         if (search) {
             const searchPattern = `%${search}%`;
-            whereClause[Op.or] = [
+            const cleanDigits = search.replace(/[^0-9]/g, '');
+            const phoneVariants = [search];
+            if (cleanDigits && cleanDigits.length >= 3) {
+                phoneVariants.push(cleanDigits);
+                if (cleanDigits.startsWith('01')) {
+                    phoneVariants.push('2' + cleanDigits);
+                    phoneVariants.push(cleanDigits.substring(1));
+                } else if (cleanDigits.startsWith('201')) {
+                    phoneVariants.push('0' + cleanDigits.substring(2));
+                    phoneVariants.push(cleanDigits.substring(2));
+                } else if (cleanDigits.startsWith('1') && cleanDigits.length === 10) {
+                    phoneVariants.push('0' + cleanDigits);
+                    phoneVariants.push('20' + cleanDigits);
+                }
+            }
+
+            const custOr = [
+                { customerName: { [Op.like]: searchPattern } },
+                { phoneNumber: { [Op.like]: searchPattern } }
+            ];
+            if (/^\d+$/.test(search)) {
+                custOr.push({ customerNumber: parseInt(search) });
+                custOr.push({ id: parseInt(search) });
+            }
+            phoneVariants.forEach(pv => {
+                custOr.push({ phoneNumber: { [Op.like]: `%${pv}%` } });
+            });
+
+            const matchingCustomers = await Customer.findAll({
+                where: {
+                    UserId: targetUserId,
+                    [Op.or]: custOr
+                },
+                attributes: ['id'],
+                limit: 50
+            });
+            const matchedCustIds = matchingCustomers.map(c => c.id);
+
+            const convOr = [
                 { customerName: { [Op.like]: searchPattern } },
                 { phoneNumber: { [Op.like]: searchPattern } },
                 { remoteJid: { [Op.like]: searchPattern } }
             ];
+            phoneVariants.forEach(pv => {
+                convOr.push({ phoneNumber: { [Op.like]: `%${pv}%` } });
+                convOr.push({ remoteJid: { [Op.like]: `%${pv}%` } });
+            });
+            if (matchedCustIds.length > 0) {
+                convOr.push({ CustomerId: { [Op.in]: matchedCustIds } });
+            }
+            whereClause[Op.or] = convOr;
         }
 
         const customerWhere = {};
