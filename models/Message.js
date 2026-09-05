@@ -33,7 +33,7 @@ const Message = sequelize.define('Message', {
         allowNull: true
     },
     status: {
-        type: DataTypes.ENUM('sent', 'delivered', 'read'),
+        type: DataTypes.ENUM('pending', 'sent', 'delivered', 'read', 'failed'),
         defaultValue: 'sent'
     },
     replied: {
