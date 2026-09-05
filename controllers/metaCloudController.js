@@ -84,18 +84,28 @@ export const sendMetaMessage = async (to, bodyText, options = {}) => {
         const phoneId = process.env.META_PHONE_NUMBER_ID || '1187785914426370';
         const accessToken = process.env.META_ACCESS_TOKEN;
         console.log(`🔍 [META_SEND_DEBUG] PhoneId: ${phoneId}, Token Len: ${accessToken ? accessToken.length : 0}, Token Prefix: ${accessToken ? accessToken.substring(0, 20) : 'NONE'}`);
-        let cleanTo = String(to || '').replace(/[^0-9]/g, '');
-        if (cleanTo.length === 11 && cleanTo.startsWith('01')) {
-            cleanTo = '2' + cleanTo;
-        } else if (cleanTo.length === 10 && (cleanTo.startsWith('10') || cleanTo.startsWith('11') || cleanTo.startsWith('12') || cleanTo.startsWith('15'))) {
-            cleanTo = '20' + cleanTo;
-        }
+
+        const rawTarget = String(to || '').trim();
+        const isBsuid = rawTarget.includes('.');
 
         let payload = {
             messaging_product: 'whatsapp',
-            recipient_type: 'individual',
-            to: cleanTo,
+            recipient_type: 'individual'
         };
+
+        let cleanTo = rawTarget;
+        if (isBsuid) {
+            // Support WhatsApp Username / BSUID users
+            payload.recipient = rawTarget;
+        } else {
+            cleanTo = rawTarget.replace(/[^0-9]/g, '');
+            if (cleanTo.length === 11 && cleanTo.startsWith('01')) {
+                cleanTo = '2' + cleanTo;
+            } else if (cleanTo.length === 10 && (cleanTo.startsWith('10') || cleanTo.startsWith('11') || cleanTo.startsWith('12') || cleanTo.startsWith('15'))) {
+                cleanTo = '20' + cleanTo;
+            }
+            payload.to = cleanTo;
+        }
 
         if (options.mediaUrl && options.mediaType) {
             // Media Message (image, audio, video, document)
@@ -225,19 +235,21 @@ export const handleWebhook = async (req, res) => {
         if (value.messages && value.messages.length > 0) {
             const msg = value.messages[0];
             const contact = value.contacts?.[0];
-            const rawFrom = String(msg.from || '').trim();
+            const bsuid = msg.from_user_id || contact?.user_id || null;
+            const rawFrom = String(msg.from || bsuid || '').trim();
             
             if (!rawFrom) {
                 console.log(`⚠️ [META_WEBHOOK] Skipped message with empty sender identifier.`);
                 return;
             }
 
+            const isBsuid = rawFrom.includes('.');
             const digitsOnly = rawFrom.replace(/[^0-9]/g, '');
-            const isPhone = digitsOnly.length >= 5;
+            const isPhone = !isBsuid && digitsOnly.length >= 5;
             const targetId = isPhone ? digitsOnly : rawFrom;
             const remoteJid = isPhone ? `${digitsOnly}@s.whatsapp.net` : (rawFrom.includes('@') ? rawFrom : `${rawFrom}@s.whatsapp.net`);
 
-            const senderName = contact?.profile?.name || (isPhone ? `عميل ${digitsOnly}` : `عميل ${rawFrom}`);
+            const senderName = contact?.profile?.name || (isPhone ? `عميل ${digitsOnly}` : (bsuid ? `مستخدم ${bsuid}` : `عميل ${rawFrom}`));
             // Primary Admin User ID for Meta API (User rady = ID 3)
             const activeAdmin = await User.findOne({ where: { username: 'rady' } });
             const userId = activeAdmin ? activeAdmin.id : 3;
@@ -399,7 +411,7 @@ export const handleWebhook = async (req, res) => {
                 defaults: {
                     UserId: userId,
                     remoteJid: remoteJid,
-                    phoneNumber: isPhone ? targetId : null,
+                    phoneNumber: targetId,
                     customerName: senderName,
                     CustomerId: customer.id,
                     platform: 'whatsapp',
@@ -437,7 +449,7 @@ export const handleWebhook = async (req, res) => {
                 user: { id: '1187785914426370@s.whatsapp.net', name: 'Fast Order' },
                 sendPresenceUpdate: async () => {},
                 sendMessage: async (jid, content, options = {}) => {
-                    const cleanTo = jid.replace(/[^0-9]/g, '');
+                    const cleanTo = jid.includes('@') ? jid.split('@')[0] : jid;
                     let result;
                     let sentText = '';
                     
