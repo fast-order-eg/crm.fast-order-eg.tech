@@ -18,33 +18,215 @@
             font-weight: 600;
         }
         .day-badge {
-            font-size: 11px;
-            padding: 2px 6px;
-            background: rgba(212, 175, 55, 0.1);
-            color: var(--primary-hover);
-            border: 1px solid rgba(212, 175, 55, 0.2);
-            border-radius: 4px;
+            font-size: 10.5px;
+            padding: 2px 7px;
+            background: #f1f5f9;
+            color: #334155;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
             display: inline-block;
             margin: 2px;
+            font-weight: 500;
         }
+        
+        /* Modern Mobile Card Styles */
         .employee-card-mobile {
             background: #ffffff;
-            border: 1px solid rgba(0, 0, 0, 0.08);
-            border-radius: 12px;
-            padding: 1.25rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 1.15rem;
             margin-bottom: 1rem;
-            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
+            transition: all 0.25s ease;
+            position: relative;
         }
         .employee-card-mobile:hover {
-            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
-            border-color: var(--primary-color);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+            border-color: #cbd5e1;
         }
+        
+        .emp-avatar-wrapper {
+            position: relative;
+            width: 46px;
+            height: 46px;
+            min-width: 46px;
+        }
+        .emp-avatar {
+            width: 46px;
+            height: 46px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 17px;
+            font-weight: 700;
+        }
+        .emp-status-dot {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 13px;
+            height: 13px;
+            border-radius: 50%;
+            border: 2px solid #ffffff;
+        }
+        .emp-status-dot.active {
+            background-color: #10b981;
+        }
+        .emp-status-dot.leave {
+            background-color: #ef4444;
+        }
+
+        /* Role Badges */
+        .emp-badge-sales {
+            background: #eef2ff;
+            color: #4338ca !important;
+            border: 1px solid #c7d2fe;
+            font-size: 11px;
+            padding: 3px 10px;
+            border-radius: 50px;
+            font-weight: 600;
+        }
+        .emp-badge-admin {
+            background: #fffbeb;
+            color: #b45309 !important;
+            border: 1px solid #fde68a;
+            font-size: 11px;
+            padding: 3px 10px;
+            border-radius: 50px;
+            font-weight: 600;
+        }
+        .emp-badge-superadmin {
+            background: #fef2f2;
+            color: #b91c1c !important;
+            border: 1px solid #fecaca;
+            font-size: 11px;
+            padding: 3px 10px;
+            border-radius: 50px;
+            font-weight: 600;
+        }
+
+        /* Info Tiles */
+        .emp-info-tile {
+            background: #f8fafc;
+            border: 1px solid #edf2f7;
+            border-radius: 10px;
+            padding: 8px 10px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        /* Modern Mobile Action Buttons */
+        .btn-status-active {
+            background-color: #ecfdf5;
+            color: #047857 !important;
+            border: 1px solid #a7f3d0;
+            font-size: 12px;
+            height: 38px;
+            transition: all 0.2s;
+        }
+        .btn-status-active:hover, .btn-status-active:active {
+            background-color: #10b981;
+            color: #ffffff !important;
+            border-color: #10b981;
+        }
+
+        .btn-status-leave {
+            background-color: #fef2f2;
+            color: #b91c1c !important;
+            border: 1px solid #fecaca;
+            font-size: 12px;
+            height: 38px;
+            transition: all 0.2s;
+        }
+        .btn-status-leave:hover, .btn-status-leave:active {
+            background-color: #ef4444;
+            color: #ffffff !important;
+            border-color: #ef4444;
+        }
+
+        .btn-edit-emp {
+            background-color: #eff6ff;
+            color: #1d4ed8 !important;
+            border: 1px solid #bfdbfe;
+            font-size: 12px;
+            height: 38px;
+            transition: all 0.2s;
+        }
+        .btn-edit-emp:hover, .btn-edit-emp:active {
+            background-color: #2563eb;
+            color: #ffffff !important;
+            border-color: #2563eb;
+        }
+
+        .btn-delete-emp {
+            background-color: #ffffff;
+            color: #dc2626 !important;
+            border: 1px solid #fca5a5;
+            height: 38px;
+            width: 38px;
+            min-width: 38px;
+            padding: 0;
+            font-size: 14px;
+            border-radius: 10px;
+            transition: all 0.2s;
+        }
+        .btn-delete-emp:hover, .btn-delete-emp:active {
+            background-color: #dc2626;
+            color: #ffffff !important;
+            border-color: #dc2626;
+        }
+
+        /* Day Check Pills in Modals */
+        .day-select-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            background: #ffffff;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.15s ease-in-out;
+        }
+        .day-select-pill:hover {
+            background: #f8fafc;
+            border-color: #94a3b8;
+        }
+        .day-select-pill:has(input:checked) {
+            background: #eff6ff;
+            border-color: #3b82f6;
+            color: #1d4ed8;
+            font-weight: 600;
+        }
+
         .table-responsive::-webkit-scrollbar {
             height: 6px;
         }
         .table-responsive::-webkit-scrollbar-thumb {
             background: rgba(212, 175, 55, 0.3);
             border-radius: 4px;
+        }
+
+        @media (max-width: 576px) {
+            .glass-card {
+                border-radius: 16px !important;
+            }
+            .emp-avatar-wrapper {
+                width: 42px;
+                height: 42px;
+                min-width: 42px;
+            }
+            .emp-avatar {
+                width: 42px;
+                height: 42px;
+                font-size: 15px;
+            }
         }
     </style>
 </head>
@@ -67,35 +249,68 @@ function formatTimeAMPM(timeStr) {
 }
 %>
 
-    <div class="container-fluid main-content px-4 px-lg-5">
+    <div class="container-fluid main-content px-2 px-sm-3 px-lg-5 py-2 py-md-4">
         
         <!-- Alerts -->
         <% if (typeof success_msg !== 'undefined' && success_msg && success_msg.length > 0) { %>
-            <div class="alert alert-success alert-dismissible fade show rounded-3 shadow-sm mb-4" role="alert">
+            <div class="alert alert-success alert-dismissible fade show rounded-3 shadow-sm mb-3 mb-md-4" role="alert">
                 <i class="bi bi-check-circle-fill me-2"></i> <%= success_msg %>
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
         <% } %>
         <% if (typeof error_msg !== 'undefined' && error_msg && error_msg.length > 0) { %>
-            <div class="alert alert-danger alert-dismissible fade show rounded-3 shadow-sm mb-4" role="alert">
+            <div class="alert alert-danger alert-dismissible fade show rounded-3 shadow-sm mb-3 mb-md-4" role="alert">
                 <i class="bi bi-exclamation-triangle-fill me-2"></i> <%= error_msg %>
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
         <% } %>
 
-        <div class="glass-card p-4 p-md-5 animate-fade-in">
-            <div class="d-flex flex-column flex-md-row justify-content-between align-items-center mb-4 gap-3">
-                <h2 class="m-0 fw-bold d-flex align-items-center gap-2">
-                    <i class="bi bi-people-fill text-primary"></i>
-                    إدارة الموظفين
-                </h2>
-                <button class="btn btn-primary px-4 rounded-pill shadow-sm d-flex align-items-center gap-2 fw-semibold" data-bs-toggle="modal" data-bs-target="#addEmployeeModal">
+        <div class="glass-card p-3 p-sm-4 p-md-5 animate-fade-in">
+            <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center mb-4 gap-3">
+                <div>
+                    <h2 class="m-0 fw-bold d-flex align-items-center gap-2 fs-4 fs-md-2 text-dark">
+                        <i class="bi bi-people-fill text-primary"></i>
+                        إدارة الموظفين
+                    </h2>
+                    <div class="text-muted small mt-1 d-flex flex-wrap align-items-center gap-2">
+                        <span>إجمالي الموظفين: <strong class="text-dark"><%= employees.length %></strong></span>
+                        <span class="text-secondary opacity-50">•</span>
+                        <span class="text-success"><i class="bi bi-check-circle-fill me-1"></i><%= employees.filter(e => !e.isOnLeave).length %> نشط</span>
+                        <% if (employees.some(e => e.isOnLeave)) { %>
+                            <span class="text-secondary opacity-50">•</span>
+                            <span class="text-danger"><i class="bi bi-moon-fill me-1"></i><%= employees.filter(e => e.isOnLeave).length %> في إجازة</span>
+                        <% } %>
+                    </div>
+                </div>
+                <button class="btn btn-primary w-100 w-sm-auto px-4 py-2.5 rounded-pill shadow-sm d-flex align-items-center justify-content-center gap-2 fw-semibold" data-bs-toggle="modal" data-bs-target="#addEmployeeModal">
                     <i class="bi bi-person-plus-fill fs-5"></i>
-                    إضافة موظف جديد
+                    <span>إضافة موظف جديد</span>
                 </button>
             </div>
 
-            <div class="alert alert-warning empty-slots-info" style="display:none; font-size: 15px;"></div>
+            <!-- Empty Slots Analysis (Collapsible Card) -->
+            <div class="card mb-4 border-warning border-opacity-50 shadow-sm" id="emptySlotsContainer" style="display:none; background: #fffdf5; border-radius: 14px;">
+                <div class="card-body p-3">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2" role="button" data-bs-toggle="collapse" data-bs-target="#emptySlotsCollapse" aria-expanded="false" style="cursor: pointer;">
+                        <div class="d-flex align-items-center gap-2.5">
+                            <div class="rounded-circle bg-warning bg-opacity-25 p-2 d-flex align-items-center justify-content-center" style="width: 38px; height: 38px; min-width: 38px;">
+                                <i class="bi bi-clock-history text-warning-emphasis fs-5"></i>
+                            </div>
+                            <div>
+                                <div style="font-size: 13.5px;" class="fw-bold text-dark">تغطية مواعيد المبيعات والأوقات غير المغطاة</div>
+                                <div class="text-muted" style="font-size: 11px;">اضغط هنا لعرض تفاصيل ساعات العمل والفترات الفارغة أسبوعياً</div>
+                            </div>
+                        </div>
+                        <button class="btn btn-sm btn-outline-warning rounded-pill px-3 py-1 fw-semibold d-flex align-items-center gap-1" style="font-size: 11.5px;" type="button">
+                            <span>عرض التفاصيل</span>
+                            <i class="bi bi-chevron-down"></i>
+                        </button>
+                    </div>
+                    <div class="collapse mt-3 pt-3 border-top border-warning border-opacity-25" id="emptySlotsCollapse">
+                        <div class="empty-slots-info-content"></div>
+                    </div>
+                </div>
+            </div>
 
             <!-- Lead Routing Rules Settings (For Admins only) -->
             <% if (user.role === 'admin' || user.role === 'super_admin') { 
@@ -108,26 +323,26 @@ function formatTimeAMPM(timeStr) {
                     defaultEmployeeId: shiftSplitRule?.defaultEmployeeId || null
                 };
             %>
-            <div class="card mb-4 border-primary border-opacity-25 shadow-sm" style="background: #f8fafc;">
-                <div class="card-header bg-white border-bottom pt-3 pb-3 d-flex justify-content-between align-items-center">
-                    <h5 class="fw-bold m-0 text-primary d-flex align-items-center gap-2">
-                        <i class="bi bi-diagram-3-fill"></i> 🎯 نظام قواعد توزيع العملاء المتقدمة (Lead Routing Rules)
+            <div class="card mb-4 border-primary border-opacity-25 shadow-sm rounded-4" style="background: #f8fafc;">
+                <div class="card-header bg-white border-bottom pt-3 pb-3 d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2 rounded-top-4">
+                    <h5 class="fw-bold m-0 text-primary d-flex align-items-center gap-2 fs-6 fs-md-5">
+                        <i class="bi bi-diagram-3-fill"></i> 🎯 قواعد توزيع العملاء المتقدمة (Lead Routing)
                     </h5>
-                    <button class="btn btn-sm btn-outline-primary rounded-pill px-3" type="button" data-bs-toggle="collapse" data-bs-target="#shiftSplitConfig" aria-expanded="<%= rule.enabled ? 'true' : 'false' %>">
+                    <button class="btn btn-sm btn-outline-primary rounded-pill px-3 py-1.5 w-100 w-sm-auto" type="button" data-bs-toggle="collapse" data-bs-target="#shiftSplitConfig" aria-expanded="<%= rule.enabled ? 'true' : 'false' %>">
                         <i class="bi bi-sliders me-1"></i> إعداد القواعد
                     </button>
                 </div>
                 <div class="collapse <%= rule.enabled ? 'show' : '' %>" id="shiftSplitConfig">
-                    <div class="card-body">
+                    <div class="card-body p-3 p-md-4">
                         <form action="/dashboard/employees/shift-split" method="POST">
                             
                             <!-- Master Switch -->
-                            <div class="p-3 bg-white border rounded mb-3 d-flex align-items-center justify-content-between">
+                            <div class="p-3 bg-white border rounded-3 mb-3 d-flex align-items-center justify-content-between gap-3">
                                 <div>
                                     <h6 class="fw-bold text-dark mb-1">تفعيل نظام قواعد التوزيع الخاصة</h6>
                                     <p class="text-muted small mb-0">عند التفعيل، سيتم تطبيق التقسيم التناوبي في ساعات الذروة، وتحويل العملاء للموظف الافتراضي في الأوقات الأخرى والجمعة.</p>
                                 </div>
-                                <div class="form-check form-switch fs-4 m-0">
+                                <div class="form-check form-switch fs-3 m-0">
                                     <input class="form-check-input ms-0" type="checkbox" role="switch" id="shiftEnabled" name="enabled" <%= rule.enabled ? 'checked' : '' %>>
                                 </div>
                             </div>
@@ -135,38 +350,38 @@ function formatTimeAMPM(timeStr) {
                             <div class="row g-3">
                                 <!-- Section 1: Peak Hours Distribution -->
                                 <div class="col-12">
-                                    <div class="p-3 border rounded bg-white">
+                                    <div class="p-3 border rounded-3 bg-white">
                                         <h6 class="fw-bold text-primary mb-3">
                                             <i class="bi bi-sun-fill text-warning me-1"></i> 1. فترة التوزيع النهاري/النشط (التناوب 50% / 50%)
                                         </h6>
                                         <div class="row g-3">
-                                            <div class="col-md-3">
+                                            <div class="col-6 col-md-3">
                                                 <label class="form-label fw-bold small text-secondary">من الساعة</label>
                                                 <input type="time" class="form-control form-control-sm" name="startTime" value="<%= rule.startTime %>" required>
                                             </div>
-                                            <div class="col-md-3">
+                                            <div class="col-6 col-md-3">
                                                 <label class="form-label fw-bold small text-secondary">إلى الساعة</label>
                                                 <input type="time" class="form-control form-control-sm" name="endTime" value="<%= rule.endTime %>" required>
                                             </div>
-                                            <div class="col-md-6">
+                                            <div class="col-12 col-md-6">
                                                 <label class="form-label fw-bold small text-secondary d-block">أيام التوزيع النهاري</label>
-                                                <div class="d-flex flex-wrap gap-2">
+                                                <div class="d-flex flex-wrap gap-1.5 gap-sm-2">
                                                     <% ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'].forEach((day, index) => { %>
-                                                        <div class="form-check form-check-inline m-0">
-                                                            <input class="form-check-input" type="checkbox" name="days" value="<%= day %>" id="sDay<%= index %>" <%= rule.days.includes(day) ? 'checked' : '' %>>
-                                                            <label class="form-check-label small fw-semibold" for="sDay<%= index %>"><%= day %></label>
-                                                        </div>
+                                                        <label class="day-select-pill" for="sDay<%= index %>" style="padding: 4px 10px; font-size: 11.5px;">
+                                                            <input class="form-check-input m-0" type="checkbox" name="days" value="<%= day %>" id="sDay<%= index %>" <%= rule.days.includes(day) ? 'checked' : '' %>>
+                                                            <span><%= day %></span>
+                                                        </label>
                                                     <% }) %>
                                                 </div>
                                             </div>
                                             <div class="col-12">
                                                 <label class="form-label fw-bold small text-secondary d-block">الموظفون المشمولون بالتوزيع التناوبي (مثال: رحمة سيلز + علا سيلز)</label>
-                                                <div class="d-flex flex-wrap gap-3 p-2 border rounded bg-light">
+                                                <div class="d-flex flex-wrap gap-2 p-2 border rounded-3 bg-light">
                                                     <% employees.filter(e => e.role === 'sales').forEach(emp => { %>
-                                                        <div class="form-check form-check-inline m-0">
-                                                            <input class="form-check-input" type="checkbox" name="selectedEmployees" value="<%= emp.id %>" id="sEmp<%= emp.id %>" <%= rule.employees.includes(emp.id) ? 'checked' : '' %>>
-                                                            <label class="form-check-label small fw-bold text-dark" for="sEmp<%= emp.id %>">👤 <%= emp.fullName || emp.username %></label>
-                                                        </div>
+                                                        <label class="day-select-pill" for="sEmp<%= emp.id %>" style="padding: 5px 12px; font-size: 12px;">
+                                                            <input class="form-check-input m-0" type="checkbox" name="selectedEmployees" value="<%= emp.id %>" id="sEmp<%= emp.id %>" <%= rule.employees.includes(emp.id) ? 'checked' : '' %>>
+                                                            <span class="fw-semibold text-dark">👤 <%= emp.fullName || emp.username %></span>
+                                                        </label>
                                                     <% }) %>
                                                     <% if(employees.filter(e => e.role === 'sales').length === 0) { %>
                                                         <span class="text-muted small">لا يوجد موظفي مبيعات حالياً</span>
@@ -179,13 +394,13 @@ function formatTimeAMPM(timeStr) {
 
                                 <!-- Section 2: Off-Peak Default Representative -->
                                 <div class="col-12">
-                                    <div class="p-3 border rounded bg-white">
+                                    <div class="p-3 border rounded-3 bg-white">
                                         <h6 class="fw-bold text-indigo mb-2">
                                             <i class="bi bi-moon-stars-fill me-1" style="color: #6366f1;"></i> 2. المسؤول المباشر (باقي الأوقات والجمعة)
                                         </h6>
                                         <p class="text-muted small mb-3">جميع العملاء الجدد القادمين خارج فترة التوزيع النهاري أعلاه (أو يوم الجمعة) سيتم تحويلهم تلقائياً بنسبة 100% إلى هذا الموظف مباشرة:</p>
-                                        <div class="row align-items-center">
-                                            <div class="col-md-6">
+                                        <div class="row align-items-center g-2">
+                                            <div class="col-12 col-md-7">
                                                 <select class="form-select form-select-sm" name="defaultEmployeeId">
                                                     <option value="">-- اختر الموظف المسؤول لجميع الأوقات الأخرى (مثال: رحمة) --</option>
                                                     <% employees.filter(e => e.role === 'sales').forEach(emp => { %>
@@ -195,8 +410,8 @@ function formatTimeAMPM(timeStr) {
                                                     <% }) %>
                                                 </select>
                                             </div>
-                                            <div class="col-md-6">
-                                                <button type="submit" class="btn btn-primary btn-sm px-4 fw-bold shadow-sm">
+                                            <div class="col-12 col-md-5">
+                                                <button type="submit" class="btn btn-primary btn-sm w-100 w-md-auto px-4 py-2 fw-bold shadow-sm">
                                                     <i class="bi bi-check-circle-fill me-1"></i> حفظ جميع القواعد
                                                 </button>
                                             </div>
@@ -336,64 +551,150 @@ function formatTimeAMPM(timeStr) {
 
                 <!-- Mobile Card View -->
                 <div class="d-block d-lg-none">
-                    <% employees.forEach(emp => { %>
-                        <div class="employee-card-mobile">
-                            <div class="d-flex justify-content-between align-items-start border-bottom pb-2 mb-2">
-                                <div>
-                                    <h5 class="fw-bold text-dark mb-1"><%= emp.fullName || '—' %></h5>
-                                    <code class="text-primary small"><%= emp.username %></code>
-                                </div>
-                                <div>
-                                    <% if (emp.role === 'super_admin') { %>
-                                        <span class="badge bg-danger rounded-pill">Super Admin</span>
-                                    <% } else if (emp.role === 'admin') { %>
-                                        <span class="badge bg-warning text-dark rounded-pill">Admin</span>
-                                    <% } else { %>
-                                        <span class="badge bg-info text-white rounded-pill">Sales</span>
-                                    <% } %>
-                                </div>
-                            </div>
-                            <div class="row g-2 small text-secondary">
-                                <div class="col-6">
-                                    <strong>الهاتف:</strong> <%= emp.phone || '—' %>
-                                </div>
-                                <div class="col-6">
-                                    <strong>الموظف البديل:</strong> <%= emp.substituteUser ? emp.substituteUser.fullName : 'لا يوجد' %>
-                                </div>
-                                <div class="col-6">
-                                    <strong>مواعيد العمل:</strong><br>
-                                    <% if (emp.workStartTime && emp.workEndTime) { %>
-                                        من: <%= formatTimeAMPM(emp.workStartTime) %><br>
-                                        إلى: <%= formatTimeAMPM(emp.workEndTime) %>
-                                    <% } else { %>
-                                        <span class="text-muted small">—</span>
-                                    <% } %>
-                                </div>
-                                <div class="col-6">
-                                    <strong>العملاء الحاليين:</strong> <%= emp.customerCount || 0 %>
-                                </div>
-                                <div class="col-12">
-                                    <strong>أيام العمل:</strong>
-                                    <% if (emp.workDays) { %>
-                                        <div class="d-inline-flex flex-wrap gap-1 mt-1">
-                                            <% emp.workDays.split(',').forEach(day => { %>
-                                                <span class="day-badge"><%= day.trim() %></span>
-                                            <% }) %>
+                    <% employees.forEach(emp => { 
+                        const initial = (emp.fullName && emp.fullName.trim()) ? emp.fullName.trim()[0] : (emp.username ? emp.username[0].toUpperCase() : '؟');
+                        let avatarBg = '#e0e7ff';
+                        let avatarColor = '#3730a3';
+                        let roleTitle = 'موظف مبيعات (Sales)';
+                        let roleBadgeClass = 'emp-badge-sales';
+
+                        if (emp.role === 'super_admin') {
+                            avatarBg = '#fee2e2';
+                            avatarColor = '#991b1b';
+                            roleTitle = 'مدير عام (Super Admin)';
+                            roleBadgeClass = 'emp-badge-superadmin';
+                        } else if (emp.role === 'admin') {
+                            avatarBg = '#fef3c7';
+                            avatarColor = '#92400e';
+                            roleTitle = 'مشرف (Admin)';
+                            roleBadgeClass = 'emp-badge-admin';
+                        }
+                    %>
+                        <div class="employee-card-mobile shadow-sm">
+                            <!-- Card Header: Avatar, Name, Username & Role -->
+                            <div class="d-flex align-items-center justify-content-between pb-3 border-bottom gap-2">
+                                <div class="d-flex align-items-center gap-2 min-w-0">
+                                    <div class="emp-avatar-wrapper flex-shrink-0">
+                                        <div class="emp-avatar shadow-xs" style="background-color: <%= avatarBg %>; color: <%= avatarColor %>;">
+                                            <%= initial %>
                                         </div>
-                                    <% } else { %>
-                                        <span class="text-muted">—</span>
-                                    <% } %>
+                                        <span class="emp-status-dot <%= emp.isOnLeave ? 'leave' : 'active' %>" title="<%= emp.isOnLeave ? 'في إجازة' : 'نشط' %>"></span>
+                                    </div>
+                                    <div class="min-w-0">
+                                        <h5 class="fw-bold text-dark mb-0 text-truncate" style="font-size: 15px;"><%= emp.fullName || '—' %></h5>
+                                        <div class="d-flex align-items-center gap-1.5 flex-wrap mt-0.5">
+                                            <span class="badge bg-light text-secondary border px-2 py-0.5 font-monospace" style="font-size: 10.5px; font-weight: 500;">
+                                                <i class="bi bi-person-fill text-muted me-0.5"></i>@<%= emp.username %>
+                                            </span>
+                                            <% if (emp.isOnLeave) { %>
+                                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-1.5 py-0.5" style="font-size: 9.5px;">إجازة</span>
+                                            <% } else { %>
+                                                <span class="badge bg-success-subtle text-success border border-success-subtle px-1.5 py-0.5" style="font-size: 9.5px;">نشط</span>
+                                            <% } %>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="flex-shrink-0">
+                                    <span class="badge <%= roleBadgeClass %> shadow-xs">
+                                        <%= emp.role === 'super_admin' ? 'Super Admin' : (emp.role === 'admin' ? 'Admin' : 'Sales') %>
+                                    </span>
                                 </div>
                             </div>
-                            <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top">
-                                <form action="/dashboard/employees/toggle-leave/<%= emp.id %>" method="POST" class="m-0">
-                                    <button type="submit" class="btn btn-sm <%= emp.isOnLeave ? 'btn-danger' : 'btn-success' %> rounded-pill px-3 py-1 text-white fw-bold d-inline-flex align-items-center gap-1" style="font-size: 11px;">
-                                        <i class="bi <%= emp.isOnLeave ? 'bi-moon-fill' : 'bi-sun-fill' %>"></i>
-                                        <%= emp.isOnLeave ? 'إجازة' : 'نشط' %>
-                                    </button>
-                                </form>
-                                <div class="d-flex gap-2">
-                                    <button class="btn btn-sm btn-outline-primary px-3 py-1 d-flex align-items-center gap-1" 
+
+                            <!-- Card Body: 2x2 Info Grid -->
+                            <div class="row g-2 my-2">
+                                <!-- Phone -->
+                                <div class="col-6">
+                                    <div class="emp-info-tile">
+                                        <span class="text-muted small d-flex align-items-center gap-1" style="font-size: 10.5px;">
+                                            <i class="bi bi-telephone-fill text-primary"></i>
+                                            <span>الهاتف</span>
+                                        </span>
+                                        <% if (emp.phone) { %>
+                                            <a href="tel:<%= emp.phone %>" class="text-decoration-none fw-semibold text-dark text-truncate mt-0.5" style="font-size: 12px; direction: ltr; text-align: right;">
+                                                <%= emp.phone %>
+                                            </a>
+                                        <% } else { %>
+                                            <span class="text-muted small mt-0.5" style="font-size: 12px;">—</span>
+                                        <% } %>
+                                    </div>
+                                </div>
+
+                                <!-- Current Customers -->
+                                <div class="col-6">
+                                    <div class="emp-info-tile">
+                                        <span class="text-muted small d-flex align-items-center gap-1" style="font-size: 10.5px;">
+                                            <i class="bi bi-people-fill text-primary"></i>
+                                            <span>العملاء الحاليين</span>
+                                        </span>
+                                        <span class="fw-bold text-primary mt-0.5" style="font-size: 13px;">
+                                            <%= emp.customerCount || 0 %> <small class="fw-normal text-muted" style="font-size: 11px;">عميل</small>
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <!-- Work Hours -->
+                                <div class="col-6">
+                                    <div class="emp-info-tile">
+                                        <span class="text-muted small d-flex align-items-center gap-1" style="font-size: 10.5px;">
+                                            <i class="bi bi-clock-fill text-warning"></i>
+                                            <span>مواعيد العمل</span>
+                                        </span>
+                                        <span class="fw-semibold text-dark mt-0.5" style="font-size: 11px; line-height: 1.3;">
+                                            <% if (emp.workStartTime && emp.workEndTime) { %>
+                                                <%= formatTimeAMPM(emp.workStartTime) %><br><span class="text-muted">إلى</span> <%= formatTimeAMPM(emp.workEndTime) %>
+                                            <% } else { %>
+                                                <span class="text-muted">—</span>
+                                            <% } %>
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <!-- Substitute -->
+                                <div class="col-6">
+                                    <div class="emp-info-tile">
+                                        <span class="text-muted small d-flex align-items-center gap-1" style="font-size: 10.5px;">
+                                            <i class="bi bi-arrow-repeat text-info"></i>
+                                            <span>الموظف البديل</span>
+                                        </span>
+                                        <span class="fw-semibold text-dark text-truncate mt-0.5" style="font-size: 11.5px;" title="<%= emp.substituteUser ? emp.substituteUser.fullName : 'لا يوجد' %>">
+                                            <%= emp.substituteUser ? emp.substituteUser.fullName : 'لا يوجد بديل' %>
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <!-- Work Days -->
+                                <div class="col-12">
+                                    <div class="p-2 rounded-3 bg-light border border-light-subtle">
+                                        <span class="d-block text-muted mb-1" style="font-size: 10.5px;">
+                                            <i class="bi bi-calendar-week-fill me-1 text-secondary"></i>أيام العمل:
+                                        </span>
+                                        <% if (emp.workDays) { %>
+                                            <div class="d-flex flex-wrap gap-1">
+                                                <% emp.workDays.split(',').forEach(day => { %>
+                                                    <span class="day-badge"><%= day.trim() %></span>
+                                                <% }) %>
+                                            </div>
+                                        <% } else { %>
+                                            <span class="text-muted" style="font-size: 11px;">غير محددة</span>
+                                        <% } %>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Card Footer: Mobile Touch-Friendly Action Buttons -->
+                            <div class="pt-2 mt-2 border-top">
+                                <div class="d-flex align-items-center gap-2">
+                                    <!-- Toggle Leave Form & Button -->
+                                    <form action="/dashboard/employees/toggle-leave/<%= emp.id %>" method="POST" class="m-0 flex-grow-1">
+                                        <button type="submit" class="btn btn-sm w-100 <%= emp.isOnLeave ? 'btn-status-leave' : 'btn-status-active' %> rounded-pill py-2 px-2 fw-bold d-flex align-items-center justify-content-center gap-1.5 shadow-xs" title="<%= emp.isOnLeave ? 'تفعيل الموظف (إلغاء الإجازة)' : 'وضع الموظف في إجازة' %>">
+                                            <i class="bi <%= emp.isOnLeave ? 'bi-moon-fill' : 'bi-sun-fill' %>"></i>
+                                            <span><%= emp.isOnLeave ? 'في إجازة' : 'نشط (متاح)' %></span>
+                                        </button>
+                                    </form>
+
+                                    <!-- Edit Button -->
+                                    <button type="button" class="btn btn-sm btn-edit-emp rounded-pill py-2 px-3 fw-semibold d-flex align-items-center justify-content-center gap-1.5 flex-grow-1 shadow-xs"
                                             onclick="editEmployee(this)"
                                             data-id="<%= emp.id %>"
                                             data-fullname="<%= emp.fullName || '' %>"
@@ -405,13 +706,16 @@ function formatTimeAMPM(timeStr) {
                                             data-days="<%= emp.workDays || '' %>"
                                             data-substitute="<%= emp.substituteUserId || '' %>"
                                             data-max="<%= emp.maxCustomers %>">
-                                        <i class="bi bi-pencil-square"></i> تعديل
+                                        <i class="bi bi-pencil-square"></i>
+                                        <span>تعديل</span>
                                     </button>
+
+                                    <!-- Delete Button (Only for non-super_admin) -->
                                     <% if (emp.role !== 'super_admin') { %>
                                         <form action="/dashboard/employees/delete" method="POST" class="m-0" onsubmit="return confirm('هل أنت متأكد من حذف هذا الموظف؟')">
                                             <input type="hidden" name="id" value="<%= emp.id %>">
-                                            <button type="submit" class="btn btn-sm btn-outline-danger px-3 py-1 d-flex align-items-center gap-1">
-                                                <i class="bi bi-trash3"></i> حذف
+                                            <button type="submit" class="btn btn-sm btn-delete-emp d-flex align-items-center justify-content-center shadow-xs" title="حذف الموظف">
+                                                <i class="bi bi-trash3"></i>
                                             </button>
                                         </form>
                                     <% } %>
@@ -463,24 +767,22 @@ function formatTimeAMPM(timeStr) {
                             <input type="hidden" name="maxCustomers" value="999999">
                             <div class="col-12 add-schedule-fields">
                                 <div class="row g-3">
-                                    <div class="col-md-6">
+                                    <div class="col-6">
                                         <label class="form-label fw-bold">بداية وقت العمل</label>
                                         <input type="time" name="workStartTime" class="form-control" value="09:00">
                                     </div>
-                                    <div class="col-md-6">
+                                    <div class="col-6">
                                         <label class="form-label fw-bold">نهاية وقت العمل</label>
                                         <input type="time" name="workEndTime" class="form-control" value="17:00">
                                     </div>
                                     <div class="col-12">
                                         <label class="form-label fw-bold d-block">أيام العمل</label>
-                                        <div class="d-flex flex-wrap gap-3 mt-1">
+                                        <div class="d-flex flex-wrap gap-2 mt-1">
                                             <% ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'].forEach((day, index) => { %>
-                                                <div class="form-check">
-                                                    <input class="form-check-input add-day-check" type="checkbox" value="<%= day %>" id="addDay<%= index %>" <%= index < 5 ? 'checked' : '' %>>
-                                                    <label class="form-check-label" for="addDay<%= index %>">
-                                                        <%= day %>
-                                                    </label>
-                                                </div>
+                                                <label class="day-select-pill" for="addDay<%= index %>">
+                                                    <input class="form-check-input add-day-check m-0" type="checkbox" value="<%= day %>" id="addDay<%= index %>" <%= index < 5 ? 'checked' : '' %>>
+                                                    <span><%= day %></span>
+                                                </label>
                                             <% }) %>
                                         </div>
                                         <input type="hidden" name="workDays" id="addWorkDaysInput" value="السبت,الأحد,الإثنين,الثلاثاء,الأربعاء">
@@ -498,9 +800,9 @@ function formatTimeAMPM(timeStr) {
                             </div>
                         </div>
                     </div>
-                    <div class="modal-footer border-top">
-                        <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">إلغاء</button>
-                        <button type="submit" class="btn btn-primary rounded-pill px-5 fw-bold">إضافة الموظف</button>
+                    <div class="modal-footer border-top d-flex flex-column-reverse flex-sm-row gap-2">
+                        <button type="button" class="btn btn-secondary rounded-pill px-4 w-100 w-sm-auto" data-bs-dismiss="modal">إلغاء</button>
+                        <button type="submit" class="btn btn-primary rounded-pill px-5 fw-bold w-100 w-sm-auto">إضافة الموظف</button>
                     </div>
                 </form>
             </div>
@@ -546,24 +848,22 @@ function formatTimeAMPM(timeStr) {
                             <input type="hidden" name="maxCustomers" id="editMaxCustomers">
                             <div class="col-12 edit-schedule-fields">
                                 <div class="row g-3">
-                                    <div class="col-md-6">
+                                    <div class="col-6">
                                         <label class="form-label fw-bold">بداية وقت العمل</label>
                                         <input type="time" name="workStartTime" id="editWorkStartTime" class="form-control">
                                     </div>
-                                    <div class="col-md-6">
+                                    <div class="col-6">
                                         <label class="form-label fw-bold">نهاية وقت العمل</label>
                                         <input type="time" name="workEndTime" id="editWorkEndTime" class="form-control">
                                     </div>
                                     <div class="col-12">
                                         <label class="form-label fw-bold d-block">أيام العمل</label>
-                                        <div class="d-flex flex-wrap gap-3 mt-1">
+                                        <div class="d-flex flex-wrap gap-2 mt-1">
                                             <% ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'].forEach((day, index) => { %>
-                                                <div class="form-check">
-                                                    <input class="form-check-input edit-day-check" type="checkbox" value="<%= day %>" id="editDay<%= index %>">
-                                                    <label class="form-check-label" for="editDay<%= index %>">
-                                                        <%= day %>
-                                                    </label>
-                                                </div>
+                                                <label class="day-select-pill" for="editDay<%= index %>">
+                                                    <input class="form-check-input edit-day-check m-0" type="checkbox" value="<%= day %>" id="editDay<%= index %>">
+                                                    <span><%= day %></span>
+                                                </label>
                                             <% }) %>
                                         </div>
                                         <input type="hidden" name="workDays" id="editWorkDaysInput">
@@ -581,9 +881,9 @@ function formatTimeAMPM(timeStr) {
                             </div>
                         </div>
                     </div>
-                    <div class="modal-footer border-top">
-                        <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">إلغاء</button>
-                        <button type="submit" class="btn btn-primary rounded-pill px-5 fw-bold">حفظ التغييرات</button>
+                    <div class="modal-footer border-top d-flex flex-column-reverse flex-sm-row gap-2">
+                        <button type="button" class="btn btn-secondary rounded-pill px-4 w-100 w-sm-auto" data-bs-dismiss="modal">إلغاء</button>
+                        <button type="submit" class="btn btn-primary rounded-pill px-5 fw-bold w-100 w-sm-auto">حفظ التغييرات</button>
                     </div>
                 </form>
             </div>
@@ -659,8 +959,8 @@ function formatTimeAMPM(timeStr) {
 
         function calculateEmptySlots() {
             const days = ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'];
-            let emptySlotsHtml = '<strong>الأوقات الفارغة (غير المغطاة بالمبيعات):</strong><ul class="mb-0 ps-3 mt-1">';
             let hasEmpty = false;
+            let cardsHtml = '<div class="row g-2">';
             
             days.forEach(day => {
                 let intervals = [];
@@ -706,22 +1006,37 @@ function formatTimeAMPM(timeStr) {
                 }
                 
                 const formatTime = mins => {
-                    const h = Math.floor(mins / 60).toString().padStart(2, '0');
+                    let h = Math.floor(mins / 60);
                     const m = (mins % 60).toString().padStart(2, '0');
-                    return `${h}:${m}`;
+                    const period = h >= 12 ? 'م' : 'ص';
+                    let h12 = h % 12;
+                    if (h12 === 0) h12 = 12;
+                    return `${h12.toString().padStart(2, '0')}:${m} ${period}`;
                 };
                 
                 if (gaps.length > 0) {
                     hasEmpty = true;
-                    let gapStrs = gaps.map(g => `${formatTime(g.start)} - ${formatTime(g.end)}`);
-                    emptySlotsHtml += `<li><strong>${day}:</strong> ${gapStrs.join(' و ')}</li>`;
+                    let gapBadges = gaps.map(g => `<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1"><i class="bi bi-clock me-1"></i>${formatTime(g.start)} إلى ${formatTime(g.end)}</span>`).join(' ');
+                    cardsHtml += `
+                        <div class="col-12 col-md-6">
+                            <div class="p-2 rounded-3 bg-white border d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-1.5 shadow-xs">
+                                <span class="fw-bold text-dark small" style="min-width: 65px;">${day}</span>
+                                <div class="d-flex flex-wrap gap-1">${gapBadges}</div>
+                            </div>
+                        </div>`;
                 } else {
-                    emptySlotsHtml += `<li><strong>${day}:</strong> <span class="text-success">مغطى بالكامل</span></li>`;
+                    cardsHtml += `
+                        <div class="col-12 col-md-6">
+                            <div class="p-2 rounded-3 bg-white border d-flex justify-content-between align-items-center shadow-xs">
+                                <span class="fw-bold text-dark small">${day}</span>
+                                <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1"><i class="bi bi-check-circle-fill me-1"></i>مغطى بالكامل (24 ساعة)</span>
+                            </div>
+                        </div>`;
                 }
             });
-            
-            emptySlotsHtml += '</ul>';
-            return emptySlotsHtml;
+            cardsHtml += '</div>';
+
+            return { hasEmpty, html: cardsHtml };
         }
 
         function toggleScheduleFields(modalType) {
@@ -735,10 +1050,16 @@ function formatTimeAMPM(timeStr) {
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            const emptyHtml = calculateEmptySlots();
+            const emptyData = calculateEmptySlots();
+            const container = document.getElementById('emptySlotsContainer');
+            const contentEl = document.querySelector('.empty-slots-info-content');
+            if (container && contentEl) {
+                contentEl.innerHTML = emptyData.html;
+                container.style.display = 'block';
+            }
             document.querySelectorAll('.empty-slots-info').forEach(el => {
-                el.innerHTML = emptyHtml;
-                el.style.display = 'block';
+                el.innerHTML = '<strong class="d-block mb-2"><i class="bi bi-clock-history me-1"></i>الأوقات الفارغة غير المغطاة حالياً:</strong>' + emptyData.html;
+                el.style.display = emptyData.hasEmpty ? 'block' : 'none';
             });
             toggleScheduleFields('add');
         });
