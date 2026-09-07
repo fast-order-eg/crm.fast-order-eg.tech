@@ -213,6 +213,19 @@
             border-radius: 4px;
         }
 
+        /* Fast snappy animations for collapsible cards */
+        .collapsing {
+            transition: height 0.16s ease-out !important;
+            will-change: height;
+        }
+        .collapse-arrow {
+            transition: transform 0.18s ease;
+        }
+        [role="button"][aria-expanded="true"] .collapse-arrow,
+        button[aria-expanded="true"] .collapse-arrow {
+            transform: rotate(180deg);
+        }
+
         @media (max-width: 576px) {
             .glass-card {
                 border-radius: 16px !important;
@@ -287,10 +300,10 @@
                                 <div class="text-muted" style="font-size: 10.5px;">فحص الأوقات المغطاة والفارغة أسبوعياً بناءً على تقسيمات الشيفتات</div>
                             </div>
                         </div>
-                        <button class="btn btn-sm btn-outline-warning rounded-pill px-2.5 py-1 fw-semibold d-flex align-items-center gap-1" style="font-size: 11px;" type="button">
-                            <span>عرض التغطية</span>
-                            <i class="bi bi-chevron-down"></i>
-                        </button>
+                        <span class="btn btn-sm btn-outline-warning rounded-pill px-2.5 py-1 fw-semibold d-flex align-items-center gap-1 shadow-xs" style="font-size: 11px;">
+                            <span>عرض</span>
+                            <i class="bi bi-chevron-down collapse-arrow"></i>
+                        </span>
                     </div>
                     <div class="collapse mt-2.5 pt-2.5 border-top border-warning border-opacity-25" id="emptySlotsCollapse">
                         <div class="empty-slots-info-content"></div>
@@ -318,9 +331,8 @@
                             <div class="text-muted text-truncate" style="font-size: 10.5px;">توزيع تلقائي حسب الوقت والأيام</div>
                         </div>
                     </div>
-                    <button class="btn btn-sm btn-outline-primary rounded-pill px-2.5 py-1 flex-shrink-0 fw-semibold d-flex align-items-center gap-1" type="button" data-bs-toggle="collapse" data-bs-target="#shiftSplitConfig" aria-expanded="<%= rule.enabled ? 'true' : 'false' %>" style="font-size: 11.5px;">
-                        <i class="bi bi-sliders"></i>
-                        <span>إعداد الشيفتات</span>
+                    <button class="btn btn-sm btn-outline-primary rounded-circle p-0 flex-shrink-0 d-flex align-items-center justify-content-center shadow-xs" type="button" data-bs-toggle="collapse" data-bs-target="#shiftSplitConfig" aria-expanded="<%= rule.enabled ? 'true' : 'false' %>" style="width: 32px; height: 32px;" title="إعداد الشيفتات">
+                        <i class="bi bi-sliders fs-6"></i>
                     </button>
                 </div>
                 <div class="collapse <%= rule.enabled ? 'show' : '' %>" id="shiftSplitConfig">
