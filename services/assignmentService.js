@@ -64,6 +64,19 @@ export function isEmployeeActiveNow(employee) {
 }
 
 /**
+ * التحقق مما إذا كان الوقت الحالي يقع ضمن فترة الشيفت (مع دعم الفترات العابرة لمنتصف الليل Cross-Midnight).
+ */
+export function isTimeInShift(currentTime, startTime, endTime) {
+    if (!startTime || !endTime) return true;
+    if (startTime <= endTime) {
+        return currentTime >= startTime && currentTime <= endTime;
+    } else {
+        // فترة عابرة لمنتصف الليل (مثال: من 23:00 إلى 10:00 صباحاً)
+        return currentTime >= startTime || currentTime <= endTime;
+    }
+}
+
+/**
  * تخصيص العميل تلقائياً لموظف مبيعات نشط (Round Robin) بناءً على الأقل عملاء.
  */
 export async function assignCustomerToSales(customerId, botOwnerId, io = null, skipNotification = false, preserveStatus = false, forceReassign = false) {
@@ -81,7 +94,7 @@ export async function assignCustomerToSales(customerId, botOwnerId, io = null, s
             return existingRep;
         }
 
-        // 1. Check Lead Routing Rules (Peak Round-Robin & Off-Peak Default Rep)
+        // 1. Check Lead Routing Rules (Multi-Shift Lead Routing Engine)
         let shiftRule = null;
         try {
             shiftRule = await getSetting('shift_split_rule', botOwnerId);
@@ -93,47 +106,66 @@ export async function assignCustomerToSales(customerId, botOwnerId, io = null, s
         if (shiftRule && shiftRule.enabled) {
             const { currentTimeStr, currentDayArabic: currentDay } = getEgyptTimeInfo();
 
-            let inShiftDays = (!shiftRule.days || shiftRule.days.length === 0 || shiftRule.days.includes(currentDay));
-            let inShiftTime = false;
-            
-            if (shiftRule.startTime && shiftRule.endTime) {
-                if (shiftRule.startTime <= shiftRule.endTime) {
-                    inShiftTime = currentTimeStr >= shiftRule.startTime && currentTimeStr <= shiftRule.endTime;
-                } else {
-                    inShiftTime = currentTimeStr >= shiftRule.startTime || currentTimeStr <= shiftRule.endTime;
+            // تجهيز قائمة الشيفتات (سواء بالنظام المتعدد الجديد أو النظام القديم للتوافق)
+            let shiftsList = [];
+            if (Array.isArray(shiftRule.shifts) && shiftRule.shifts.length > 0) {
+                shiftsList = shiftRule.shifts;
+            } else if (shiftRule.startTime && shiftRule.endTime) {
+                shiftsList = [{
+                    id: 'legacy_peak',
+                    name: 'فترة الذروة',
+                    startTime: shiftRule.startTime,
+                    endTime: shiftRule.endTime,
+                    days: shiftRule.days || [],
+                    employees: shiftRule.employees || []
+                }];
+            }
+
+            // فحص كل شيفت لمعرفة الشيفت النشط حالياً
+            for (let i = 0; i < shiftsList.length; i++) {
+                const shift = shiftsList[i];
+                const shiftDays = shift.days || [];
+                const inShiftDays = (shiftDays.length === 0 || shiftDays.includes(currentDay));
+                const inShiftTime = isTimeInShift(currentTimeStr, shift.startTime, shift.endTime);
+
+                if (inShiftDays && inShiftTime && shift.employees && shift.employees.length > 0) {
+                    const shiftEmployees = await User.findAll({
+                        where: { id: { [Op.in]: shift.employees }, is_active: true }
+                    });
+
+                    // استبعاد الموظفين اللي في إجازة لو متوفر غيرهم
+                    const availableEmps = shiftEmployees.filter(e => !e.isOnLeave);
+                    const pool = availableEmps.length > 0 ? availableEmps : shiftEmployees;
+
+                    if (pool.length > 0) {
+                        const shiftKey = `last_assigned_shift_${shift.id || i}`;
+                        let lastIndex = 0;
+                        try {
+                            const idx = await getSetting(shiftKey, botOwnerId);
+                            if (idx !== undefined && idx !== null) lastIndex = parseInt(idx, 10);
+                        } catch(e) {}
+
+                        let nextIndex = lastIndex + 1;
+                        if (nextIndex >= pool.length) nextIndex = 0;
+
+                        selectedEmp = pool[nextIndex];
+                        await setSetting(shiftKey, nextIndex, botOwnerId);
+                        usedShiftSplit = true;
+                        console.log(`🎯 [LeadRouting] Active Shift [${shift.name || ('Shift ' + (i+1))}] matched (Cairo Time: ${currentTimeStr} ${currentDay}). Assigned to ${selectedEmp.fullName || selectedEmp.username} (Pool: ${pool.length}, Index: ${nextIndex})`);
+                        break;
+                    }
                 }
             }
 
-            if (inShiftDays && inShiftTime && shiftRule.employees && shiftRule.employees.length > 0) {
-                // Peak Shift: Round Robin between specified employees (e.g., Rahma & Ola)
-                const shiftEmployees = await User.findAll({
-                    where: { id: { [Op.in]: shiftRule.employees }, is_active: true }
-                });
-
-                if (shiftEmployees.length > 0) {
-                    let lastIndex = 0;
-                    try {
-                        const idx = await getSetting('last_assigned_shift_index', botOwnerId);
-                        if (idx !== undefined && idx !== null) lastIndex = parseInt(idx, 10);
-                    } catch(e) {}
-
-                    let nextIndex = lastIndex + 1;
-                    if (nextIndex >= shiftEmployees.length) nextIndex = 0;
-
-                    selectedEmp = shiftEmployees[nextIndex];
-                    await setSetting('last_assigned_shift_index', nextIndex, botOwnerId);
-                    usedShiftSplit = true;
-                    console.log(`🎯 [LeadRouting] Peak Shift Active (Cairo Time: ${currentTimeStr}). Assigned to ${selectedEmp.fullName || selectedEmp.username} via Round-Robin (Index: ${nextIndex})`);
-                }
-            } else if (shiftRule.defaultEmployeeId) {
-                // Off-Peak Hours / Friday: Direct 100% assignment to default employee (e.g., Rahma)
+            // إذا لم يتطابق أي شيفت، يتم التوجيه للموظف الافتراضي إن وجد
+            if (!usedShiftSplit && shiftRule.defaultEmployeeId) {
                 const defaultEmp = await User.findOne({
                     where: { id: shiftRule.defaultEmployeeId, is_active: true }
                 });
                 if (defaultEmp) {
                     selectedEmp = defaultEmp;
                     usedShiftSplit = true;
-                    console.log(`🎯 [LeadRouting] Off-Peak Hours Active (Cairo Time: ${currentTimeStr} ${currentDay}). Assigned 100% to Default Rep: ${defaultEmp.fullName || defaultEmp.username}`);
+                    console.log(`🎯 [LeadRouting] Off-Shift Hours (Cairo Time: ${currentTimeStr} ${currentDay}). Assigned to Default Fallback Rep: ${defaultEmp.fullName || defaultEmp.username}`);
                 }
             }
         }

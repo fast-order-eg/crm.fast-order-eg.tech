@@ -2549,6 +2549,38 @@ router.get('/employees', async (req, res) => {
         try {
             const owner = await getOwnerUser(req.user);
             shiftSplitRule = await getSetting('shift_split_rule', owner.id);
+            if (!shiftSplitRule || !Array.isArray(shiftSplitRule.shifts) || shiftSplitRule.shifts.length === 0) {
+                shiftSplitRule = {
+                    enabled: shiftSplitRule ? shiftSplitRule.enabled : true,
+                    defaultEmployeeId: (shiftSplitRule && shiftSplitRule.defaultEmployeeId) ? shiftSplitRule.defaultEmployeeId : 5,
+                    shifts: [
+                        {
+                            id: 'shift_1',
+                            name: 'الفترة الصباحية (رحمة ومصطفى)',
+                            startTime: '10:00',
+                            endTime: '18:00',
+                            days: ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'],
+                            employees: [5, 7]
+                        },
+                        {
+                            id: 'shift_2',
+                            name: 'الفترة المسائية (عمرو هشام)',
+                            startTime: '18:00',
+                            endTime: '23:00',
+                            days: ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'],
+                            employees: [6]
+                        },
+                        {
+                            id: 'shift_3',
+                            name: 'الفترة الليلية حتى الصباح (عمرو وعلا ومصطفى)',
+                            startTime: '23:00',
+                            endTime: '10:00',
+                            days: ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'],
+                            employees: [6, 4, 7]
+                        }
+                    ]
+                };
+            }
         } catch (e) {
             console.error('Error fetching shift split rule:', e);
         }
@@ -2575,19 +2607,39 @@ router.post('/employees/shift-split', async (req, res) => {
             return res.redirect('/dashboard/employees');
         }
 
-        const { enabled, startTime, endTime, days, selectedEmployees, defaultEmployeeId } = req.body;
+        const { enabled, defaultEmployeeId, shiftsData } = req.body;
         
+        let shifts = [];
+        if (shiftsData) {
+            try {
+                shifts = JSON.parse(shiftsData);
+            } catch(e) {
+                console.error('Error parsing shiftsData:', e);
+            }
+        }
+
+        // تنظيف والتحقق من صحة بيانات الشيفتات
+        if (Array.isArray(shifts)) {
+            shifts = shifts.map((s, idx) => ({
+                id: s.id || `shift_${idx + 1}_${Date.now()}`,
+                name: s.name ? s.name.trim() : `فترة ${idx + 1}`,
+                startTime: s.startTime || '09:00',
+                endTime: s.endTime || '17:00',
+                days: Array.isArray(s.days) ? s.days : [],
+                employees: Array.isArray(s.employees) ? s.employees.map(Number).filter(Boolean) : []
+            }));
+        } else {
+            shifts = [];
+        }
+
         const rule = {
-            enabled: enabled === 'on',
-            startTime: startTime || '10:00',
-            endTime: endTime || '18:00',
-            days: days ? (Array.isArray(days) ? days : [days]) : [],
-            employees: selectedEmployees ? (Array.isArray(selectedEmployees) ? selectedEmployees.map(Number) : [Number(selectedEmployees)]) : [],
+            enabled: enabled === 'on' || enabled === true || enabled === 'true',
+            shifts,
             defaultEmployeeId: defaultEmployeeId ? Number(defaultEmployeeId) : null
         };
 
         await setSetting('shift_split_rule', rule, owner.id);
-        req.flash('success_msg', 'تم حفظ قواعد توزيع العملاء بنجاح.');
+        req.flash('success_msg', 'تم حفظ قواعد توزيع العملاء والشيفتات بنجاح.');
         res.redirect('/dashboard/employees');
     } catch (err) {
         console.error('Error saving lead routing rule:', err);

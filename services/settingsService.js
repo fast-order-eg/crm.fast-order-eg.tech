@@ -215,13 +215,35 @@ export const defaultSettingsMeta = {
     shift_split_rule: {
         type: 'json',
         category: 'general',
-        label: 'قاعدة توزيع العملاء في الشيفت',
+        label: 'قواعد توزيع العملاء في الشيفتات (Multi-Shift Lead Routing)',
         defaultValue: {
             enabled: true,
-            startTime: '10:00',
-            endTime: '18:00',
-            days: ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'السبت'],
-            employees: [5, 4],
+            shifts: [
+                {
+                    id: 'shift_1',
+                    name: 'الفترة الصباحية (رحمة ومصطفى)',
+                    startTime: '10:00',
+                    endTime: '18:00',
+                    days: ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'],
+                    employees: [5, 7]
+                },
+                {
+                    id: 'shift_2',
+                    name: 'الفترة المسائية (عمرو هشام)',
+                    startTime: '18:00',
+                    endTime: '23:00',
+                    days: ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'],
+                    employees: [6]
+                },
+                {
+                    id: 'shift_3',
+                    name: 'الفترة الليلية حتى الصباح (عمرو وعلا ومصطفى)',
+                    startTime: '23:00',
+                    endTime: '10:00',
+                    days: ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'],
+                    employees: [6, 4, 7]
+                }
+            ],
             defaultEmployeeId: 5
         }
     },
