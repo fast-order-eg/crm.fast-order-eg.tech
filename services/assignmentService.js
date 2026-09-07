@@ -218,6 +218,8 @@ export async function assignCustomerToSales(customerId, botOwnerId, io = null, s
                 candidates.sort((a, b) => a.activeCount - b.activeCount);
                 selectedEmp = candidates[0].employee;
             }
+        }
+
         if (!selectedEmp) {
             console.error(`⚠️ [Assignment] No valid employee selected for customer ID: ${customerId}`);
             return null;
