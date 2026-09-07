@@ -235,20 +235,6 @@
     <%- include('partials/navbar') %>
     <%- include('partials/sidebar') %>
 
-<%
-function formatTimeAMPM(timeStr) {
-    if (!timeStr) return '—';
-    const parts = timeStr.split(':');
-    if (parts.length < 2) return timeStr;
-    let hours = parseInt(parts[0], 10);
-    const m = parts[1];
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    hours = hours % 12;
-    hours = hours ? hours : 12;
-    return `${hours}:${m} ${ampm}`;
-}
-%>
-
     <div class="container-fluid main-content px-2 px-sm-3 px-lg-5 py-2 py-md-4">
         
         <!-- Alerts -->
@@ -289,24 +275,24 @@ function formatTimeAMPM(timeStr) {
             </div>
 
             <!-- Empty Slots Analysis (Collapsible Card) -->
-            <div class="card mb-4 border-warning border-opacity-50 shadow-sm" id="emptySlotsContainer" style="display:none; background: #fffdf5; border-radius: 14px;">
-                <div class="card-body p-3">
+            <div class="card mb-3 border-warning border-opacity-50 shadow-sm" id="emptySlotsContainer" style="display:none; background: #fffdf5; border-radius: 14px;">
+                <div class="card-body p-2.5 p-sm-3">
                     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2" role="button" data-bs-toggle="collapse" data-bs-target="#emptySlotsCollapse" aria-expanded="false" style="cursor: pointer;">
                         <div class="d-flex align-items-center gap-2.5">
-                            <div class="rounded-circle bg-warning bg-opacity-25 p-2 d-flex align-items-center justify-content-center" style="width: 38px; height: 38px; min-width: 38px;">
+                            <div class="rounded-circle bg-warning bg-opacity-25 p-2 d-flex align-items-center justify-content-center" style="width: 36px; height: 36px; min-width: 36px;">
                                 <i class="bi bi-clock-history text-warning-emphasis fs-5"></i>
                             </div>
                             <div>
-                                <div style="font-size: 13.5px;" class="fw-bold text-dark">تغطية مواعيد المبيعات والأوقات غير المغطاة</div>
-                                <div class="text-muted" style="font-size: 11px;">اضغط هنا لعرض تفاصيل ساعات العمل والفترات الفارغة أسبوعياً</div>
+                                <div style="font-size: 13px;" class="fw-bold text-dark">تغطية الشيفتات والأوقات غير المغطاة</div>
+                                <div class="text-muted" style="font-size: 10.5px;">فحص الأوقات المغطاة والفارغة أسبوعياً بناءً على تقسيمات الشيفتات</div>
                             </div>
                         </div>
-                        <button class="btn btn-sm btn-outline-warning rounded-pill px-3 py-1 fw-semibold d-flex align-items-center gap-1" style="font-size: 11.5px;" type="button">
-                            <span>عرض التفاصيل</span>
+                        <button class="btn btn-sm btn-outline-warning rounded-pill px-2.5 py-1 fw-semibold d-flex align-items-center gap-1" style="font-size: 11px;" type="button">
+                            <span>عرض التغطية</span>
                             <i class="bi bi-chevron-down"></i>
                         </button>
                     </div>
-                    <div class="collapse mt-3 pt-3 border-top border-warning border-opacity-25" id="emptySlotsCollapse">
+                    <div class="collapse mt-2.5 pt-2.5 border-top border-warning border-opacity-25" id="emptySlotsCollapse">
                         <div class="empty-slots-info-content"></div>
                     </div>
                 </div>
@@ -526,8 +512,6 @@ function formatTimeAMPM(timeStr) {
                                 <th>اسم المستخدم</th>
                                 <th>الهاتف</th>
                                 <th>الدور</th>
-                                <th>مواعيد العمل</th>
-                                <th>أيام العمل</th>
                                 <th>الموظف البديل</th>
                                 <th class="text-center">العملاء الحاليين</th>
                                 <th class="text-center">الحالة</th>
@@ -553,27 +537,6 @@ function formatTimeAMPM(timeStr) {
                                             <span class="badge bg-warning text-dark rounded-pill">Admin</span>
                                         <% } else { %>
                                             <span class="badge bg-info text-white rounded-pill">Sales</span>
-                                        <% } %>
-                                    </td>
-                                    <td>
-                                        <% if (emp.workStartTime && emp.workEndTime) { %>
-                                            <span class="small text-secondary fw-semibold">
-                                                من: <%= formatTimeAMPM(emp.workStartTime) %><br>
-                                                إلى: <%= formatTimeAMPM(emp.workEndTime) %>
-                                            </span>
-                                        <% } else { %>
-                                            <span class="text-muted small">—</span>
-                                        <% } %>
-                                    </td>
-                                    <td>
-                                        <% if (emp.workDays) { %>
-                                            <div class="d-flex flex-wrap gap-1" style="max-width: 180px;">
-                                                <% emp.workDays.split(',').forEach(day => { %>
-                                                    <span class="day-badge"><%= day.trim() %></span>
-                                                <% }) %>
-                                            </div>
-                                        <% } else { %>
-                                            <span class="text-muted small">—</span>
                                         <% } %>
                                     </td>
                                     <td>
@@ -605,9 +568,6 @@ function formatTimeAMPM(timeStr) {
                                                     data-username="<%= emp.username %>"
                                                     data-phone="<%= emp.phone || '' %>"
                                                     data-role="<%= emp.role %>"
-                                                    data-start="<%= emp.workStartTime || '09:00' %>"
-                                                    data-end="<%= emp.workEndTime || '17:00' %>"
-                                                    data-days="<%= emp.workDays || '' %>"
                                                     data-substitute="<%= emp.substituteUserId || '' %>"
                                                     data-max="<%= emp.maxCustomers %>"
                                                     title="تعديل">
@@ -714,25 +674,8 @@ function formatTimeAMPM(timeStr) {
                                     </div>
                                 </div>
 
-                                <!-- Work Hours -->
-                                <div class="col-6">
-                                    <div class="emp-info-tile">
-                                        <span class="text-muted small d-flex align-items-center gap-1" style="font-size: 10.5px;">
-                                            <i class="bi bi-clock-fill text-warning"></i>
-                                            <span>مواعيد العمل</span>
-                                        </span>
-                                        <span class="fw-semibold text-dark mt-0.5" style="font-size: 11px; line-height: 1.3;">
-                                            <% if (emp.workStartTime && emp.workEndTime) { %>
-                                                <%= formatTimeAMPM(emp.workStartTime) %><br><span class="text-muted">إلى</span> <%= formatTimeAMPM(emp.workEndTime) %>
-                                            <% } else { %>
-                                                <span class="text-muted">—</span>
-                                            <% } %>
-                                        </span>
-                                    </div>
-                                </div>
-
                                 <!-- Substitute -->
-                                <div class="col-6">
+                                <div class="col-12">
                                     <div class="emp-info-tile">
                                         <span class="text-muted small d-flex align-items-center gap-1" style="font-size: 10.5px;">
                                             <i class="bi bi-arrow-repeat text-info"></i>
@@ -741,24 +684,6 @@ function formatTimeAMPM(timeStr) {
                                         <span class="fw-semibold text-dark text-truncate mt-0.5" style="font-size: 11.5px;" title="<%= emp.substituteUser ? emp.substituteUser.fullName : 'لا يوجد' %>">
                                             <%= emp.substituteUser ? emp.substituteUser.fullName : 'لا يوجد بديل' %>
                                         </span>
-                                    </div>
-                                </div>
-
-                                <!-- Work Days -->
-                                <div class="col-12">
-                                    <div class="p-2 rounded-3 bg-light border border-light-subtle">
-                                        <span class="d-block text-muted mb-1" style="font-size: 10.5px;">
-                                            <i class="bi bi-calendar-week-fill me-1 text-secondary"></i>أيام العمل:
-                                        </span>
-                                        <% if (emp.workDays) { %>
-                                            <div class="d-flex flex-wrap gap-1">
-                                                <% emp.workDays.split(',').forEach(day => { %>
-                                                    <span class="day-badge"><%= day.trim() %></span>
-                                                <% }) %>
-                                            </div>
-                                        <% } else { %>
-                                            <span class="text-muted" style="font-size: 11px;">غير محددة</span>
-                                        <% } %>
                                     </div>
                                 </div>
                             </div>
@@ -782,9 +707,6 @@ function formatTimeAMPM(timeStr) {
                                             data-username="<%= emp.username %>"
                                             data-phone="<%= emp.phone || '' %>"
                                             data-role="<%= emp.role %>"
-                                            data-start="<%= emp.workStartTime || '09:00' %>"
-                                            data-end="<%= emp.workEndTime || '17:00' %>"
-                                            data-days="<%= emp.workDays || '' %>"
                                             data-substitute="<%= emp.substituteUserId || '' %>"
                                             data-max="<%= emp.maxCustomers %>">
                                         <i class="bi bi-pencil-square"></i>
@@ -818,8 +740,7 @@ function formatTimeAMPM(timeStr) {
                     <h5 class="modal-title fw-bold" id="addEmployeeModalLabel">إضافة موظف جديد</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <div class="alert alert-warning m-3 mb-0 empty-slots-info" style="display:none; font-size: 14px;"></div>
-                <form action="/dashboard/employees/add" method="POST" onsubmit="return submitAddForm()">
+                <form action="/dashboard/employees/add" method="POST">
                     <div class="modal-body p-4">
                         <div class="row g-3">
                             <div class="col-md-6">
@@ -840,38 +761,14 @@ function formatTimeAMPM(timeStr) {
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-bold">دور الموظف (Role)</label>
-                                <select name="role" id="addRole" class="form-select" required onchange="toggleScheduleFields('add')">
+                                <select name="role" id="addRole" class="form-select" required>
                                     <option value="sales" selected>مبيعات (Sales)</option>
                                     <option value="admin">مدير (Admin)</option>
                                 </select>
                             </div>
                             <input type="hidden" name="maxCustomers" value="999999">
-                            <div class="col-12 add-schedule-fields">
-                                <div class="row g-3">
-                                    <div class="col-6">
-                                        <label class="form-label fw-bold">بداية وقت العمل</label>
-                                        <input type="time" name="workStartTime" class="form-control" value="09:00">
-                                    </div>
-                                    <div class="col-6">
-                                        <label class="form-label fw-bold">نهاية وقت العمل</label>
-                                        <input type="time" name="workEndTime" class="form-control" value="17:00">
-                                    </div>
-                                    <div class="col-12">
-                                        <label class="form-label fw-bold d-block">أيام العمل</label>
-                                        <div class="d-flex flex-wrap gap-2 mt-1">
-                                            <% ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'].forEach((day, index) => { %>
-                                                <label class="day-select-pill" for="addDay<%= index %>">
-                                                    <input class="form-check-input add-day-check m-0" type="checkbox" value="<%= day %>" id="addDay<%= index %>" <%= index < 5 ? 'checked' : '' %>>
-                                                    <span><%= day %></span>
-                                                </label>
-                                            <% }) %>
-                                        </div>
-                                        <input type="hidden" name="workDays" id="addWorkDaysInput" value="السبت,الأحد,الإثنين,الثلاثاء,الأربعاء">
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label fw-bold">الموظف البديل (في حالة الإجازة أو خارج أوقات العمل)</label>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">الموظف البديل (في حالة الإجازة)</label>
                                 <select name="substituteUserId" class="form-select">
                                     <option value="">-- لا يوجد موظف بديل --</option>
                                     <% employees.forEach(emp => { %>
@@ -898,8 +795,7 @@ function formatTimeAMPM(timeStr) {
                     <h5 class="modal-title fw-bold" id="editEmployeeModalLabel">تعديل بيانات الموظف</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <div class="alert alert-warning m-3 mb-0 empty-slots-info" style="display:none; font-size: 14px;"></div>
-                <form action="/dashboard/employees/edit" method="POST" onsubmit="return submitEditForm()">
+                <form action="/dashboard/employees/edit" method="POST">
                     <input type="hidden" name="id" id="editId">
                     <div class="modal-body p-4">
                         <div class="row g-3">
@@ -921,38 +817,14 @@ function formatTimeAMPM(timeStr) {
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-bold">دور الموظف (Role)</label>
-                                <select name="role" id="editRole" class="form-select" required onchange="toggleScheduleFields('edit')">
+                                <select name="role" id="editRole" class="form-select" required>
                                     <option value="sales">مبيعات (Sales)</option>
                                     <option value="admin">مدير (Admin)</option>
                                 </select>
                             </div>
                             <input type="hidden" name="maxCustomers" id="editMaxCustomers">
-                            <div class="col-12 edit-schedule-fields">
-                                <div class="row g-3">
-                                    <div class="col-6">
-                                        <label class="form-label fw-bold">بداية وقت العمل</label>
-                                        <input type="time" name="workStartTime" id="editWorkStartTime" class="form-control">
-                                    </div>
-                                    <div class="col-6">
-                                        <label class="form-label fw-bold">نهاية وقت العمل</label>
-                                        <input type="time" name="workEndTime" id="editWorkEndTime" class="form-control">
-                                    </div>
-                                    <div class="col-12">
-                                        <label class="form-label fw-bold d-block">أيام العمل</label>
-                                        <div class="d-flex flex-wrap gap-2 mt-1">
-                                            <% ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'].forEach((day, index) => { %>
-                                                <label class="day-select-pill" for="editDay<%= index %>">
-                                                    <input class="form-check-input edit-day-check m-0" type="checkbox" value="<%= day %>" id="editDay<%= index %>">
-                                                    <span><%= day %></span>
-                                                </label>
-                                            <% }) %>
-                                        </div>
-                                        <input type="hidden" name="workDays" id="editWorkDaysInput">
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label fw-bold">الموظف البديل (في حالة الإجازة أو خارج أوقات العمل)</label>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">الموظف البديل (في حالة الإجازة)</label>
                                 <select name="substituteUserId" id="editSubstituteUserId" class="form-select">
                                     <option value="">-- لا يوجد موظف بديل --</option>
                                     <% employees.forEach(emp => { %>
@@ -973,20 +845,6 @@ function formatTimeAMPM(timeStr) {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // دالة تجميع أيام العمل للنموذج الأول
-        function submitAddForm() {
-            const checkedDays = Array.from(document.querySelectorAll('.add-day-check:checked')).map(el => el.value);
-            document.getElementById('addWorkDaysInput').value = checkedDays.join(',');
-            return true;
-        }
-
-        // دالة تجميع أيام العمل للنموذج الثاني
-        function submitEditForm() {
-            const checkedDays = Array.from(document.querySelectorAll('.edit-day-check:checked')).map(el => el.value);
-            document.getElementById('editWorkDaysInput').value = checkedDays.join(',');
-            return true;
-        }
-
         // دالة فتح مودال التعديل وتعبئة البيانات
         function editEmployee(btn) {
             const id = btn.getAttribute('data-id');
@@ -994,9 +852,6 @@ function formatTimeAMPM(timeStr) {
             const username = btn.getAttribute('data-username');
             const phone = btn.getAttribute('data-phone');
             const role = btn.getAttribute('data-role');
-            const start = btn.getAttribute('data-start');
-            const end = btn.getAttribute('data-end');
-            const days = btn.getAttribute('data-days');
             const substitute = btn.getAttribute('data-substitute');
             const max = btn.getAttribute('data-max');
 
@@ -1005,11 +860,8 @@ function formatTimeAMPM(timeStr) {
             document.getElementById('editUsername').value = username;
             document.getElementById('editPhone').value = phone;
             document.getElementById('editRole').value = role;
-            document.getElementById('editWorkStartTime').value = start;
-            document.getElementById('editWorkEndTime').value = end;
             document.getElementById('editMaxCustomers').value = max;
             document.getElementById('editPassword').value = ''; // إفراغ كلمة المرور
-            document.getElementById('editWorkDaysInput').value = days;
 
             // إخفاء الموظف نفسه من قائمة البدلاء لمنع الاختيار الخاطئ
             const subDropdown = document.getElementById('editSubstituteUserId');
@@ -1025,91 +877,153 @@ function formatTimeAMPM(timeStr) {
                 }
             });
 
-            // تعبئة مربعات الاختيار للأيام
-            const dayList = days.split(',').map(d => d.trim());
-            const checkboxes = document.querySelectorAll('.edit-day-check');
-            checkboxes.forEach(chk => {
-                chk.checked = dayList.includes(chk.value);
-            });
-
             const editModal = new bootstrap.Modal(document.getElementById('editEmployeeModal'));
             editModal.show();
         }
 
-        const allSalesEmployees = <%- JSON.stringify(employees.filter(e => e.role === 'sales' && e.is_active !== false)) %>;
-
+        // ================= Multi-Shift Coverage & Lead Routing Handlers =================
         function calculateEmptySlots() {
             const days = ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'];
+            const masterSwitch = document.getElementById('shiftEnabled');
+            const isShiftsEnabled = masterSwitch ? masterSwitch.checked : true;
+
+            const cards = document.querySelectorAll('.shift-card');
+            const activeShifts = [];
+            cards.forEach(card => {
+                const startInput = card.querySelector('.shift-start-time');
+                const endInput = card.querySelector('.shift-end-time');
+                const dayChecks = card.querySelectorAll('.shift-day-check:checked');
+                const empChecks = card.querySelectorAll('.shift-emp-check:checked');
+
+                const startTime = startInput ? startInput.value : '';
+                const endTime = endInput ? endInput.value : '';
+                const shiftDays = Array.from(dayChecks).map(c => c.value);
+                const shiftEmployees = Array.from(empChecks).map(c => c.value);
+
+                if (startTime && endTime && shiftDays.length > 0 && shiftEmployees.length > 0) {
+                    activeShifts.push({
+                        startTime,
+                        endTime,
+                        days: shiftDays,
+                        employees: shiftEmployees
+                    });
+                }
+            });
+
+            if (!isShiftsEnabled) {
+                return {
+                    hasEmpty: true,
+                    html: `
+                        <div class="alert alert-warning mb-0 py-2 px-3 small rounded-3 d-flex align-items-center gap-2">
+                            <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+                            <div>نظام الشيفتات معطل حالياً. يتم التوزيع التلقائي العادي على موظفي المبيعات المتاحين.</div>
+                        </div>
+                    `
+                };
+            }
+
+            if (activeShifts.length === 0) {
+                return {
+                    hasEmpty: true,
+                    html: `
+                        <div class="alert alert-danger mb-0 py-2 px-3 small rounded-3 d-flex align-items-center gap-2">
+                            <i class="bi bi-x-octagon-fill fs-5"></i>
+                            <div>لم يتم تحديد أي شيفتات نشطة تحتوي على موظفين. جميع الأوقات غير مغطاة حالياً!</div>
+                        </div>
+                    `
+                };
+            }
+
             let hasEmpty = false;
             let cardsHtml = '<div class="row g-2">';
-            
+
+            const toMins = t => {
+                const [h, m] = t.split(':').map(Number);
+                return (h * 60) + m;
+            };
+
+            const formatTime = mins => {
+                let h = Math.floor(mins / 60);
+                const m = (mins % 60).toString().padStart(2, '0');
+                const period = h >= 12 ? 'م' : 'ص';
+                let h12 = h % 12;
+                if (h12 === 0) h12 = 12;
+                return `${h12.toString().padStart(2, '0')}:${m} ${period}`;
+            };
+
             days.forEach(day => {
                 let intervals = [];
-                allSalesEmployees.forEach(emp => {
-                    if (emp.workDays && emp.workDays.includes(day) && emp.workStartTime && emp.workEndTime) {
-                        const toMins = t => { const [h,m] = t.split(':'); return parseInt(h)*60 + parseInt(m); };
-                        let start = toMins(emp.workStartTime);
-                        let end = toMins(emp.workEndTime);
-                        if (start <= end) {
-                            intervals.push({start, end});
+
+                activeShifts.forEach(shift => {
+                    if (shift.days.includes(day)) {
+                        let start = toMins(shift.startTime);
+                        let end = toMins(shift.endTime);
+
+                        if (start < end) {
+                            intervals.push({ start, end });
+                        } else if (start > end) {
+                            // شيفت عابر لمنتصف الليل Cross-Midnight
+                            intervals.push({ start, end: 1440 });
+                            intervals.push({ start: 0, end });
                         } else {
-                            intervals.push({start, end: 1440});
-                            intervals.push({start: 0, end});
+                            intervals.push({ start: 0, end: 1440 });
                         }
                     }
                 });
-                
-                intervals.sort((a,b) => a.start - b.start);
+
+                intervals.sort((a, b) => a.start - b.start);
                 let merged = [];
                 if (intervals.length > 0) {
-                    let current = intervals[0];
+                    let current = { ...intervals[0] };
                     for (let i = 1; i < intervals.length; i++) {
                         if (intervals[i].start <= current.end) {
                             current.end = Math.max(current.end, intervals[i].end);
                         } else {
                             merged.push(current);
-                            current = intervals[i];
+                            current = { ...intervals[i] };
                         }
                     }
                     merged.push(current);
                 }
-                
+
                 let gaps = [];
                 let curTime = 0;
                 merged.forEach(inter => {
                     if (inter.start > curTime) {
-                        gaps.push({start: curTime, end: inter.start});
+                        gaps.push({ start: curTime, end: inter.start });
                     }
                     curTime = Math.max(curTime, inter.end);
                 });
                 if (curTime < 1440) {
-                    gaps.push({start: curTime, end: 1440});
+                    gaps.push({ start: curTime, end: 1440 });
                 }
-                
-                const formatTime = mins => {
-                    let h = Math.floor(mins / 60);
-                    const m = (mins % 60).toString().padStart(2, '0');
-                    const period = h >= 12 ? 'م' : 'ص';
-                    let h12 = h % 12;
-                    if (h12 === 0) h12 = 12;
-                    return `${h12.toString().padStart(2, '0')}:${m} ${period}`;
-                };
-                
+
                 if (gaps.length > 0) {
                     hasEmpty = true;
-                    let gapBadges = gaps.map(g => `<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1"><i class="bi bi-clock me-1"></i>${formatTime(g.start)} إلى ${formatTime(g.end)}</span>`).join(' ');
+                    const isAllDayEmpty = (gaps.length === 1 && gaps[0].start === 0 && gaps[0].end === 1440);
+                    let gapBadges = '';
+                    if (isAllDayEmpty) {
+                        gapBadges = `<span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1"><i class="bi bi-x-circle me-1"></i>غير مغطى طوال اليوم (24 ساعة)</span>`;
+                    } else {
+                        gapBadges = gaps.map(g => `<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1"><i class="bi bi-clock me-1"></i>غير مغطى: ${formatTime(g.start)} إلى ${formatTime(g.end)}</span>`).join(' ');
+                    }
+
                     cardsHtml += `
                         <div class="col-12 col-md-6">
-                            <div class="p-2 rounded-3 bg-white border d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-1.5 shadow-xs">
-                                <span class="fw-bold text-dark small" style="min-width: 65px;">${day}</span>
+                            <div class="p-2.5 rounded-3 bg-white border border-warning-subtle d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-1.5 shadow-xs">
+                                <span class="fw-bold text-dark small d-flex align-items-center gap-1.5" style="min-width: 75px;">
+                                    <span class="badge bg-secondary-subtle text-dark border px-2 py-1">${day}</span>
+                                </span>
                                 <div class="d-flex flex-wrap gap-1">${gapBadges}</div>
                             </div>
                         </div>`;
                 } else {
                     cardsHtml += `
                         <div class="col-12 col-md-6">
-                            <div class="p-2 rounded-3 bg-white border d-flex justify-content-between align-items-center shadow-xs">
-                                <span class="fw-bold text-dark small">${day}</span>
+                            <div class="p-2.5 rounded-3 bg-white border border-success-subtle d-flex justify-content-between align-items-center shadow-xs">
+                                <span class="fw-bold text-dark small d-flex align-items-center gap-1.5" style="min-width: 75px;">
+                                    <span class="badge bg-secondary-subtle text-dark border px-2 py-1">${day}</span>
+                                </span>
                                 <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1"><i class="bi bi-check-circle-fill me-1"></i>مغطى بالكامل (24 ساعة)</span>
                             </div>
                         </div>`;
@@ -1120,7 +1034,16 @@ function formatTimeAMPM(timeStr) {
             return { hasEmpty, html: cardsHtml };
         }
 
-        // ================= Multi-Shift Lead Routing UI Handlers =================
+        function refreshEmptySlots() {
+            const emptyData = calculateEmptySlots();
+            const container = document.getElementById('emptySlotsContainer');
+            const contentEl = document.querySelector('.empty-slots-info-content');
+            if (container && contentEl) {
+                contentEl.innerHTML = emptyData.html;
+                container.style.display = 'block';
+            }
+        }
+
         function addNewShift() {
             const template = document.getElementById('newShiftTemplate');
             if (!template) return;
@@ -1129,6 +1052,7 @@ function formatTimeAMPM(timeStr) {
             card.setAttribute('data-shift-id', 'shift_' + Date.now());
             document.getElementById('shiftsContainer').appendChild(clone);
             updateShiftBadges();
+            refreshEmptySlots();
         }
 
         function deleteShift(btn) {
@@ -1142,6 +1066,7 @@ function formatTimeAMPM(timeStr) {
                 if (card) {
                     card.remove();
                     updateShiftBadges();
+                    refreshEmptySlots();
                 }
             }
         }
@@ -1182,29 +1107,18 @@ function formatTimeAMPM(timeStr) {
             return true;
         }
 
-        function toggleScheduleFields(modalType) {
-            const role = document.getElementById(modalType + 'Role').value;
-            const scheduleDivs = document.querySelectorAll('.' + modalType + '-schedule-field');
-            if (role === 'admin') {
-                document.querySelector('.' + modalType + '-schedule-fields').style.display = 'none';
-            } else {
-                document.querySelector('.' + modalType + '-schedule-fields').style.display = 'block';
-            }
-        }
-
         document.addEventListener('DOMContentLoaded', () => {
-            const emptyData = calculateEmptySlots();
-            const container = document.getElementById('emptySlotsContainer');
-            const contentEl = document.querySelector('.empty-slots-info-content');
-            if (container && contentEl) {
-                contentEl.innerHTML = emptyData.html;
-                container.style.display = 'block';
+            refreshEmptySlots();
+
+            const shiftsContainer = document.getElementById('shiftsContainer');
+            if (shiftsContainer) {
+                shiftsContainer.addEventListener('input', refreshEmptySlots);
+                shiftsContainer.addEventListener('change', refreshEmptySlots);
             }
-            document.querySelectorAll('.empty-slots-info').forEach(el => {
-                el.innerHTML = '<strong class="d-block mb-2"><i class="bi bi-clock-history me-1"></i>الأوقات الفارغة غير المغطاة حالياً:</strong>' + emptyData.html;
-                el.style.display = emptyData.hasEmpty ? 'block' : 'none';
-            });
-            toggleScheduleFields('add');
+            const shiftSwitch = document.getElementById('shiftEnabled');
+            if (shiftSwitch) {
+                shiftSwitch.addEventListener('change', refreshEmptySlots);
+            }
         });
     </script>
 </body>

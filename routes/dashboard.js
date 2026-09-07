@@ -2648,83 +2648,14 @@ router.post('/employees/shift-split', async (req, res) => {
     }
 });
 
-// Helper to check for work schedule overlap
-function checkWorkOverlap(newStartTime, newEndTime, newDaysStr, existingEmployees) {
-    if (!newStartTime || !newEndTime || !newDaysStr) return null;
-    
-    const newDays = newDaysStr.split(',').map(d => d.trim()).filter(Boolean);
-    if (newDays.length === 0) return null;
-
-    const timesOverlap = (s1, e1, s2, e2) => {
-        const toMins = (t) => {
-            const [h, m] = t.split(':').map(Number);
-            return h * 60 + m;
-        };
-        
-        let start1 = toMins(s1);
-        let end1 = toMins(e1);
-        let start2 = toMins(s2);
-        let end2 = toMins(e2);
-        
-        const getIntervals = (start, end) => {
-            if (start <= end) {
-                return [{ start, end }];
-            } else {
-                return [
-                    { start, end: 1440 },
-                    { start: 0, end }
-                ];
-            }
-        };
-        
-        const int1s = getIntervals(start1, end1);
-        const int2s = getIntervals(start2, end2);
-        
-        for (const i1 of int1s) {
-            for (const i2 of int2s) {
-                if (i1.start < i2.end && i2.start < i1.end) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    };
-
-    for (const emp of existingEmployees) {
-        if (!emp.workStartTime || !emp.workEndTime || !emp.workDays) continue;
-        const empDays = emp.workDays.split(',').map(d => d.trim()).filter(Boolean);
-        
-        const commonDays = newDays.filter(d => empDays.includes(d));
-        if (commonDays.length > 0) {
-            if (timesOverlap(newStartTime, newEndTime, emp.workStartTime, emp.workEndTime)) {
-                return {
-                    employeeName: emp.fullName || emp.username,
-                    commonDays: commonDays
-                };
-            }
-        }
-    }
-    return null;
-}
-
 router.post('/employees/add', async (req, res) => {
     try {
-        const { fullName, phone, notificationPhone, username, password, role, maxCustomers, workStartTime, workEndTime, workDays, substituteUserId } = req.body;
+        const { fullName, phone, notificationPhone, username, password, role, maxCustomers, substituteUserId } = req.body;
 
         const existingUser = await User.findOne({ where: { username } });
         if (existingUser) {
             req.flash('error_msg', 'اسم المستخدم موجود بالفعل. يرجى اختيار اسم مستخدم آخر.');
             return res.redirect('/dashboard/employees');
-        }
-
-        let finalWorkStartTime = null;
-        let finalWorkEndTime = null;
-        let finalWorkDays = null;
-
-        if (role !== 'admin' && role !== 'super_admin') {
-            finalWorkStartTime = workStartTime || '09:00';
-            finalWorkEndTime = workEndTime || '17:00';
-            finalWorkDays = workDays || 'السبت,الأحد,الإثنين,الثلاثاء,الأربعاء';
         }
 
         await User.create({
@@ -2735,9 +2666,9 @@ router.post('/employees/add', async (req, res) => {
             password,
             role,
             maxCustomers: parseInt(maxCustomers) || 999999,
-            workStartTime: finalWorkStartTime,
-            workEndTime: finalWorkEndTime,
-            workDays: finalWorkDays,
+            workStartTime: null,
+            workEndTime: null,
+            workDays: null,
             substituteUserId: substituteUserId ? parseInt(substituteUserId) : null,
             isOnLeave: false,
             is_active: true
@@ -2754,7 +2685,7 @@ router.post('/employees/add', async (req, res) => {
 
 router.post('/employees/edit', async (req, res) => {
     try {
-        const { id, fullName, phone, notificationPhone, username, password, role, maxCustomers, workStartTime, workEndTime, workDays, substituteUserId } = req.body;
+        const { id, fullName, phone, username, password, role, maxCustomers, substituteUserId } = req.body;
 
         const employee = await User.findByPk(id);
         if (!employee) {
@@ -2770,25 +2701,12 @@ router.post('/employees/edit', async (req, res) => {
             }
         }
 
-        let finalWorkStartTime = null;
-        let finalWorkEndTime = null;
-        let finalWorkDays = null;
-
-        if (role !== 'admin' && role !== 'super_admin') {
-            finalWorkStartTime = workStartTime || '09:00';
-            finalWorkEndTime = workEndTime || '17:00';
-            finalWorkDays = workDays || 'السبت,الأحد,الإثنين,الثلاثاء,الأربعاء';
-        }
-
         const updates = {
             fullName,
             phone,
             username,
             role,
             maxCustomers: parseInt(maxCustomers) || 999999,
-            workStartTime: finalWorkStartTime,
-            workEndTime: finalWorkEndTime,
-            workDays: finalWorkDays,
             substituteUserId: substituteUserId ? parseInt(substituteUserId) : null
         };
 

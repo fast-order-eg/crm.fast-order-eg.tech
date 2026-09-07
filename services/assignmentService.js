@@ -44,23 +44,27 @@ export function isEmployeeActiveNow(employee) {
 
     const { currentTimeStr, currentDayArabic } = getEgyptTimeInfo();
     
-    // 1. تحقق من أيام العمل
+    // 1. تحقق من أيام العمل (إذا كانت مسجلة)
     if (employee.workDays) {
-        const allowedDays = employee.workDays.split(',').map(d => d.trim());
-        if (!allowedDays.includes(currentDayArabic)) {
+        const allowedDays = employee.workDays.split(',').map(d => d.trim()).filter(Boolean);
+        if (allowedDays.length > 0 && !allowedDays.includes(currentDayArabic)) {
             return false;
         }
     }
 
-    // 2. تحقق من ساعات العمل
-    const startTime = employee.workStartTime || '09:00';
-    const endTime = employee.workEndTime || '17:00';
+    // 2. تحقق من ساعات العمل (إذا كانت مسجلة)
+    if (employee.workStartTime && employee.workEndTime) {
+        const startTime = employee.workStartTime;
+        const endTime = employee.workEndTime;
 
-    if (startTime <= endTime) {
-        return currentTimeStr >= startTime && currentTimeStr <= endTime;
-    } else {
-        return currentTimeStr >= startTime || currentTimeStr <= endTime;
+        if (startTime <= endTime) {
+            return currentTimeStr >= startTime && currentTimeStr <= endTime;
+        } else {
+            return currentTimeStr >= startTime || currentTimeStr <= endTime;
+        }
     }
+
+    return true;
 }
 
 /**
