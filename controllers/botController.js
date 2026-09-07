@@ -399,10 +399,12 @@ async function callVertexAI(remoteJid, userText, mediaBuffer = null, mediaMime =
     systemInstruction += '\n\n 💡 **تعليمات هامة جداً لأسلوب الحوار والرد (يجب الالتزام بها):**\n';
     systemInstruction += '1. أنت مساعد مبيعات ذكي ومحترف، ردودك دائماً بالعامية المصرية اللطيفة والمهذبة كأنك شخص حقيقي شاطر وودود بيتكلم على واتساب.\n';
     systemInstruction += '2. 🗣️ **أسلوب الدردشة الطبيعي (Conversational Tone):** تجنب تماماً القوائم النقطية الطويلة أو الشروط الجافة؛ خلي ردك في فقرة أو فقرتين كلام طبيعي وسلس ومباشر زي دردشة الواتساب الحقيقية.\n';
-    systemInstruction += '3. 🤝 **طمأنة المبتدئين (Empathy & Reassurance):** إذا لاحظت تردد أو خوف من صعوبة البداية، طمّن العميل بروح دافية وأسلوب عفوي متنوع، وتجنب تكرار نفس الجملة بحذافيرها في كل رسالة.\n';
-    systemInstruction += '4. يمنع منعاً باتاً تأليف أي معلومة أو سعر أو رابط من خيالك؛ التزم بما هو وارد في التعليمات فقط.\n';
-    systemInstruction += '5. 🎯 **قاعدة استمرار الحوار (Question Hook):** احرص دائماً على إنهاء ردك بسؤال تفاعلي واحد ذكي ومرتبط بسياق كلام العميل، ليشجعه على اتخاذ الخطوة التالية مباشرة (مثل التسجيل في المتجر، إضافة أول منتج، أو مشاهدة فيديو الشرح المناسب).\n';
-    systemInstruction += '6. 📹 **إرسال روابط الشرح:** إذا سأل العميل عن طريقة عمل شيء في المتجر، اشرح له الخطوة في سطرين وأرسل له الرابط المناسب فقط لسؤاله من قائمة الفيديوهات التالية:\n';
+    systemInstruction += '3. 🚫 **حظر تكرار جمل الترحيب (صارمة جداً):** الترحيب ("أهلاً بيك يا فندم"، "نورتنا"، "يا هلا") يُقال فقط في أول رسالة على الإطلاق عند بدء المحادثة لأول مرة. إذا كانت المحادثة مستمرة، أو العميل رد على سؤالك، أو أرسل فويس أو صورة، **ممنوع نهائياً تكرار أي صيغة ترحيب** (لا تقل "أهلاً بيك" ولا "أهلاً بيك تاني" ولا "نورتنا"). ادخل في الموضوع فوراً وأجب على العميل مباشرة.\n';
+    systemInstruction += '4. 🎤 **التعامل مع التسجيلات الصوتية واختبارات الصوت:** إذا أرسل العميل تسجيلاً صوتياً به تحية فقط مثل ("ألو"، "سامعني"، "ألو آه"): رد عليه بود وتأكيد مباشر: "أيوا يا فندم سامعك، اتفضل قولّي..." بدون أي ترحيب مكرر واستكمل السؤال المطروح.\n';
+    systemInstruction += '5. 🤝 **طمأنة المبتدئين (Empathy & Reassurance):** إذا لاحظت تردد أو خوف من صعوبة البداية، طمّن العميل بروح دافية وأسلوب عفوي متنوع، وتجنب تكرار نفس الجملة بحذافيرها في كل رسالة.\n';
+    systemInstruction += '6. يمنع منعاً باتاً تأليف أي معلومة أو سعر أو رابط من خيالك؛ التزم بما هو وارد في التعليمات فقط.\n';
+    systemInstruction += '7. 🎯 **قاعدة استمرار الحوار (Question Hook):** احرص دائماً على إنهاء ردك بسؤال تفاعلي واحد ذكي ومرتبط بسياق كلام العميل، ليشجعه على اتخاذ الخطوة التالية مباشرة (مثل التسجيل في المتجر، إضافة أول منتج، أو مشاهدة فيديو الشرح المناسب).\n';
+    systemInstruction += '8. 📹 **إرسال روابط الشرح:** إذا سأل العميل عن طريقة عمل شيء في المتجر، اشرح له الخطوة في سطرين وأرسل له الرابط المناسب فقط لسؤاله من قائمة الفيديوهات التالية:\n';
     systemInstruction += '   - كيفية التسجيل على المتجر: https://youtube.com/shorts/Enq-JEUI3pU?si=r5LljIhpVDWuX6hc\n';
     systemInstruction += '   - كيفية شحن المحفظة: https://youtube.com/shorts/I5HOD7b3gYQ?si=u36ZCeytwKByiuY9\n';
     systemInstruction += '   - شرح الباقات والأسعار: https://youtube.com/shorts/PIwmQYy_R8w?si=rOVsuZi74OTCLzPu\n';
@@ -414,10 +416,19 @@ async function callVertexAI(remoteJid, userText, mediaBuffer = null, mediaMime =
     systemInstruction += '   - زرار المتغير (الألوان والمقاسات): https://youtube.com/shorts/nNO3On-3H54?si=thBWH41buE0fY685\n';
     systemInstruction += '   - إضافة الأقسام والتصنيفات الرئيسية: https://youtube.com/shorts/ngMxhr4GTbc?si=y6jI7fqiI5pIGifz\n';
     systemInstruction += '   ⚠️ قاعدة هامة: أرسل فيديو واحد فقط محدد متعلق بسؤال العميل، ولا ترسل فيديوهات مجمعة.\n';
-    systemInstruction += '7. إذا سألك العميل سؤالاً فنياً معقداً جداً لا تعرفه أو طلب صراحة التحدث لموظف بشري، يجب عليك الرد بكلمة واحدة فقط وهي بالضبط: [HANDOFF]\n';
-    systemInstruction += '8. لا تكتب أي كلام آخر مع كلمة [HANDOFF].\n';
+    systemInstruction += '9. إذا سألك العميل سؤالاً فنياً معقداً جداً لا تعرفه أو طلب صراحة التحدث لموظف بشري، يجب عليك الرد بكلمة واحدة فقط وهي بالضبط: [HANDOFF]\n';
+    systemInstruction += '10. لا تكتب أي كلام آخر مع كلمة [HANDOFF].\n';
 
-    const history = dbMessages.reverse().map(msg => ({
+    // Remove the latest user message from previous history if it was already inserted into DB right before this call
+    let pastMessages = dbMessages.slice();
+    if (pastMessages.length > 0 && pastMessages[0].role === 'user') {
+        const diffMs = Date.now() - new Date(pastMessages[0].createdAt).getTime();
+        if (diffMs < 30000) {
+            pastMessages.shift(); // currentParts will represent this message
+        }
+    }
+
+    const history = pastMessages.reverse().map(msg => ({
         role: msg.role,
         parts: [{ text: msg.content }]
     }));
@@ -2218,19 +2229,44 @@ export async function handleIncomingUnifiedMessage({
 
         // 2. Resolve Customer Phone and Data
         const customerPhone = phoneNumber || (remoteJid.endsWith('@s.whatsapp.net') ? remoteJid.split('@')[0] : null);
-        
-        let [customer, isNewCustomerRecord] = await Customer.findOrCreate({
-            where: { UserId: userId, remoteJid },
-            defaults: {
-                UserId: userId,
-                phoneNumber: customerPhone,
-                customerName: pushName || (customerPhone ? `عميل ${customerPhone}` : 'عميل جديد'),
-                remoteJid,
-                status: 'new',
-                firstContactAt: new Date(),
-                lastReplyAt: new Date()
-            }
+
+        let customer = await Customer.findOne({
+            where: { UserId: userId, remoteJid }
         });
+        let isNewCustomerRecord = false;
+
+        if (!customer && customerPhone) {
+            customer = await Customer.findOne({
+                where: { UserId: userId, phoneNumber: customerPhone }
+            });
+            if (customer && (!customer.remoteJid || customer.remoteJid !== remoteJid)) {
+                customer.remoteJid = remoteJid;
+                await customer.save();
+            }
+        }
+
+        if (!customer) {
+            try {
+                customer = await Customer.create({
+                    UserId: userId,
+                    phoneNumber: customerPhone,
+                    customerName: pushName || (customerPhone ? `عميل ${customerPhone}` : 'عميل جديد'),
+                    remoteJid,
+                    status: 'new',
+                    firstContactAt: new Date(),
+                    lastReplyAt: new Date()
+                });
+                isNewCustomerRecord = true;
+            } catch (createErr) {
+                if (customerPhone) {
+                    customer = await Customer.findOne({ where: { UserId: userId, phoneNumber: customerPhone } });
+                }
+                if (!customer) {
+                    customer = await Customer.findOne({ where: { UserId: userId, remoteJid } });
+                }
+                if (!customer) throw createErr;
+            }
+        }
 
         // Auto-merge LID customer if primary exists
         try {

@@ -143,19 +143,25 @@ export async function assignCustomerToSales(customerId, botOwnerId, io = null, s
 
                     if (pool.length > 0) {
                         const shiftKey = `last_assigned_shift_${shift.id || i}`;
-                        let lastIndex = 0;
+                        let lastIndex = -1;
                         try {
                             const idx = await getSetting(shiftKey, botOwnerId);
-                            if (idx !== undefined && idx !== null) lastIndex = parseInt(idx, 10);
+                            const parsed = parseInt(idx, 10);
+                            if (!isNaN(parsed) && Number.isInteger(parsed) && parsed >= 0) {
+                                lastIndex = parsed;
+                            }
                         } catch(e) {}
 
                         let nextIndex = lastIndex + 1;
-                        if (nextIndex >= pool.length) nextIndex = 0;
+                        if (isNaN(nextIndex) || nextIndex < 0 || nextIndex >= pool.length) {
+                            nextIndex = 0;
+                        }
 
-                        selectedEmp = pool[nextIndex];
+                        selectedEmp = pool[nextIndex] || pool[0];
                         await setSetting(shiftKey, nextIndex, botOwnerId);
                         usedShiftSplit = true;
-                        console.log(`🎯 [LeadRouting] Active Shift [${shift.name || ('Shift ' + (i+1))}] matched (Cairo Time: ${currentTimeStr} ${currentDay}). Assigned to ${selectedEmp.fullName || selectedEmp.username} (Pool: ${pool.length}, Index: ${nextIndex})`);
+                        const empName = selectedEmp ? (selectedEmp.fullName || selectedEmp.username) : 'Unknown';
+                        console.log(`🎯 [LeadRouting] Active Shift [${shift.name || ('Shift ' + (i+1))}] matched (Cairo Time: ${currentTimeStr} ${currentDay}). Assigned to ${empName} (Pool: ${pool.length}, Index: ${nextIndex})`);
                         break;
                     }
                 }
@@ -212,6 +218,9 @@ export async function assignCustomerToSales(customerId, botOwnerId, io = null, s
                 candidates.sort((a, b) => a.activeCount - b.activeCount);
                 selectedEmp = candidates[0].employee;
             }
+        if (!selectedEmp) {
+            console.error(`⚠️ [Assignment] No valid employee selected for customer ID: ${customerId}`);
+            return null;
         }
 
         // 6. تخصيص العميل
