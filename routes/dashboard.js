@@ -3519,6 +3519,19 @@ router.post('/customers/schedule-followup', async (req, res) => {
         customer.scheduledFollowUpAt = date ? new Date(date) : null;
         if (date) {
             customer.status = 'scheduled_follow_up';
+            try {
+                const { default: FollowUp } = await import('../models/FollowUp.js');
+                await FollowUp.create({
+                    CustomerId: customer.id,
+                    UserId: customer.UserId,
+                    type: 'scheduled',
+                    status: 'pending',
+                    message: req.body.message || null,
+                    scheduledAt: new Date(date)
+                });
+            } catch (fuErr) {
+                console.error('Error creating FollowUp record in schedule-followup:', fuErr.message);
+            }
         }
         await customer.save();
 
@@ -3574,6 +3587,13 @@ router.post('/customers/cancel-followup', ensureAuthenticated, async (req, res) 
 
         customer.scheduledFollowUpAt = null;
         await customer.save();
+
+        try {
+            const { default: FollowUp } = await import('../models/FollowUp.js');
+            await FollowUp.update({ status: 'cancelled' }, { where: { CustomerId: customer.id, type: 'scheduled', status: 'pending' } });
+        } catch (e) {
+            console.error('Error cancelling FollowUp record:', e.message);
+        }
 
         await logChange({
             action: 'cancel_followup',

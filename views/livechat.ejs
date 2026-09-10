@@ -393,7 +393,7 @@
             font-weight: bold;
         }
         .tick-pending {
-            color: #8696a0 !important;
+            color: #d97706 !important;
         }
 
         @media (max-width: 768px) {
@@ -723,11 +723,11 @@
     });
 
     function getStatusIcon(status) {
-        if (status === 'pending') return '<i class="bi bi-clock tick-pending me-1" title="جاري الإرسال"></i>';
+        if (status === 'pending') return '<i class="bi bi-clock tick-pending me-1" style="color: #d97706 !important;" title="جاري الإرسال (في الانتظار)"></i>';
         if (status === 'sent') return '<i class="bi bi-check tick-sent me-1" title="تم الإرسال"></i>';
-        if (status === 'delivered') return '<i class="bi bi-check2-all tick-delivered me-1" title="تم التسليم"></i>';
-        if (status === 'read') return '<i class="bi bi-check2-all tick-read me-1" title="تمت القراءة"></i>';
-        if (status === 'failed') return '<i class="bi bi-exclamation-triangle-fill text-danger me-1" title="فشل الإرسال (انتهت الـ 24 ساعة أو رفض الواتساب)"></i>';
+        if (status === 'delivered') return '<i class="bi bi-check2-all tick-delivered me-1" title="تم التسليم للعميل"></i>';
+        if (status === 'read') return '<i class="bi bi-check2-all tick-read me-1" title="تمت القراءة بواسطة العميل"></i>';
+        if (status === 'failed') return '<span class="badge bg-danger-subtle text-danger border border-danger p-1 py-0 me-1" style="font-size:10px; font-weight:700;" title="فشل الإرسال (انتهت نافذة الـ 24 ساعة لميتا أو تعذر الاتصال)"><i class="bi bi-exclamation-triangle-fill me-1"></i>فشل الإرسال</span>';
         return '<i class="bi bi-check tick-sent me-1" title="تم الإرسال"></i>';
     }
 

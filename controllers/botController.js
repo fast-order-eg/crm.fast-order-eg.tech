@@ -3286,69 +3286,8 @@ export const checkInactivitySummary = async () => {
 };
 
 export const checkScheduledFollowUps = async (io) => {
-    try {
-        const now = new Date();
-        const dueCustomers = await Customer.findAll({
-            where: {
-                status: 'scheduled_follow_up',
-                scheduledFollowUpAt: {
-                    [Op.lte]: now
-                }
-            }
-        });
-
-        for (const customer of dueCustomers) {
-            try {
-                const ownerId = customer.UserId;
-                const assignedUserId = customer.assignedToUserId;
-                const customerPhone = customer.remoteJid;
-
-                // 1. Update Customer status to final_follow_up to avoid triggering again
-                const oldStatus = customer.status;
-                customer.status = 'final_follow_up';
-                // customer.scheduledFollowUpAt = null; // We can leave it so they know when it was scheduled for
-                await customer.save();
-
-                // 2. Log in ChangeLog
-                await ChangeLog.create({
-                    action: 'status_change',
-                    description: `موعد المتابعة حان. تم إرسال تذكير تلقائي وتغيير الحالة إلى "متابعة نهائية"`,
-                    oldValue: oldStatus,
-                    newValue: 'final_follow_up',
-                    CustomerId: customer.id,
-                    performedByUserId: ownerId, // System essentially, attribute to owner
-                    UserId: ownerId
-                });
-
-                // 3. Send automated WhatsApp message to customer
-                const sock = sessions.get(ownerId);
-                if (sock && customerPhone) {
-                    const messageText = `أهلاً بك ${customer.customerName || ''}، بناءً على طلبك نذكرك بموعد المتابعة. هل أنت متاح الآن للحديث؟`;
-                    await sock.sendMessage(customerPhone, { text: messageText });
-                }
-
-                // 4. Send internal notification to assigned employee or owner
-                const targetUserId = assignedUserId || ownerId;
-                if (targetUserId) {
-                    await notificationService.createNotification({
-                        type: 'follow_up_due',
-                        title: 'متابعة مستحقة',
-                        message: `حان موعد متابعة العميل: ${customer.customerName || customer.phoneNumber}`,
-                        targetUserId: targetUserId,
-                        customerId: customer.id,
-                        ownerId: ownerId,
-                        io: io
-                    });
-                }
-                
-                console.log(`[FollowUpCron] Processed follow up for customer ${customer.id}`);
-            } catch (innerErr) {
-                console.error(`[FollowUpCron] Error processing customer ${customer.id}:`, innerErr);
-            }
-        }
-    } catch (err) {
-        console.error('[FollowUpCron] Global Error:', err);
-    }
+    const { checkScheduledFollowUps: runScheduledFollowUps } = await import('../services/followUpService.js');
+    return runScheduledFollowUps(io);
 };
 
 export function matchImages(instructions, userText, replyText) {
@@ -3969,8 +3908,8 @@ export async function sendManualMessage(userId, remoteJid, text, senderName = nu
 
     let sock = sessions.get(parseInt(userId, 10)) || sessions.get(String(userId)) || sessions.get(userId);
 
-    // If user is connected via Meta Cloud API or Baileys session missing while Meta API configured
-    if ((isMetaUser && (!sock || !sock.user)) || (user && (user.connection_status === 'meta_online' || user.connection_status === 'meta'))) {
+    // If Meta Cloud API is configured or user is connected via Meta, send via Meta API first!
+    if (isMetaUser || (user && (user.connection_status === 'meta_online' || user.connection_status === 'meta'))) {
         console.log(`[sendManualMessage] Sending via Meta WhatsApp Cloud API for User ${userId} to ${remoteJid}...`);
         try {
             const { sendMetaMessage } = await import('./metaCloudController.js');
@@ -4113,7 +4052,8 @@ export async function sendManualMediaMessage(userId, remoteJid, mediaUrl, mediaT
                          `📄 مستند: ${filename || 'ملف'}`;
     }
 
-    if ((isMetaUser && (!sock || !sock.user)) || (user && (user.connection_status === 'meta_online' || user.connection_status === 'meta'))) {
+    // If Meta Cloud API is configured or user is connected via Meta, send via Meta API first!
+    if (isMetaUser || (user && (user.connection_status === 'meta_online' || user.connection_status === 'meta'))) {
         console.log(`[sendManualMediaMessage] Sending ${mediaType} via Meta Cloud API for User ${userId} to ${remoteJid}...`);
         try {
             const { sendMetaMessage } = await import('./metaCloudController.js');
@@ -4329,7 +4269,9 @@ export const checkNoActionCustomers = async (io) => {
         for (const user of activeUsers) {
             const userId = user.id;
             const sock = sessions.get(userId);
-            if (!sock) continue;
+            const isMetaAvailable = !!(process.env.META_ACCESS_TOKEN && process.env.META_PHONE_NUMBER_ID);
+            const isMetaUser = isMetaAvailable || user.connection_status === 'meta_online' || user.connection_status === 'meta';
+            if (!sock && !isMetaUser) continue;
 
             const workHoursInfo = await checkUserWorkingHours(userId);
             if (!workHoursInfo.isInsideWorkTime) {
@@ -4386,7 +4328,22 @@ export const checkNoActionCustomers = async (io) => {
                     await customer.save();
 
                     const handoffMsg = handoffMessages[Math.floor(Math.random() * handoffMessages.length)];
-                    await sock.sendMessage(conversation.remoteJid, { text: handoffMsg });
+                    if (isMetaAvailable) {
+                        try {
+                            const { sendMetaMessage } = await import('./metaCloudController.js');
+                            const rawId = conversation.remoteJid ? conversation.remoteJid.split('@')[0] : '';
+                            const digits = rawId.replace(/[^0-9]/g, '');
+                            const isBsuid = rawId.includes('.');
+                            const targetPhone = isBsuid ? rawId : ((digits && digits.length >= 5) ? digits : rawId);
+                            if (targetPhone) {
+                                await sendMetaMessage(targetPhone, handoffMsg);
+                            }
+                        } catch (metaHandoffErr) {
+                            console.error('[checkNoActionCustomers] Error sending handoff via Meta:', metaHandoffErr.message);
+                        }
+                    } else if (sock && typeof sock.sendMessage === 'function') {
+                        await sock.sendMessage(conversation.remoteJid, { text: handoffMsg }).catch(() => {});
+                    }
 
                     const transferTime = new Date().toLocaleString('en-GB', { timeZone: 'Africa/Cairo', hour12: true, dateStyle: 'short', timeStyle: 'short' });
                     
