@@ -1653,7 +1653,7 @@ export const startSession = async (userId, io, phoneNumber = null) => {
 
         if (connection === 'close') {
             const statusCode = (lastDisconnect.error)?.output?.statusCode;
-            const isLoggedOut = statusCode === DisconnectReason.loggedOut || statusCode === 401;
+            const isLoggedOut = statusCode === DisconnectReason.loggedOut || statusCode === 401 || statusCode === 403;
             const shouldReconnect = !isLoggedOut && statusCode !== DisconnectReason.connectionReplaced && statusCode !== 440;
             console.log(`[Baileys] 🔌 Session closed for User ${userId}. StatusCode: ${statusCode}, Reconnecting: ${shouldReconnect}`);
             
