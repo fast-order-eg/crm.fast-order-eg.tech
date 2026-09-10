@@ -340,7 +340,7 @@ export const checkPendingFollowUps = async (io) => {
                             });
 
                             await notificationService.createNotification({
-                                type: 'follow_up_failed',
+                                type: 'follow_up_due',
                                 title: '⚠️ فشل إرسال المتابعة الأولى',
                                 message: `تعذر إرسال المتابعة الأولى للعميل "${customer.customerName || customer.phoneNumber}" عبر واتساب ميتا (${result.error}). يرجى التواصل معه يدوياً.`,
                                 targetUserId: customer.assignedToUserId || userId,
@@ -439,7 +439,7 @@ export const checkPendingFollowUps = async (io) => {
                             });
 
                             await notificationService.createNotification({
-                                type: 'follow_up_failed',
+                                type: 'follow_up_due',
                                 title: '⚠️ فشل إرسال المتابعة النهائية',
                                 message: `تعذر إرسال المتابعة النهائية للعميل "${customer.customerName || customer.phoneNumber}" عبر واتساب (${result.error}). يرجى التواصل هاتفياً معه.`,
                                 targetUserId: customer.assignedToUserId || userId,
@@ -602,7 +602,7 @@ export const checkScheduledFollowUps = async (io) => {
                 });
 
                 await notificationService.createNotification({
-                    type: 'follow_up_sent',
+                    type: 'follow_up_due',
                     title: 'متابعة مجدولة',
                     message: `تم إرسال رسالة المتابعة المجدولة للعميل: ${cust.customerName || cust.phoneNumber}`,
                     targetUserId: cust.assignedToUserId || userId,
@@ -629,7 +629,7 @@ export const checkScheduledFollowUps = async (io) => {
                 });
 
                 await notificationService.createNotification({
-                    type: 'follow_up_failed',
+                    type: 'follow_up_due',
                     title: '⚠️ فشل إرسال متابعة بموعد',
                     message: `حان موعد متابعة العميل "${cust.customerName || cust.phoneNumber}" ولكن تعذر إرسال رسالة الواتساب (${result.error}). يرجى التواصل هاتفياً معه الآن!`,
                     targetUserId: cust.assignedToUserId || userId,
@@ -689,7 +689,7 @@ export const checkScheduledFollowUps = async (io) => {
                 });
 
                 await notificationService.createNotification({
-                    type: 'follow_up_sent',
+                    type: 'follow_up_due',
                     title: 'متابعة مجدولة',
                     message: `تم إرسال رسالة المتابعة المجدولة للعميل: ${cust.customerName || cust.phoneNumber}`,
                     targetUserId: cust.assignedToUserId || userId,
@@ -722,7 +722,7 @@ export const checkScheduledFollowUps = async (io) => {
                 });
 
                 await notificationService.createNotification({
-                    type: 'follow_up_failed',
+                    type: 'follow_up_due',
                     title: '⚠️ فشل إرسال متابعة بموعد',
                     message: `حان موعد متابعة العميل "${cust.customerName || cust.phoneNumber}" ولكن تعذر إرسال رسالة الواتساب (${result.error}). يرجى التواصل هاتفياً معه الآن!`,
                     targetUserId: cust.assignedToUserId || userId,
