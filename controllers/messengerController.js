@@ -650,8 +650,7 @@ async function callVertexAIForMessenger(userId, senderId, userText, conversation
         const prompt = `${systemInstructions}\n\nسياق المحادثة السابقة:\n${historyText}\n\nالعميل: ${userText}\nالمساعد:`;
 
         // Vertex AI URL (uses Service Account authentication)
-        const location = 'us-central1';
-        const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${CONFIG.PROJECT_ID}/locations/${location}/publishers/google/models/${CONFIG.MODEL_NAME}:generateContent`;
+        const url = CONFIG.getVertexUrl();
 
         const payload = {
             contents: [{ role: "user", parts: [{ text: prompt }] }],
@@ -690,7 +689,8 @@ async function callVertexAIForMessenger(userId, senderId, userText, conversation
         });
 
         const data = await response.json();
-        return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
+        const textPart = data.candidates?.[0]?.content?.parts?.find(p => p.text && !p.thought) || data.candidates?.[0]?.content?.parts?.[0];
+        return textPart?.text || null;
 
     } catch (err) {
         console.error('[Messenger] Vertex AI Error:', err);
@@ -858,8 +858,7 @@ export async function generateConversationSummary(userId, conversationId) {
             `${msg.role === 'user' ? 'العميل' : 'البوت'}: ${msg.content}`
         ).join('\n');
 
-        const location = 'us-central1';
-        const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${CONFIG.PROJECT_ID}/locations/${location}/publishers/google/models/${CONFIG.MODEL_NAME}:generateContent`;
+        const url = CONFIG.getVertexUrl();
 
         const auth = new GoogleAuth({
             keyFilename: CONFIG.GOOGLE_CREDENTIALS || process.env.GOOGLE_APPLICATION_CREDENTIALS || 'trim-bot-486500-h8-4b614b18f7c0.json',
@@ -895,7 +894,8 @@ ${conversationText}`
         });
 
         const data = await response.json();
-        const summary = data.candidates?.[0]?.content?.parts?.[0]?.text || null;
+        const textPart = data.candidates?.[0]?.content?.parts?.find(p => p.text && !p.thought) || data.candidates?.[0]?.content?.parts?.[0];
+        const summary = textPart?.text || null;
 
         // احفظ الملخص في قاعدة البيانات
         if (summary) {

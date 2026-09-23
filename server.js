@@ -40,6 +40,7 @@ import SystemSettings from './models/SystemSettings.js';
 import KPIRecord from './models/KPIRecord.js';
 import FinancialTransaction from './models/FinancialTransaction.js';
 import FollowUp from './models/FollowUp.js';
+import PushSubscription from './models/PushSubscription.js';
 // Routes
 import authRoutes from './routes/auth.js';
 import adminRoutes from './routes/admin.js';

@@ -137,6 +137,11 @@ const User = sequelize.define('User', {
         type: DataTypes.BOOLEAN,
         defaultValue: true,
         comment: 'تفعيل إرسال الإشعارات والملخصات على الواتساب'
+    },
+    commissionRate: {
+        type: DataTypes.DECIMAL(5, 2),
+        defaultValue: 0.00,
+        comment: 'نسبة العمولة الافتراضية للموظف كنسبة مئوية'
     }
 }, {
     tableName: 'users',

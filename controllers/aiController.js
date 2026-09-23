@@ -3,8 +3,7 @@ import { GoogleAuth } from 'google-auth-library';
 import { vertexQueue } from '../services/queueService.js';
 
 async function callVertexAI(prompt) {
-    const location = 'us-central1';
-    const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${CONFIG.PROJECT_ID}/locations/${location}/publishers/google/models/${CONFIG.MODEL_NAME}:generateContent`;
+    const url = CONFIG.getVertexUrl();
 
     const payload = {
         contents: [{ role: "user", parts: [{ text: prompt }] }],
@@ -43,7 +42,8 @@ async function callVertexAI(prompt) {
         });
 
         const data = await response.json();
-        return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
+        const textPart = data.candidates?.[0]?.content?.parts?.find(p => p.text && !p.thought) || data.candidates?.[0]?.content?.parts?.[0];
+        return textPart?.text || null;
     } catch (error) {
         console.error("AI Call Failed:", error);
         return null; // Return null on error

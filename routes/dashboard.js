@@ -23,6 +23,7 @@ import { createNotification, markAsRead, markAllAsRead, getUnreadCount, getNotif
 import Notification from '../models/Notification.js';
 import { getSetting, setSetting, defaultSettingsMeta } from '../services/settingsService.js';
 import FinancialTransaction from '../models/FinancialTransaction.js';
+import Commission from '../models/Commission.js';
 
 const router = express.Router();
 
@@ -2973,7 +2974,7 @@ router.get('/customers/data', async (req, res) => {
         
         if (status && status !== 'all') {
             if (status === 'awaiting_sales') {
-                whereClause.status = { [Op.in]: ['awaiting_sales', 'new', 'in_funnel', 'awaiting_payment'] };
+                whereClause.status = { [Op.in]: ['awaiting_sales', 'new', 'in_funnel'] };
             } else {
                 whereClause.status = status;
             }
@@ -3379,6 +3380,40 @@ router.post('/customers/update-notes', async (req, res) => {
             ownerId: customer.UserId
         });
 
+        // 🔔 إشعار فوري للأدمن والمشرفين إذا تم تفعيل الإعداد وكان من كتب الملاحظة غير الأدمن
+        if (notes && notes.trim().length > 0 && notes.trim() !== (oldNotes || '').trim()) {
+            setImmediate(async () => {
+                try {
+                    const admins = await User.findAll({
+                        where: {
+                            role: { [Op.in]: ['admin', 'super_admin'] },
+                            is_active: true
+                        }
+                    });
+
+                    for (const adm of admins) {
+                        if (adm.id !== req.user.id) {
+                            const isNotifyEnabled = await getSetting('notify_admin_on_customer_notes', adm.id);
+                            if (isNotifyEnabled !== false) {
+                                const notePreview = notes.trim().length > 80 ? notes.trim().substring(0, 80) + '...' : notes.trim();
+                                await createNotification({
+                                    type: 'customer_note',
+                                    title: `📝 ملاحظة جديدة: ${customer.customerName || customer.phoneNumber}`,
+                                    message: `أضاف ${req.user.fullName || req.user.username} ملاحظة: "${notePreview}"`,
+                                    targetUserId: adm.id,
+                                    customerId: customer.id,
+                                    ownerId: customer.UserId,
+                                    io: req.app.get('socketio')
+                                });
+                            }
+                        }
+                    }
+                } catch (notifErr) {
+                    console.error('Error sending admin note notification in update-notes:', notifErr);
+                }
+            });
+        }
+
         res.json({
             success: true,
             customer: {
@@ -3474,12 +3509,18 @@ router.post('/customers/assign', async (req, res) => {
             ownerId: customer.UserId
         });
 
-        // إرسال إشعار للموظف الجديد عبر لوحة التحكم
-        if (targetUserId && targetUserId !== req.user.id) {
+        // إرسال إشعار للموظف الجديد عبر لوحة التحكم والويب بوش
+        if (targetUserId) {
+            const isTransfer = oldAssignedId && oldAssignedId !== targetUserId;
+            const notifTitle = isTransfer ? '👤 تم نقل عميل جديد إليك' : '👤 تم تعيين عميل جديد لك';
+            const notifMessage = isTransfer
+                ? `تم نقل العميل "${customer.customerName || customer.phoneNumber}" إلى مسؤوليتك (منقول من ${oldEmployeeName}) بواسطة ${req.user.fullName || req.user.username}`
+                : `تم تعيين العميل "${customer.customerName || customer.phoneNumber}" لك بواسطة ${req.user.fullName || req.user.username}`;
+
             await createNotification({
                 type: 'customer_assigned',
-                title: 'تعيين عميل جديد',
-                message: `تم تعيين عميل جديد لك: "${customer.customerName || customer.phoneNumber}" بواسطة ${req.user.fullName || req.user.username}`,
+                title: notifTitle,
+                message: notifMessage,
                 targetUserId,
                 customerId: customer.id,
                 ownerId: customer.UserId,
@@ -3502,6 +3543,45 @@ router.post('/customers/assign', async (req, res) => {
     }
 });
 
+/**
+ * دالة مساعدة لتحويل التاريخ المدخل لموعد متابعة بدقة توقيت القاهرة (UTC+3)
+ * تضمن عدم حدوث أي انزياح زمني بسبب فارق الـ 3 ساعات بين السيرفر وتوقيت مصر
+ */
+function parseCairoScheduleDate(dateInput) {
+    if (!dateInput) return null;
+    if (dateInput instanceof Date) return isNaN(dateInput.getTime()) ? null : dateInput;
+    if (typeof dateInput === 'string') {
+        const trimmed = dateInput.trim();
+        if (!trimmed) return null;
+
+        // إذا كان التاريخ يحتوي على توقيت صريح (Z أو +XX:XX / -XX:XX)
+        const hasTz = /([Zz]|[+-]\d{2}:?\d{2})$/.test(trimmed);
+        if (hasTz) {
+            const d = new Date(trimmed);
+            return isNaN(d.getTime()) ? null : d;
+        }
+
+        // إذا كان التاريخ بدون إزاحة زمنية (مثل 2026-09-12T17:00 أو 2026-09-12 17:00:00)
+        // يتم اعتباره بتوقيت مصر رسمياً (UTC+3)
+        const formatted = trimmed.replace(' ', 'T');
+        const parts = formatted.split('T');
+        if (parts.length === 2) {
+            const timeParts = parts[1].split(':');
+            let timeStr = parts[1];
+            if (timeParts.length === 2) {
+                timeStr = `${parts[1]}:00`;
+            }
+            const withCairoTz = `${parts[0]}T${timeStr}+03:00`;
+            const d = new Date(withCairoTz);
+            if (!isNaN(d.getTime())) return d;
+        }
+        const fallback = new Date(trimmed);
+        return isNaN(fallback.getTime()) ? null : fallback;
+    }
+    const d = new Date(dateInput);
+    return isNaN(d.getTime()) ? null : d;
+}
+
 router.post('/customers/schedule-followup', async (req, res) => {
     try {
         const { id, date } = req.body;
@@ -3515,19 +3595,31 @@ router.post('/customers/schedule-followup', async (req, res) => {
             return res.status(403).json({ success: false, error: 'غير مصرح لك بجدولة المتابعة لهذا العميل' });
         }
         
+        // إذا لم يكن العميل مخصصاً وقام موظف سيلز بجدولة موعد له، نخصصه له تلقائياً
+        if (!customer.assignedToUserId && req.user.role === 'sales') {
+            customer.assignedToUserId = req.user.id;
+        }
+
+        const parsedDate = parseCairoScheduleDate(date);
         const oldDate = customer.scheduledFollowUpAt;
-        customer.scheduledFollowUpAt = date ? new Date(date) : null;
-        if (date) {
+        customer.scheduledFollowUpAt = parsedDate;
+
+        if (parsedDate) {
             customer.status = 'scheduled_follow_up';
             try {
                 const { default: FollowUp } = await import('../models/FollowUp.js');
+                // إلغاء أي متابعات مجدولة معلقة سابقة لنفس العميل لتفادي التكرار
+                await FollowUp.update({ status: 'expired' }, {
+                    where: { CustomerId: customer.id, type: 'scheduled', status: 'pending' }
+                });
+
                 await FollowUp.create({
                     CustomerId: customer.id,
                     UserId: customer.UserId,
                     type: 'scheduled',
                     status: 'pending',
                     message: req.body.message || null,
-                    scheduledAt: new Date(date)
+                    scheduledAt: parsedDate
                 });
             } catch (fuErr) {
                 console.error('Error creating FollowUp record in schedule-followup:', fuErr.message);
@@ -3546,15 +3638,42 @@ router.post('/customers/schedule-followup', async (req, res) => {
         // Log the change
         await logChange({
             action: 'status_change',
-            description: date 
-                ? `جدولة متابعة للعميل بتاريخ ${new Date(date).toLocaleString('en-GB', { timeZone: 'Africa/Cairo', hour12: true })} وتغيير الحالة إلى "متابعة بتاريخ"`
+            description: parsedDate 
+                ? `جدولة متابعة للعميل بتاريخ ${parsedDate.toLocaleString('en-GB', { timeZone: 'Africa/Cairo', hour12: true })} وتغيير الحالة إلى "متابعة بتاريخ"`
                 : `إلغاء المتابعة المجدولة للعميل وتغيير الحالة إلى "متابعة بتاريخ"`,
             oldValue: oldDate ? new Date(oldDate).toISOString() : null,
-            newValue: date ? new Date(date).toISOString() : null,
+            newValue: parsedDate ? parsedDate.toISOString() : null,
             customerId: customer.id,
             performedByUserId: req.user.id,
             ownerId: customer.UserId
         });
+
+        // إرسال إشعار تأكيد فوري للموظف
+        if (parsedDate) {
+            try {
+                const formattedDate = parsedDate.toLocaleString('ar-EG', { 
+                    timeZone: 'Africa/Cairo', 
+                    day: '2-digit', 
+                    month: '2-digit', 
+                    year: 'numeric', 
+                    hour: '2-digit', 
+                    minute: '2-digit', 
+                    hour12: true 
+                });
+                const { createNotification } = await import('../services/notificationService.js');
+                await createNotification({
+                    type: 'system',
+                    title: '📅 تم تثبيت موعد المتابعة',
+                    message: `تم تثبيت موعد متابعة للعميل "${customer.customerName || customer.phoneNumber}" بتاريخ: ${formattedDate}. وسيصلك إشعار فوري في نفس التوقيت.`,
+                    targetUserId: customer.assignedToUserId || req.user.id,
+                    customerId: customer.id,
+                    ownerId: customer.UserId,
+                    io: req.app.get('socketio')
+                });
+            } catch (notifErr) {
+                console.error('Error sending schedule confirmation notification:', notifErr);
+            }
+        }
 
         res.json({ success: true });
     } catch (err) {
@@ -3590,7 +3709,7 @@ router.post('/customers/cancel-followup', ensureAuthenticated, async (req, res) 
 
         try {
             const { default: FollowUp } = await import('../models/FollowUp.js');
-            await FollowUp.update({ status: 'cancelled' }, { where: { CustomerId: customer.id, type: 'scheduled', status: 'pending' } });
+            await FollowUp.update({ status: 'expired' }, { where: { CustomerId: customer.id, type: 'scheduled', status: 'pending' } });
         } catch (e) {
             console.error('Error cancelling FollowUp record:', e.message);
         }
@@ -3673,7 +3792,7 @@ router.get('/customers/export', async (req, res) => {
 
         if (status && status !== 'all' && todayFollowUps !== 'true') {
             if (status === 'awaiting_sales') {
-                whereClause.status = { [Op.in]: ['awaiting_sales', 'new', 'in_funnel', 'awaiting_payment'] };
+                whereClause.status = { [Op.in]: ['awaiting_sales', 'new', 'in_funnel'] };
             } else {
                 whereClause.status = status;
             }
@@ -4174,17 +4293,464 @@ router.get('/finance/export', async (req, res) => {
 });
 
 // ==========================================
+// 💰 روتات نظام العمولات (Commissions)
+// ==========================================
+
+router.get('/commissions', async (req, res) => {
+    try {
+        const isAdminUser = req.user.role === 'admin' || req.user.role === 'super_admin';
+        let employees = [];
+        
+        if (isAdminUser) {
+            employees = await User.findAll({
+                where: {
+                    is_active: true,
+                    role: { [Op.notIn]: ['admin', 'super_admin'] }
+                },
+                attributes: ['id', 'fullName', 'username', 'role', 'commissionRate'],
+                order: [['fullName', 'ASC']]
+            });
+        }
+
+        res.render('commissions', {
+            user: req.user,
+            page: 'commissions',
+            employees,
+            isAdmin: isAdminUser,
+            userCommissionRate: req.user.commissionRate || 0,
+            success_msg: req.flash('success_msg'),
+            error_msg: req.flash('error_msg')
+        });
+    } catch (err) {
+        console.error('Error rendering commissions page:', err);
+        res.status(500).send('حدث خطأ أثناء تحميل صفحة العمولات.');
+    }
+});
+
+router.get('/commissions/data', async (req, res) => {
+    try {
+        const { month, year, employeeId, search } = req.query;
+        const isAdminUser = req.user.role === 'admin' || req.user.role === 'super_admin';
+        const whereClause = {};
+
+        // Security / Role enforcement: Sales users can only see their own records!
+        if (!isAdminUser) {
+            whereClause.employeeId = req.user.id;
+        } else if (employeeId && employeeId !== 'all') {
+            whereClause.employeeId = parseInt(employeeId);
+        }
+
+        const isSearching = search && search.trim() !== '';
+
+        // Date filtering (Month & Year)
+        // إذا كان هناك بحث، نبحث في كل الشهور تلقائياً كما طلب المستخدم
+        if (year && year !== 'all') {
+            const y = parseInt(year);
+            if (!isSearching && month && month !== 'all') {
+                const m = parseInt(month);
+                const startDate = new Date(Date.UTC(y, m - 1, 1));
+                const endDate = new Date(Date.UTC(y, m, 0, 23, 59, 59, 999));
+                whereClause.date = {
+                    [Op.between]: [
+                        startDate.toISOString().split('T')[0],
+                        endDate.toISOString().split('T')[0]
+                    ]
+                };
+            } else {
+                const startDate = new Date(Date.UTC(y, 0, 1));
+                const endDate = new Date(Date.UTC(y, 11, 31, 23, 59, 59, 999));
+                whereClause.date = {
+                    [Op.between]: [
+                        startDate.toISOString().split('T')[0],
+                        endDate.toISOString().split('T')[0]
+                    ]
+                };
+            }
+        }
+
+        // Search filtering: بمبلغ معين أو اسم أو حروف من اسم في الخدمة أو الملاحظات
+        if (isSearching) {
+            const searchTrim = search.trim();
+            const orConditions = [
+                { serviceName: { [Op.like]: `%${searchTrim}%` } },
+                { notes: { [Op.like]: `%${searchTrim}%` } }
+            ];
+
+            // استخراج الأرقام للبحث في المبالغ المالية
+            const cleanNumStr = searchTrim.replace(/[^\d.]/g, '');
+            const searchNum = parseFloat(cleanNumStr);
+            if (!isNaN(searchNum) && cleanNumStr.length > 0) {
+                orConditions.push(
+                    { totalPaid: searchNum },
+                    { serviceCost: searchNum },
+                    { netProfit: searchNum },
+                    { commissionAmount: searchNum }
+                );
+            }
+
+            whereClause[Op.or] = orConditions;
+        }
+
+        const commissions = await Commission.findAll({
+            where: whereClause,
+            include: [
+                {
+                    model: User,
+                    as: 'employee',
+                    attributes: ['id', 'fullName', 'username', 'commissionRate']
+                },
+                {
+                    model: User,
+                    as: 'creator',
+                    attributes: ['id', 'fullName', 'username']
+                }
+            ],
+            order: [['date', 'DESC'], ['id', 'DESC']]
+        });
+
+        // Calculate Totals for Footer & Cards
+        let totalPaid = 0;
+        let totalCost = 0;
+        let totalProfit = 0;
+        let totalCommission = 0;
+
+        commissions.forEach(c => {
+            totalPaid += parseFloat(c.totalPaid) || 0;
+            totalCost += parseFloat(c.serviceCost) || 0;
+            totalProfit += parseFloat(c.netProfit) || 0;
+            totalCommission += parseFloat(c.commissionAmount) || 0;
+        });
+
+        res.json({
+            success: true,
+            commissions,
+            totals: {
+                totalPaid: Math.round(totalPaid * 100) / 100,
+                totalCost: Math.round(totalCost * 100) / 100,
+                totalProfit: Math.round(totalProfit * 100) / 100,
+                totalCommission: Math.round(totalCommission * 100) / 100,
+                count: commissions.length
+            }
+        });
+    } catch (err) {
+        console.error('Error fetching commissions data:', err);
+        res.status(500).json({ success: false, error: 'حدث خطأ أثناء جلب بيانات العمولات.' });
+    }
+});
+
+router.post('/commissions/add', async (req, res) => {
+    try {
+        const { serviceName, totalPaid, serviceCost, date, notes, employeeId, customRate } = req.body;
+        const isAdminUser = req.user.role === 'admin' || req.user.role === 'super_admin';
+
+        if (!serviceName || totalPaid === undefined || totalPaid === '') {
+            return res.status(400).json({ success: false, error: 'يرجى إدخال اسم الخدمة وإجمالي المبلغ المدفوع.' });
+        }
+
+        // Determine target employee
+        let targetEmployeeId = req.user.id;
+        if (isAdminUser && employeeId) {
+            targetEmployeeId = parseInt(employeeId);
+        }
+
+        const employee = await User.findByPk(targetEmployeeId);
+        if (!employee) {
+            return res.status(404).json({ success: false, error: 'الموظف المحدد غير موجود.' });
+        }
+
+        // Determine commission rate
+        let appliedRate = parseFloat(employee.commissionRate) || 0;
+        let isCustomRate = false;
+
+        if (isAdminUser && customRate !== undefined && customRate !== '' && !isNaN(customRate)) {
+            appliedRate = parseFloat(customRate);
+            isCustomRate = true;
+        }
+
+        const paid = parseFloat(totalPaid) || 0;
+        const cost = parseFloat(serviceCost) || 0;
+        const netProfit = Math.max(0, paid - cost);
+        const commissionAmount = (netProfit * appliedRate) / 100;
+
+        const ownerUser = await getOwnerUser(req.user);
+        const ownerId = ownerUser ? ownerUser.id : req.user.id;
+
+        const newCommission = await Commission.create({
+            serviceName: serviceName.trim(),
+            totalPaid: paid,
+            serviceCost: cost,
+            netProfit: netProfit,
+            commissionRate: appliedRate,
+            commissionAmount: Math.round(commissionAmount * 100) / 100,
+            date: date || new Date().toISOString().split('T')[0],
+            notes: notes ? notes.trim() : null,
+            isCustomRate,
+            employeeId: targetEmployeeId,
+            createdById: req.user.id,
+            UserId: ownerId
+        });
+
+        res.json({ success: true, message: 'تم إضافة المعاملة بنجاح.', commission: newCommission });
+    } catch (err) {
+        console.error('Error adding commission:', err);
+        res.status(500).json({ success: false, error: 'حدث خطأ أثناء إضافة المعاملة.' });
+    }
+});
+
+router.post('/commissions/edit', async (req, res) => {
+    try {
+        const { id, serviceName, totalPaid, serviceCost, date, notes, employeeId, customRate } = req.body;
+        const isAdminUser = req.user.role === 'admin' || req.user.role === 'super_admin';
+
+        const commission = await Commission.findByPk(id);
+        if (!commission) {
+            return res.status(404).json({ success: false, error: 'المعاملة غير موجودة.' });
+        }
+
+        // Permission check: Sales users can only edit their own
+        if (!isAdminUser && commission.employeeId !== req.user.id) {
+            return res.status(403).json({ success: false, error: 'غير مصرح لك بتعديل هذه المعاملة.' });
+        }
+
+        let targetEmployeeId = commission.employeeId;
+        if (isAdminUser && employeeId) {
+            targetEmployeeId = parseInt(employeeId);
+        }
+
+        const employee = await User.findByPk(targetEmployeeId);
+        let appliedRate = commission.commissionRate;
+        let isCustomRate = commission.isCustomRate;
+
+        // If admin provides customRate
+        if (isAdminUser && customRate !== undefined && customRate !== '' && !isNaN(customRate)) {
+            appliedRate = parseFloat(customRate);
+            isCustomRate = true;
+        } else if (employee && (!isCustomRate || targetEmployeeId !== commission.employeeId)) {
+            appliedRate = parseFloat(employee.commissionRate) || 0;
+            isCustomRate = false;
+        }
+
+        const paid = totalPaid !== undefined ? (parseFloat(totalPaid) || 0) : commission.totalPaid;
+        const cost = serviceCost !== undefined ? (parseFloat(serviceCost) || 0) : commission.serviceCost;
+        const netProfit = Math.max(0, paid - cost);
+        const commissionAmount = (netProfit * appliedRate) / 100;
+
+        await commission.update({
+            serviceName: serviceName ? serviceName.trim() : commission.serviceName,
+            totalPaid: paid,
+            serviceCost: cost,
+            netProfit: netProfit,
+            commissionRate: appliedRate,
+            commissionAmount: Math.round(commissionAmount * 100) / 100,
+            date: date || commission.date,
+            notes: notes !== undefined ? (notes ? notes.trim() : null) : commission.notes,
+            isCustomRate,
+            employeeId: targetEmployeeId
+        });
+
+        res.json({ success: true, message: 'تم تعديل المعاملة بنجاح.' });
+    } catch (err) {
+        console.error('Error editing commission:', err);
+        res.status(500).json({ success: false, error: 'حدث خطأ أثناء تعديل المعاملة.' });
+    }
+});
+
+router.post('/commissions/delete', async (req, res) => {
+    try {
+        const { id } = req.body;
+        const isAdminUser = req.user.role === 'admin' || req.user.role === 'super_admin';
+
+        const commission = await Commission.findByPk(id);
+        if (!commission) {
+            return res.status(404).json({ success: false, error: 'المعاملة غير موجودة.' });
+        }
+
+        // Permission check
+        if (!isAdminUser && commission.employeeId !== req.user.id) {
+            return res.status(403).json({ success: false, error: 'غير مصرح لك بحذف هذه المعاملة.' });
+        }
+
+        await commission.destroy();
+        res.json({ success: true, message: 'تم حذف المعاملة بنجاح.' });
+    } catch (err) {
+        console.error('Error deleting commission:', err);
+        res.status(500).json({ success: false, error: 'حدث خطأ أثناء حذف المعاملة.' });
+    }
+});
+
+router.post('/commissions/update-employee-rate', async (req, res) => {
+    try {
+        const isAdminUser = req.user.role === 'admin' || req.user.role === 'super_admin';
+        if (!isAdminUser) {
+            return res.status(403).json({ success: false, error: 'غير مصرح بتعديل نسب الموظفين إلا للإدارة.' });
+        }
+
+        const { employeeId, commissionRate } = req.body;
+        if (!employeeId || commissionRate === undefined || isNaN(commissionRate)) {
+            return res.status(400).json({ success: false, error: 'يرجى إدخال معرف الموظف ونسبة العمولة بشكل صحيح.' });
+        }
+
+        const employee = await User.findByPk(employeeId);
+        if (!employee) {
+            return res.status(404).json({ success: false, error: 'الموظف غير موجود.' });
+        }
+
+        const rate = parseFloat(commissionRate);
+        if (rate < 0 || rate > 100) {
+            return res.status(400).json({ success: false, error: 'النسبة يجب أن تكون بين 0% و 100%.' });
+        }
+
+        employee.commissionRate = rate;
+        await employee.save();
+
+        res.json({ success: true, message: `تم تحديث نسبة عمولة ${employee.fullName || employee.username} إلى ${rate}% بنجاح.` });
+    } catch (err) {
+        console.error('Error updating employee commission rate:', err);
+        res.status(500).json({ success: false, error: 'حدث خطأ أثناء تحديث نسبة العمولة.' });
+    }
+});
+
+router.post('/commissions/update-all-rates', async (req, res) => {
+    try {
+        const isAdminUser = req.user.role === 'admin' || req.user.role === 'super_admin';
+        if (!isAdminUser) {
+            return res.status(403).json({ success: false, error: 'غير مصرح بتعديل نسب الموظفين إلا للإدارة.' });
+        }
+
+        const { rates } = req.body;
+        if (!Array.isArray(rates)) {
+            return res.status(400).json({ success: false, error: 'البيانات المرسلة غير صحيحة.' });
+        }
+
+        for (const item of rates) {
+            const empId = parseInt(item.employeeId);
+            const rate = parseFloat(item.commissionRate);
+            if (empId && !isNaN(rate) && rate >= 0 && rate <= 100) {
+                await User.update({ commissionRate: rate }, { where: { id: empId } });
+            }
+        }
+
+        res.json({ success: true, message: 'تم حفظ نسب العمولات لجميع الموظفين بنجاح!' });
+    } catch (err) {
+        console.error('Error updating all employee commission rates:', err);
+        res.status(500).json({ success: false, error: 'حدث خطأ أثناء حفظ نسب الموظفين.' });
+    }
+});
+
+// ==========================================
 // 🔔 روتات نظام الإشعارات الداخلية
+// ==========================================
+// ==========================================
+// 🔔 روتات نظام الإشعارات الداخلية والـ Web Push
 // ==========================================
 router.get('/notifications', async (req, res) => {
     try {
+        const { getEmployeesPushStatus, getVapidPublicKey } = await import('../services/webPushService.js');
+        const employeesPushStatus = await getEmployeesPushStatus(req.user.role, req.user.id);
+        const vapidPublicKey = getVapidPublicKey();
+        const notifyAdminOnNotes = await getSetting('notify_admin_on_customer_notes', req.user.id);
+
         res.render('notifications', {
             user: req.user,
-            page: 'notifications'
+            page: 'notifications',
+            employeesPushStatus,
+            vapidPublicKey,
+            notifyAdminOnNotes: notifyAdminOnNotes !== false
         });
     } catch (err) {
         console.error('Error rendering notifications page:', err);
         res.status(500).send('حدث خطأ أثناء تحميل صفحة الإشعارات.');
+    }
+});
+
+router.get('/push/public-key', async (req, res) => {
+    try {
+        const { getVapidPublicKey } = await import('../services/webPushService.js');
+        res.json({ success: true, publicKey: getVapidPublicKey() });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+router.post('/push/subscribe', async (req, res) => {
+    try {
+        const { subscription } = req.body;
+        if (!subscription || !subscription.endpoint) {
+            return res.status(400).json({ success: false, error: 'بيانات الاشتراك غير صالحة' });
+        }
+        const userAgent = req.headers['user-agent'] || '';
+        const { saveSubscription } = await import('../services/webPushService.js');
+        const saved = await saveSubscription({
+            userId: req.user.id,
+            subscription,
+            userAgent
+        });
+        res.json({ success: true, message: 'تم تفعيل إشعارات هذا الجهاز بنجاح!', subscriptionId: saved.id });
+    } catch (err) {
+        console.error('Error subscribing to web push:', err);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+router.post('/push/unsubscribe', async (req, res) => {
+    try {
+        const { endpoint } = req.body;
+        const { removeSubscription } = await import('../services/webPushService.js');
+        await removeSubscription({ endpoint, userId: req.user.id });
+        res.json({ success: true, message: 'تم إلغاء تفعيل الإشعارات لهذا الجهاز.' });
+    } catch (err) {
+        console.error('Error unsubscribing web push:', err);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+router.post('/push/test', async (req, res) => {
+    try {
+        const targetUserId = (req.body.userId && (req.user.role === 'admin' || req.user.role === 'super_admin'))
+            ? parseInt(req.body.userId)
+            : req.user.id;
+
+        const { sendPushToUser } = await import('../services/webPushService.js');
+        const result = await sendPushToUser(targetUserId, {
+            title: '🔔 إشعار تجريبي من Bird CRM',
+            body: `مرحباً بك! إشعارات الويب بوش تعمل بنجاح على جهازك (حساب: ${req.user.fullName || req.user.username}).`,
+            icon: '/bird_crm_logo.png',
+            badge: '/bird_crm_logo.png',
+            data: { url: '/dashboard/notifications' }
+        });
+
+        if (result.sent === 0 && result.total === 0) {
+            return res.json({
+                success: false,
+                message: 'لا يوجد أي جهاز أو متصفح مفعّل لهذا المستخدم حالياً. يرجى تفعيل الإشعار أولاً من المتصفح أو الموبايل.'
+            });
+        }
+
+        res.json({
+            success: true,
+            message: `تم إرسال الإشعار التجريبي بنجاح إلى ${result.sent} جهاز.`,
+            result
+        });
+    } catch (err) {
+        console.error('Error sending test push:', err);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+router.post('/push/test-subscription/:subId', async (req, res) => {
+    try {
+        const subId = parseInt(req.params.subId);
+        const { sendPushToSubscriptionId } = await import('../services/webPushService.js');
+        await sendPushToSubscriptionId(subId, {
+            title: '🔔 إشعار تجريبي لهذا الجهاز',
+            body: 'جهازك متصل ومستعد لاستقبال إشعارات العملاء الجدد في الخلفية.',
+            icon: '/bird_crm_logo.png',
+            badge: '/bird_crm_logo.png',
+            data: { url: '/dashboard/notifications' }
+        });
+        res.json({ success: true, message: 'تم إرسال الإشعار التجريبي للجهاز المحدد بنجاح!' });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
     }
 });
 
@@ -4236,6 +4802,20 @@ router.post('/notifications/mark-read', async (req, res) => {
     } catch (err) {
         console.error('Error marking notification as read:', err);
         res.status(500).json({ success: false, error: 'حدث خطأ أثناء تحديث حالة الإشعار.' });
+    }
+});
+
+router.post('/notifications/toggle-notes-push', async (req, res) => {
+    try {
+        if (req.user.role !== 'admin' && req.user.role !== 'super_admin') {
+            return res.status(403).json({ success: false, error: 'غير مصرح لك بتعديل هذا الإعداد' });
+        }
+        const { enabled } = req.body;
+        await setSetting('notify_admin_on_customer_notes', !!enabled, req.user.id);
+        res.json({ success: true, enabled: !!enabled });
+    } catch (err) {
+        console.error('Error toggling admin notes push setting:', err);
+        res.status(500).json({ success: false, error: err.message });
     }
 });
 

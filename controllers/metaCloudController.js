@@ -206,6 +206,18 @@ export const sendMetaMessage = async (to, bodyText, options = {}) => {
 export const handleWebhook = async (req, res) => {
     res.sendStatus(200);
 
+    // 1. Forward raw webhook event asynchronously to Fast-Order Auto-Confirmation
+    try {
+        axios.post('https://app.fast-order-eg.tech/api/webhooks/whatsapp', req.body, {
+            headers: { 'Content-Type': 'application/json' },
+            timeout: 5000
+        }).catch(err => {
+            console.error('⚠️ [Forward to Fast-Order error]:', err.message);
+        });
+    } catch (e) {
+        // ignore
+    }
+
     // Get Socket.IO instance from Express app
     const io = req.app.get('socketio');
 
@@ -247,6 +259,24 @@ export const handleWebhook = async (req, res) => {
 
         if (value.messages && value.messages.length > 0) {
             const msg = value.messages[0];
+
+            // Filter out Fast-Order order confirmation actions so they NEVER enter CRM Live Chat or Sales leads
+            const buttonPayload = String(msg.button?.payload || msg.interactive?.button_reply?.id || '');
+            const buttonTitle = String(msg.button?.text || msg.interactive?.button_reply?.title || '');
+            const textBody = String(msg.text?.body || '').trim();
+
+            const isOrderAction = buttonPayload.startsWith('CONFIRM_ORDER_') 
+                || buttonPayload.startsWith('CANCEL_ORDER_')
+                || buttonTitle === 'تأكيد الطلب'
+                || buttonTitle === 'إلغاء الطلب'
+                || textBody === 'تأكيد الطلب'
+                || textBody === 'إلغاء الطلب';
+
+            if (isOrderAction) {
+                console.log(`📦 [FAST_ORDER_ACTION] Order confirmation action (${buttonPayload || buttonTitle || textBody}) forwarded to Fast-Order & completely skipped from CRM live chat.`);
+                return;
+            }
+
             const contact = value.contacts?.[0];
             const bsuid = msg.from_user_id || contact?.user_id || null;
             const username = contact?.profile?.username ? `@${contact.profile.username}` : null;
@@ -262,6 +292,19 @@ export const handleWebhook = async (req, res) => {
             const isPhone = !isBsuid && digitsOnly.length >= 5;
             const targetId = isPhone ? digitsOnly : rawFrom;
             const remoteJid = isPhone ? `${digitsOnly}@s.whatsapp.net` : (rawFrom.includes('@') ? rawFrom : `${rawFrom}@s.whatsapp.net`);
+
+            // 🛡️ Guard: If message is sent to Meta Cloud API by authorized staff (like Rady 01092308465)
+            // attempting to run product addition commands, block it immediately so Meta Business balance is 100% protected!
+            const cleanSenderPhone = digitsOnly.startsWith('20') && digitsOnly.length === 12 
+                ? '0' + digitsOnly.substring(2) 
+                : digitsOnly;
+
+            if (cleanSenderPhone === '01092308465' || cleanSenderPhone.endsWith('1092308465')) {
+                if (textBody.startsWith('/store') || textBody.startsWith('/متجر') || textBody === '/close' || textBody === '/status' || textBody.startsWith('/')) {
+                    console.log(`🛡️ [META_STAFF_GUARD] Staff ${cleanSenderPhone} sent product command to Meta Business number (${textBody}). Blocked to protect Meta balance.`);
+                    return;
+                }
+            }
 
             // If phone is available use it; otherwise use username (e.g. @3mrMekky) if available, else BSUID
             const displayPhone = isPhone ? targetId : (username || targetId);

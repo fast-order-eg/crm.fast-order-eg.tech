@@ -4,6 +4,8 @@ node_modules/
 *.sql
 *.backup_*
 project-*.json
+fast-order-*.json
+*.old.json
 public/uploads/
 sessions/
 logs/

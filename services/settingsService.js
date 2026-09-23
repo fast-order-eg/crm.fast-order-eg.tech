@@ -110,8 +110,8 @@ export const defaultSettingsMeta = {
     first_followup_delay: {
         type: 'number',
         category: 'timers',
-        label: 'تأخير المتابعة الأولى',
-        defaultValue: 24
+        label: 'تأخير المتابعة الأولى (بالساعات)',
+        defaultValue: 6
     },
     first_followup_delay_unit: {
         type: 'text',
@@ -252,6 +252,12 @@ export const defaultSettingsMeta = {
         category: 'general',
         label: 'مؤشر التوزيع (Round Robin)',
         defaultValue: 0
+    },
+    notify_admin_on_customer_notes: {
+        type: 'boolean',
+        category: 'notifications',
+        label: 'إشعار المدير عند إضافة ملاحظة جديدة على العميل',
+        defaultValue: true
     }
 };
 

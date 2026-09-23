@@ -31,6 +31,55 @@ export const createNotification = async ({ type, title, message, targetUserId, c
             io.to(`user_${targetUserId}`).emit('notification', dataToSend);
         }
 
+        // إرسال Web Push للموظف في الخلفية (سواء كان المتصفح مفتوح أو مغلق من الموبايل أو الكمبيوتر)
+        if (targetUserId) {
+            import('./webPushService.js').then(({ sendPushToUser }) => {
+                const isFollowUp = type === 'follow_up_due';
+                const isAssign = type === 'customer_assigned';
+                const isNote = type === 'customer_note';
+
+                let notifTag = `notif-${notification.id}-${Date.now()}`;
+                if (isFollowUp) {
+                    notifTag = `followup-${customerId || Date.now()}-${Date.now()}`;
+                } else if (isAssign) {
+                    notifTag = `assign-${customerId || Date.now()}-${Date.now()}`;
+                } else if (isNote) {
+                    notifTag = `note-${customerId || Date.now()}-${Date.now()}`;
+                }
+
+                let vibratePattern = [200, 100, 200, 100, 200];
+                if (isFollowUp) {
+                    vibratePattern = [300, 150, 300, 150, 300, 150, 300];
+                } else if (isAssign) {
+                    vibratePattern = [400, 150, 400, 150, 400];
+                } else if (isNote) {
+                    vibratePattern = [250, 100, 250];
+                }
+
+                const pushPayload = {
+                    title: title || (isFollowUp ? '⏰ موعد متابعة عميل الآن' : (isAssign ? '👤 عميل جديد - Bird CRM' : (isNote ? '📝 ملاحظة جديدة على العميل' : '🔔 إشعار جديد - Bird CRM'))),
+                    body: message || 'وصلك إشعار جديد على النظام',
+                    icon: '/bird_crm_logo.png',
+                    badge: '/bird_crm_logo.png',
+                    tag: notifTag,
+                    renotify: true,
+                    requireInteraction: true,
+                    vibrate: vibratePattern,
+                    data: {
+                        url: customerId ? `/dashboard/livechat?customerId=${customerId}` : '/dashboard/notifications',
+                        customerId: customerId || null,
+                        notificationId: notification.id,
+                        type: type || 'general'
+                    }
+                };
+                sendPushToUser(targetUserId, pushPayload).catch(pushErr => {
+                    console.error('⚠️ [NotificationService] Error sending Web Push:', pushErr.message);
+                });
+            }).catch(impErr => {
+                console.error('⚠️ [NotificationService] Failed to import webPushService:', impErr.message);
+            });
+        }
+
         return notification;
     } catch (error) {
         console.error('Error in createNotification service:', error);

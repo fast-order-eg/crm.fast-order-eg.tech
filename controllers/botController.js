@@ -1,6 +1,6 @@
 import { sendSystemNotification } from '../services/notificationDispatcher.js';
 import { useMySQLAuthState } from '../services/useMySQLAuthState.js';
-import { makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, makeCacheableSignalKeyStore, downloadMediaMessage, generateWAMessageFromContent, proto } from '@whiskeysockets/baileys';
+import { makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, makeCacheableSignalKeyStore, downloadMediaMessage, generateWAMessageFromContent, proto, Browsers } from '@whiskeysockets/baileys';
 import qrcode from 'qrcode';
 import pino from 'pino';
 import fs from 'fs';
@@ -25,6 +25,7 @@ import TeachMessage from '../models/TeachMessage.js';
 import ChangeLog from '../models/ChangeLog.js';
 import Campaign from '../models/Campaign.js';
 import * as notificationService from '../services/notificationService.js';
+import { handleStaffMessage } from '../services/whatsappProductCreatorService.js';
 
 const handoffMessages = [
     "ثواني وهخلي حد من المبيعات يكلمك، خليك معايا! 🙏",
@@ -398,11 +399,23 @@ async function callVertexAI(remoteJid, userText, mediaBuffer = null, mediaMime =
     // Strict rules, conversation-driving hooks, and handoff instruction
     systemInstruction += '\n\n 💡 **تعليمات هامة جداً لأسلوب الحوار والرد (يجب الالتزام بها):**\n';
     systemInstruction += '1. أنت مساعد مبيعات ذكي ومحترف، ردودك دائماً بالعامية المصرية اللطيفة والمهذبة كأنك شخص حقيقي شاطر وودود بيتكلم على واتساب.\n';
-    systemInstruction += '2. 🗣️ **أسلوب الدردشة الطبيعي (Conversational Tone):** تجنب تماماً القوائم النقطية الطويلة أو الشروط الجافة؛ خلي ردك في فقرة أو فقرتين كلام طبيعي وسلس ومباشر زي دردشة الواتساب الحقيقية.\n';
+    systemInstruction += '2. ⚡ **قاعدة الاختصار الشديد والسرعة (صارمة جداً وبأعلى أولوية):**\n';
+    systemInstruction += '   - ردودك دائماً شديدة الاختصار ومباشرة جداً في سطر أو سطرين فقط بدون أي حشو أو كلام مكرر أو إطالة.\n';
+    systemInstruction += '   - ادخل في الموضوع فوراً: أجب العميل مباشرة أو أعطه الرابط المطلوب، واختم بسؤال تفاعلي قصير جداً.\n';
+    systemInstruction += '   - تجنب تماماً الشرح النظري الطويل أو القوائم أو التفاصيل التي لم يطلبها العميل.\n';
     systemInstruction += '3. 🚫 **حظر تكرار جمل الترحيب (صارمة جداً):** الترحيب ("أهلاً بيك يا فندم"، "نورتنا"، "يا هلا") يُقال فقط في أول رسالة على الإطلاق عند بدء المحادثة لأول مرة. إذا كانت المحادثة مستمرة، أو العميل رد على سؤالك، أو أرسل فويس أو صورة، **ممنوع نهائياً تكرار أي صيغة ترحيب** (لا تقل "أهلاً بيك" ولا "أهلاً بيك تاني" ولا "نورتنا"). ادخل في الموضوع فوراً وأجب على العميل مباشرة.\n';
     systemInstruction += '4. 🎤 **التعامل مع التسجيلات الصوتية واختبارات الصوت:** إذا أرسل العميل تسجيلاً صوتياً به تحية فقط مثل ("ألو"، "سامعني"، "ألو آه"): رد عليه بود وتأكيد مباشر: "أيوا يا فندم سامعك، اتفضل قولّي..." بدون أي ترحيب مكرر واستكمل السؤال المطروح.\n';
     systemInstruction += '5. 🤝 **طمأنة المبتدئين (Empathy & Reassurance):** إذا لاحظت تردد أو خوف من صعوبة البداية، طمّن العميل بروح دافية وأسلوب عفوي متنوع، وتجنب تكرار نفس الجملة بحذافيرها في كل رسالة.\n';
-    systemInstruction += '6. يمنع منعاً باتاً تأليف أي معلومة أو سعر أو رابط من خيالك؛ التزم بما هو وارد في التعليمات فقط.\n';
+    systemInstruction += '6. 🌐 **روابط المنصة الرسمية وحظر الروابط الوهمية (قاعدة صارمة قطعية):**\n';
+    systemInstruction += '   - رابط تسجيل متجر جديد وتجربة الـ 7 أيام المجانية: https://app.fast-order-eg.tech/register\n';
+    systemInstruction += '   - رابط تسجيل الدخول ولوحة تحكم التاجر لإدارة المتجر: https://app.fast-order-eg.tech/login\n';
+    systemInstruction += '   - 🛑 ممنوع منعاً باتاً تأليف أو تخمين أي دومين من خيالك (مثل fastorder.store أو غيره نهائياً). المنصة تعمل حصرياً عبر app.fast-order-eg.tech فقط.\n';
+    systemInstruction += '   - إذا قال العميل إنه سجل ويبحث عن طريقة الدخول لحسابه أو لوحة التحكم، رد عليه باختصار شديد وبشكل مباشر هكذا:\n';
+    systemInstruction += '     "تقدر تسجل دخول لمتجرك من هنا:\n';
+    systemInstruction += '     👉 https://app.fast-order-eg.tech/login\n';
+    systemInstruction += '     جرب كدا وقولي لو وقفت في أي حاجة؟"\n';
+    systemInstruction += '     (ممنوع كتابة أي شرح مطول إضافي).\n';
+    systemInstruction += '   - إذا أرسل العميل سكرين شوت بها مشكلة تسجيل دخول أو 404 أو واجه صعوبة متكررة، طمئنه ولا تكرر الرابط مراراً، بل اعرض عليه فوراً التواصل المباشر مع الدعم أو أرسل [HANDOFF] ليتدخل مسؤول المبيعات.\n';
     systemInstruction += '7. 🎯 **قاعدة استمرار الحوار (Question Hook):** احرص دائماً على إنهاء ردك بسؤال تفاعلي واحد ذكي ومرتبط بسياق كلام العميل، ليشجعه على اتخاذ الخطوة التالية مباشرة (مثل التسجيل في المتجر، إضافة أول منتج، أو مشاهدة فيديو الشرح المناسب).\n';
     systemInstruction += '8. 📹 **إرسال روابط الشرح:** إذا سأل العميل عن طريقة عمل شيء في المتجر، اشرح له الخطوة في سطرين وأرسل له الرابط المناسب فقط لسؤاله من قائمة الفيديوهات التالية:\n';
     systemInstruction += '   - كيفية التسجيل على المتجر: https://youtube.com/shorts/Enq-JEUI3pU?si=r5LljIhpVDWuX6hc\n';
@@ -451,8 +464,7 @@ async function callVertexAI(remoteJid, userText, mediaBuffer = null, mediaMime =
     const contents = history;
 
         // Vertex AI URL
-        const location = 'us-central1';
-        const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${CONFIG.PROJECT_ID}/locations/${location}/publishers/google/models/${CONFIG.MODEL_NAME}:generateContent`;
+        const url = CONFIG.getVertexUrl();
 
         const payload = {
             contents: contents,
@@ -500,7 +512,8 @@ async function callVertexAI(remoteJid, userText, mediaBuffer = null, mediaMime =
         });
 
         const data = await response.json();
-        const rawReply = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        const textPart = data.candidates?.[0]?.content?.parts?.find(p => p.text && !p.thought) || data.candidates?.[0]?.content?.parts?.[0];
+        const rawReply = textPart?.text;
         
         let parsedReply = { text: "عذراً، حدث خطأ في معالجة الرد.", show_products: [] };
         try {
@@ -1527,11 +1540,13 @@ export async function handleFunnelStep(sock, remoteJid, customer, userText, msg,
 }
 
 export const startSession = async (userId, io, phoneNumber = null) => {
+    const isMetaActive = !!(process.env.META_PHONE_NUMBER_ID && process.env.META_ACCESS_TOKEN);
+
     // Enable Auto Reply in DB
     const user = await User.findByPk(userId);
 
     // Check if resuming from Manual Pause
-    if (user.connection_status === 'paused_manual' || user.pause_until) {
+    if (user && (user.connection_status === 'paused_manual' || user.pause_until)) {
         console.log(`[Dashboard] Resuming manual pause for User ${userId}`);
 
         // Notify Control Group via Anti-Ban Queue
@@ -1542,18 +1557,62 @@ export const startSession = async (userId, io, phoneNumber = null) => {
         });
     }
 
-    await User.update({ auto_reply: true, connection_status: 'online', pause_until: null }, { where: { id: userId } });
+    const defaultStatus = isMetaActive ? 'meta_online' : 'online';
+    await User.update({ auto_reply: true, connection_status: defaultStatus, pause_until: null }, { where: { id: userId } });
 
-    if (sessions.has(userId)) {
-        const sock = sessions.get(userId);
+    // Handle pairing request or existing active session
+    if (phoneNumber) {
+        console.log(`[Baileys] Initiating fresh pairing session for User ${userId}, Phone: ${phoneNumber}`);
+        // 1. Clean up any existing socket
+        const existingSock = sessions.get(userId) || sessions.get(String(userId)) || sessions.get(parseInt(userId, 10));
+        if (existingSock) {
+            try {
+                if (existingSock.ev) existingSock.ev.removeAllListeners();
+                if (typeof existingSock.end === 'function') existingSock.end(undefined);
+            } catch (e) {}
+            sessions.delete(userId);
+            sessions.delete(String(userId));
+            sessions.delete(parseInt(userId, 10));
+        }
+        // 2. Clear old session data from MySQL and disk to guarantee fresh initAuthCreds()
+        try {
+            const mysqlAuth = await useMySQLAuthState(userId);
+            await mysqlAuth.clearState();
+        } catch (e) {
+            console.error('Error clearing MySQL auth state for pairing:', e);
+        }
+        try {
+            const authPath = path.join('sessions', `auth_info_${userId}`);
+            if (fs.existsSync(authPath)) {
+                fs.rmSync(authPath, { recursive: true, force: true });
+            }
+        } catch (e) {}
+    } else if (sessions.has(userId) || sessions.has(String(userId)) || sessions.has(parseInt(userId, 10))) {
+        const sock = sessions.get(userId) || sessions.get(String(userId)) || sessions.get(parseInt(userId, 10));
         // Only return 'already_running' if actually authenticated
-        if (sock.user) {
-            io.to(`user_${userId}`).emit('status', { status: 'online', phone: sock.user.id.split(':')[0].split('@')[0], name: sock.user.name || "My Bot" });
+        if (sock && sock.user) {
+            const bPhone = sock.user.id.split(':')[0].split('@')[0];
+            if (io) {
+                if (isMetaActive) {
+                    io.to(`user_${userId}`).emit('status', {
+                        status: 'meta_online',
+                        phone: '201105757366',
+                        name: sock.user.name || "My Bot",
+                        baileysOnline: true,
+                        baileysPhone: bPhone
+                    });
+                } else {
+                    io.to(`user_${userId}`).emit('status', {
+                        status: 'online',
+                        phone: bPhone,
+                        name: sock.user.name || "My Bot",
+                        baileysOnline: true,
+                        baileysPhone: bPhone
+                    });
+                }
+            }
             return { status: 'already_running', message: 'Bot Auto-Reply Enabled' };
         }
-        // If session exists but not authenticated (stuck in QR loop?), better to just continue and let it re-init or just return status
-        // Check if connection is working
-        // return { status: 'connecting', message: 'Waiting for connection...' };
     }
 
     const authPath = path.join('sessions', `auth_info_${userId}`);
@@ -1565,12 +1624,11 @@ export const startSession = async (userId, io, phoneNumber = null) => {
     const sock = makeWASocket({
         version,
         logger,
-        // printQRInTerminal removed — deprecated in Baileys. QR is emitted via connection.update event.
         auth: {
             creds: state.creds,
             keys: makeCacheableSignalKeyStore(state.keys, logger),
         },
-        browser: getBrowserFingerprint(userId), // Simulate a browser
+        browser: Browsers.ubuntu('Chrome'), // Standard and recognized browser for WhatsApp pairing codes
         generateHighQualityLinkPreview: true,
     });
 
@@ -1585,15 +1643,15 @@ export const startSession = async (userId, io, phoneNumber = null) => {
 
         setTimeout(async () => {
             try {
-                console.log(`Requesting pairing code for: ${sanitizedPhone}`);
+                console.log(`[Baileys] Requesting pairing code for: ${sanitizedPhone}`);
                 const code = await sock.requestPairingCode(sanitizedPhone);
-                console.log(`Pairing Code for User ${userId}: ${code}`);
-                io.to(`user_${userId}`).emit('pairing_code', code);
+                console.log(`[Baileys] Pairing Code for User ${userId}: ${code}`);
+                if (io) io.to(`user_${userId}`).emit('pairing_code', code);
             } catch (err) {
-                console.error("Pairing Code Error:", err);
-                io.to(`user_${userId}`).emit('pairing_error', err.message);
+                console.error("[Baileys] Pairing Code Error:", err);
+                if (io) io.to(`user_${userId}`).emit('pairing_error', err.message || String(err));
             }
-        }, 4000); // Wait 4s to ensure connection init
+        }, 3000); // Wait 3s to ensure connection init
     }
 
     sock.ev.on('creds.update', saveCreds);
@@ -1687,16 +1745,38 @@ export const startSession = async (userId, io, phoneNumber = null) => {
                 sessions.delete(parseInt(userId, 10));
                 sessions.delete(String(userId));
             } else {
-                console.log(`User ${userId} logged out`);
-                // Clear linked phone number and update status
-                await User.update({ linked_phone_number: null, auto_reply: false, connection_status: 'not_registered' }, { where: { id: userId } });
+                console.log(`[Baileys] User ${userId} session ended or logged out`);
+                const isMetaActive = !!(process.env.META_PHONE_NUMBER_ID && process.env.META_ACCESS_TOKEN);
+
+                if (isMetaActive) {
+                    // Meta Cloud API is primary and remains active!
+                    await User.update({ notificationPhone: null, connection_status: 'meta_online' }, { where: { id: userId } });
+                    if (io) {
+                        io.to(`user_${userId}`).emit('status', {
+                            status: 'meta_online',
+                            phone: '201105757366',
+                            baileysOnline: false,
+                            baileysPhone: ''
+                        });
+                    }
+                } else {
+                    await User.update({ linked_phone_number: null, auto_reply: false, connection_status: 'not_registered' }, { where: { id: userId } });
+                    if (io) io.to(`user_${userId}`).emit('status', 'not_registered');
+                }
 
                 sessions.delete(userId);
-                if (io) io.to(`user_${userId}`).emit('status', 'not_registered');
+                sessions.delete(String(userId));
+                sessions.delete(parseInt(userId, 10));
                 try {
                     fs.rmSync(authPath, { recursive: true, force: true });
                 } catch (e) {
                     console.error("Error removing auth path:", e);
+                }
+                try {
+                    const mysqlAuth = await useMySQLAuthState(userId);
+                    await mysqlAuth.clearState();
+                } catch (e) {
+                    console.error("Error clearing MySQL auth state on logout:", e);
                 }
             }
         } else if (connection === 'open') {
@@ -1708,7 +1788,7 @@ export const startSession = async (userId, io, phoneNumber = null) => {
 
             if (isMetaActive) {
                 // Hybrid Mode: Preserve Meta Cloud API primary status and save Baileys phone as notificationPhone
-                await User.update({ notificationPhone: id, auto_reply: true }, { where: { id: userId } });
+                await User.update({ notificationPhone: id, auto_reply: true, connection_status: 'meta_online' }, { where: { id: userId } });
                 if (io) {
                     io.to(`user_${userId}`).emit('status', { 
                         status: 'meta_online', 
@@ -1876,6 +1956,7 @@ export const startSession = async (userId, io, phoneNumber = null) => {
 
         let text = "";
         let incomingMediaUrl = null; // URL للميديا المحفوظة محلياً
+        let currentImgBuffer = null;
         if (messageType === 'conversation') {
             text = msg.message.conversation;
         } else if (messageType === 'extendedTextMessage') {
@@ -1903,6 +1984,7 @@ export const startSession = async (userId, io, phoneNumber = null) => {
                 const mediaDir = path.join(process.cwd(), 'public', 'uploads', 'media', String(userId));
                 if (!fs.existsSync(mediaDir)) fs.mkdirSync(mediaDir, { recursive: true });
                 const imgBuffer = await downloadMediaMessage(msg, 'buffer', {}, { logger, reuploadRequest: sock.updateMediaMessage });
+                currentImgBuffer = imgBuffer;
                 const imgFileName = `image_${Date.now()}.jpg`;
                 const imgPath = path.join(mediaDir, imgFileName);
                 fs.writeFileSync(imgPath, imgBuffer);
@@ -1978,6 +2060,46 @@ export const startSession = async (userId, io, phoneNumber = null) => {
                 });
                 io.to(`user_${userId}`).emit('new_message', savedMsg);
             }
+        }
+
+        // 1.5. Staff AI Product Management Hook (Fast Order Staff)
+        try {
+            let staffSenderPhone = (remoteJid.endsWith('@g.us') && msg.key.participant)
+                ? msg.key.participant.replace('@s.whatsapp.net', '').replace(/[^0-9]/g, '')
+                : phoneNumber;
+
+            // Handle WhatsApp LID (e.g. 243593499418829@lid)
+            if (!staffSenderPhone && remoteJid && remoteJid.endsWith('@lid')) {
+                if (remoteJid.startsWith('243593499418829') || user.id === 3 || user.username === 'rady') {
+                    staffSenderPhone = '01092308465';
+                    lidPhoneMap.set(remoteJid, '01092308465');
+                }
+            }
+
+            const rawStaffText = msg.message?.conversation 
+                || msg.message?.extendedTextMessage?.text 
+                || msg.message?.imageMessage?.caption 
+                || text 
+                || '';
+
+            const staffResult = await handleStaffMessage({
+                sock,
+                msg,
+                remoteJid,
+                phoneNumber: staffSenderPhone,
+                text: rawStaffText,
+                mediaBuffer: currentImgBuffer,
+                mediaMime: msg.message?.imageMessage?.mimetype || 'image/jpeg',
+                userId,
+                io
+            });
+
+            if (staffResult && staffResult.handled) {
+                console.log(`🤖 [Staff AI Product Creator] Handled action from staff ${staffSenderPhone} for user ${userId}`);
+                return;
+            }
+        } catch (staffErr) {
+            console.error('❌ [Staff AI Product Creator] Error:', staffErr);
         }
 
 
@@ -3458,8 +3580,7 @@ export async function simulateChat(userId, userText) {
     history.push({ role: "user", parts: [{ text: userText }] });
 
     const contents = history;
-    const location = 'us-central1';
-    const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${CONFIG.PROJECT_ID}/locations/${location}/publishers/google/models/${CONFIG.MODEL_NAME}:generateContent`;
+    const url = CONFIG.getVertexUrl();
 
     const payload = {
         contents: contents,
@@ -3498,7 +3619,8 @@ export async function simulateChat(userId, userText) {
         }
 
         const data = await response.json();
-        const rawReply = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        const textPart = data.candidates?.[0]?.content?.parts?.find(p => p.text && !p.thought) || data.candidates?.[0]?.content?.parts?.[0];
+        const rawReply = textPart?.text;
 
         let parsedReply = { text: "عذراً، حدث خطأ في معالجة الرد.", show_products: [] };
         try {
@@ -3600,8 +3722,7 @@ export async function teachBot(userId, userText) {
 
         history.push({ role: "user", parts: [{ text: userText }] });
 
-        const location = 'us-central1';
-        const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${CONFIG.PROJECT_ID}/locations/${location}/publishers/google/models/${CONFIG.MODEL_NAME}:generateContent`;
+        const url = CONFIG.getVertexUrl();
 
         const payload = {
             contents: history,
@@ -3699,7 +3820,7 @@ export async function teachBot(userId, userText) {
         }
 
         const data = await response.json();
-        const part = data.candidates?.[0]?.content?.parts?.[0];
+        const part = data.candidates?.[0]?.content?.parts?.find(p => p.functionCall || (p.text && !p.thought)) || data.candidates?.[0]?.content?.parts?.[0];
 
         // 1. Check for Function Call
         if (part?.functionCall) {
@@ -4497,8 +4618,7 @@ export async function generateCustomerSummary(customerId, userId) {
 
         const promptText = `سجل المحادثة:\n${chatLog}\n\nملاحظات المبيعات:\n${salesNotes}\n\nاكتب الملخص الآن:`;
 
-        const location = 'us-central1';
-        const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${CONFIG.PROJECT_ID}/locations/${location}/publishers/google/models/${CONFIG.MODEL_NAME}:generateContent`;
+        const url = CONFIG.getVertexUrl();
 
         const payload = {
             contents: [{
@@ -4541,7 +4661,8 @@ export async function generateCustomerSummary(customerId, userId) {
         });
 
         const data = await response.json();
-        const rawSummary = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        const textPart = data.candidates?.[0]?.content?.parts?.find(p => p.text && !p.thought) || data.candidates?.[0]?.content?.parts?.[0];
+        const rawSummary = textPart?.text;
         
         if (rawSummary) {
             let cleanSummary = rawSummary.trim();
@@ -4592,8 +4713,7 @@ export async function generateDynamicFollowUpMessage(customerId, userId, staticM
 
 اكتب رسالة المتابعة المخصصة الآن:`;
 
-        const location = 'us-central1';
-        const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${CONFIG.PROJECT_ID}/locations/${location}/publishers/google/models/${CONFIG.MODEL_NAME}:generateContent`;
+        const url = CONFIG.getVertexUrl();
 
         const payload = {
             contents: [{
@@ -4636,7 +4756,8 @@ export async function generateDynamicFollowUpMessage(customerId, userId, staticM
         });
 
         const data = await response.json();
-        const rawMessage = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        const textPart = data.candidates?.[0]?.content?.parts?.find(p => p.text && !p.thought) || data.candidates?.[0]?.content?.parts?.[0];
+        const rawMessage = textPart?.text;
         
         if (rawMessage) {
             return rawMessage.trim();

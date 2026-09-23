@@ -72,6 +72,19 @@ export async function sendFollowUpMessage({
     }
 
     const defaultTemplate = templateName || 'followup_3days_';
+    // 🛑 حماية صارمة للفيزا: إذا انتهت نافذة الـ 24 ساعة، يُمنع إرسال قوالب ميتا المدفوعة نهائياً
+    if (isWindowExpired) {
+        console.log(`[FollowUpService] 🛑 Follow-up blocked for customer ${customer?.id} (${targetPhone}): 24h window expired. Visa charges prevented.`);
+        return {
+            success: false,
+            status: 'window_expired',
+            error: 'مرت 24 ساعة على آخر تفاعل للعميل. تم إيقاف الإرسال التلقائي لحماية الفيزا من رسوم القوالب.',
+            windowExpired: true,
+            targetJid,
+            targetPhone
+        };
+    }
+
     let metaRes = null;
     let sentViaTemplate = false;
     let textToSend = content || '';
@@ -80,52 +93,35 @@ export async function sendFollowUpMessage({
     const isMetaAvailable = !!(process.env.META_ACCESS_TOKEN && process.env.META_PHONE_NUMBER_ID);
 
     if (isMetaAvailable) {
-        if (isWindowExpired) {
-            // خارج نافذة الـ 24 ساعة: واتساب ميتا يفرض إرسال قالب معتمد فقط
-            sentViaTemplate = true;
-            console.log(`[FollowUpService] 📤 Sending Meta Template "${defaultTemplate}" to ${targetPhone} for customer ${customer.id} (Window Expired: ${isWindowExpired})`);
-            metaRes = await sendMetaMessage(targetPhone, '', {
-                template: {
-                    name: defaultTemplate,
-                    language: { code: 'ar_EG' }
-                }
-            });
-        } else {
-            // داخل نافذة الـ 24 ساعة: إرسال الرسالة النصية المباشرة بكل حرية عبر ميتا
-            console.log(`[FollowUpService] 📤 Sending direct Meta text message to ${targetPhone} for customer ${customer.id} (Within 24h window)`);
-            metaRes = await sendMetaMessage(targetPhone, textToSend);
+        // داخل نافذة الـ 24 ساعة: إرسال الرسالة النصية المباشرة مجاناً 100% بدون أي خصم من الفيزا
+        console.log(`[FollowUpService] 📤 Sending direct FREE Meta text message to ${targetPhone} for customer ${customer.id} (Within 24h window)`);
+        metaRes = await sendMetaMessage(targetPhone, textToSend);
 
-            // في حال ردت ميتا بأن نافذة الـ 24 ساعة منتهية، يتم التبديل التلقائي الفوري للقالب المعتمد
-            if (!metaRes.success) {
-                const errStr = typeof metaRes.error === 'object' ? JSON.stringify(metaRes.error) : String(metaRes.error || '');
-                if (errStr.includes('131047') || errStr.includes('24 hours') || errStr.includes('Re-engagement')) {
-                    console.log(`[FollowUpService] 🔄 Meta reported 24h window closed. Auto-falling back to template "${defaultTemplate}" for ${targetPhone}`);
-                    sentViaTemplate = true;
-                    metaRes = await sendMetaMessage(targetPhone, '', {
-                        template: {
-                            name: defaultTemplate,
-                            language: { code: 'ar_EG' }
-                        }
-                    });
-                }
+        // إذا ردت ميتا بأن نافذة الـ 24 ساعة منتهية، ممنوع نهائياً الإرسال بالقالب المدفوع!
+        if (!metaRes.success) {
+            const errStr = typeof metaRes.error === 'object' ? JSON.stringify(metaRes.error) : String(metaRes.error || '');
+            if (errStr.includes('131047') || errStr.includes('24 hours') || errStr.includes('Re-engagement')) {
+                console.log(`[FollowUpService] 🛑 Meta reported 24h window closed for ${targetPhone}. Aborting template send to prevent Visa charges.`);
+                return {
+                    success: false,
+                    status: 'window_expired',
+                    error: 'نافذة الـ 24 ساعة مغلقة لدى ميتا. تم منع إرسال القالب المدفوع حفاظاً على الفيزا.',
+                    windowExpired: true,
+                    targetJid,
+                    targetPhone
+                };
             }
         }
     } else {
-        // في حال عدم وجود ميتا إطلاقاً، محاولة الاتصال عبر Baileys إذا كان متاحاً
-        const sock = sessions.get(parseInt(userId, 10)) || sessions.get(String(userId)) || sessions.get(userId);
-        if (sock && typeof sock.sendMessage === 'function') {
-            try {
-                const sentBaileys = await sock.sendMessage(targetJid, { text: textToSend });
-                metaRes = {
-                    success: true,
-                    data: { messages: [{ id: sentBaileys?.key?.id || `baileys_${Date.now()}` }] }
-                };
-            } catch (sockErr) {
-                metaRes = { success: false, error: sockErr.message };
-            }
-        } else {
-            metaRes = { success: false, error: 'خدمة واتساب غير متصلة (رقم البليز مغلق وميتا غير مهيأ)' };
-        }
+        // ممنوع إرسال أي رسائل للعملاء من البيلز لحماية الأرقام
+        console.log(`[FollowUpService] 🛑 Meta API not available. Baileys is strictly disabled for customer followups.`);
+        return {
+            success: false,
+            status: 'failed',
+            error: 'خدمة ميتا غير متوفرة، وممنوع الإرسال للعملاء من رقم البيلز للحماية.',
+            targetJid,
+            targetPhone
+        };
     }
 
     const isSuccess = !!(metaRes && metaRes.success);
@@ -246,7 +242,45 @@ export const checkPendingFollowUps = async (io) => {
                     const isWindowExpired = hoursPassed >= 24;
 
                     if (customer.status === 'first_follow_up' && !firstFollowupSent) {
-                        // --- إرسال المتابعة الأولى ---
+                        if (isWindowExpired) {
+                            // 🛑 مرت 24 ساعة: إيقاف الإرسال التلقائي لحماية الفيزا وتنبيه الموظف هاتفياً
+                            console.log(`[FollowUpService] 🛑 First follow-up skipped for customer ${customer.phoneNumber} (Window expired: ${hoursPassed.toFixed(1)}h). Visa charges prevented.`);
+
+                            await FollowUp.create({
+                                CustomerId: customer.id,
+                                UserId: userId,
+                                type: 'first',
+                                status: 'expired',
+                                message: 'تم إيقاف المتابعة الأولى التلقائية لمرور أكثر من 24 ساعة لحماية الفيزا من الرسوم.',
+                                scheduledAt: customer.scheduledFollowUpAt,
+                                sentAt: new Date()
+                            });
+
+                            customer.scheduledFollowUpAt = null;
+                            await customer.save();
+
+                            await ChangeLog.create({
+                                action: 'follow_up_skipped',
+                                description: `مرت 24 ساعة (${hoursPassed.toFixed(1)} ساعة) على آخر تفاعل للعميل. تم إيقاف إرسال المتابعة الأولى التلقائية لحماية الفيزا من خصم رسوم القوالب، والمطلوب التواصل معه هاتفياً.`,
+                                CustomerId: customer.id,
+                                performedByUserId: userId,
+                                UserId: userId
+                            });
+
+                            await notificationService.createNotification({
+                                type: 'follow_up_due',
+                                title: `📞 متابعة أولى مطلوبة: ${customer.customerName || customer.phoneNumber}`,
+                                message: `مرت 24 ساعة على العميل "${customer.customerName || customer.phoneNumber}". تم إيقاف رسالة الواتساب التلقائية لتوفير الرسوم، يرجى التواصل معه هاتفياً الآن.`,
+                                targetUserId: customer.assignedToUserId || userId,
+                                customerId: customer.id,
+                                ownerId: userId,
+                                io
+                            });
+
+                            continue;
+                        }
+
+                        // --- إرسال المتابعة الأولى مجاناً داخل الـ 24 ساعة ---
                         const firstFollowupMessage = await getSystemSetting('first_followup_message', userId);
                         const firstFollowupType = await getSystemSetting('first_followup_type', userId) || 'static';
                         const templateName = await getSystemSetting('first_followup_template_name', userId) || 'followup_3days_';
@@ -352,7 +386,45 @@ export const checkPendingFollowUps = async (io) => {
                             console.error(`[FollowUpService] ❌ Failed to send first follow-up to ${customer.phoneNumber}: ${result.error}`);
                         }
                     } else if (customer.status === 'final_follow_up' && !finalFollowupSent) {
-                        // --- إرسال المتابعة النهائية ---
+                        if (isWindowExpired) {
+                            // 🛑 مرت 24 ساعة: إيقاف الإرسال التلقائي لحماية الفيزا وتنبيه الموظف هاتفياً
+                            console.log(`[FollowUpService] 🛑 Final follow-up skipped for customer ${customer.phoneNumber} (Window expired: ${hoursPassed.toFixed(1)}h). Visa charges prevented.`);
+
+                            await FollowUp.create({
+                                CustomerId: customer.id,
+                                UserId: userId,
+                                type: 'final',
+                                status: 'expired',
+                                message: 'تم إيقاف المتابعة النهائية التلقائية لمرور أكثر من 24 ساعة لحماية الفيزا من الرسوم.',
+                                scheduledAt: customer.scheduledFollowUpAt,
+                                sentAt: new Date()
+                            });
+
+                            customer.scheduledFollowUpAt = null;
+                            await customer.save();
+
+                            await ChangeLog.create({
+                                action: 'follow_up_skipped',
+                                description: `مرت 24 ساعة (${hoursPassed.toFixed(1)} ساعة) على آخر تفاعل للعميل. تم إيقاف إرسال المتابعة النهائية التلقائية لحماية الفيزا من خصم رسوم القوالب، والمطلوب التواصل معه هاتفياً.`,
+                                CustomerId: customer.id,
+                                performedByUserId: userId,
+                                UserId: userId
+                            });
+
+                            await notificationService.createNotification({
+                                type: 'follow_up_due',
+                                title: `📞 متابعة نهائية مطلوبة: ${customer.customerName || customer.phoneNumber}`,
+                                message: `حان موعد المتابعة النهائية للعميل "${customer.customerName || customer.phoneNumber}". تم إيقاف رسالة الواتساب التلقائية لحماية الفيزا، يرجى التواصل معه هاتفياً الآن.`,
+                                targetUserId: customer.assignedToUserId || userId,
+                                customerId: customer.id,
+                                ownerId: userId,
+                                io
+                            });
+
+                            continue;
+                        }
+
+                        // --- إرسال المتابعة النهائية مجاناً إذا كان داخل الـ 24 ساعة ---
                         const finalFollowupMessage = await getSystemSetting('final_followup_message', userId);
                         const finalFollowupType = await getSystemSetting('final_followup_type', userId) || 'static';
                         const templateName = await getSystemSetting('final_followup_template_name', userId) || 'followup_3days_';
@@ -481,6 +553,9 @@ export const checkPendingFollowUps = async (io) => {
                 try {
                     const oldStatus = customer.status;
                     customer.status = 'not_interested';
+                    if (!customer.notes || customer.notes.trim() === '') {
+                        customer.notes = 'غير مهتم';
+                    }
                     await customer.save();
 
                     // تسجيل انتهاء المهلة في سجل المتابعات
@@ -571,6 +646,47 @@ export const checkScheduledFollowUps = async (io) => {
             const hoursPassed = (now.getTime() - new Date(lastActivity).getTime()) / (1000 * 60 * 60);
             const isWindowExpired = hoursPassed >= 24;
 
+            if (isWindowExpired) {
+                console.log(`[FollowUpService] 🛑 Scheduled followup for ${cust.phoneNumber} is outside 24h window (${hoursPassed.toFixed(1)}h). WhatsApp message skipped to protect Visa.`);
+
+                followup.status = 'expired';
+                followup.sentAt = new Date();
+                await followup.save();
+
+                cust.scheduledFollowUpAt = null;
+                await cust.save();
+
+                await ChangeLog.create({
+                    action: 'follow_up_skipped',
+                    description: `حان موعد المتابعة المجدولة للعميل. نظراً لمرور أكثر من 24 ساعة على تفاعله، تم إيقاف إرسال رسالة الواتساب الآلية لحماية الفيزا من الرسوم، والمطلوب التواصل هاتفياً.`,
+                    CustomerId: cust.id,
+                    performedByUserId: userId,
+                    UserId: userId
+                });
+
+                // إرسال تنبيه الموعد الفوري للموظف للتواصل هاتفياً
+                const targetUserIds = new Set();
+                if (cust.assignedToUserId) targetUserIds.add(cust.assignedToUserId);
+                if (userId) targetUserIds.add(userId);
+
+                const notifTitle = `⏰ موعد متابعة العميل الآن: ${cust.customerName || cust.phoneNumber}`;
+                const notesSnippet = cust.notes ? ` • ملاحظاتك: "${cust.notes}"` : '';
+                const notifMessage = `حان موعد متابعة العميل "${cust.customerName || cust.phoneNumber}" (${cust.phoneNumber})${notesSnippet} (يرجى الاتصال به هاتفياً الآن - تم إيقاف رسالة الواتساب الآلية لتجاوز 24 ساعة وتوفير الرسوم)`;
+
+                for (const tUid of targetUserIds) {
+                    await notificationService.createNotification({
+                        type: 'follow_up_due',
+                        title: notifTitle,
+                        message: notifMessage,
+                        targetUserId: tUid,
+                        customerId: cust.id,
+                        ownerId: userId,
+                        io
+                    });
+                }
+                continue;
+            }
+
             const textToSend = followup.message || `أهلاً بك ${cust.customerName || ''}، بناءً على طلبك نذكرك بموعد المتابعة. هل أنت متاح الآن للحديث؟`;
 
             const result = await sendFollowUpMessage({
@@ -601,15 +717,26 @@ export const checkScheduledFollowUps = async (io) => {
                     UserId: userId
                 });
 
-                await notificationService.createNotification({
-                    type: 'follow_up_due',
-                    title: 'متابعة مجدولة',
-                    message: `تم إرسال رسالة المتابعة المجدولة للعميل: ${cust.customerName || cust.phoneNumber}`,
-                    targetUserId: cust.assignedToUserId || userId,
-                    customerId: cust.id,
-                    ownerId: userId,
-                    io
-                });
+                // إرسال إشعار وتنبيه فوري للموظف المسؤول وصاحب البوت في نفس وقت وموعد المتابعة
+                const targetUserIds = new Set();
+                if (cust.assignedToUserId) targetUserIds.add(cust.assignedToUserId);
+                if (userId) targetUserIds.add(userId);
+
+                const notifTitle = `⏰ موعد متابعة العميل الآن: ${cust.customerName || cust.phoneNumber}`;
+                const notesSnippet = cust.notes ? ` • ملاحظاتك: "${cust.notes}"` : '';
+                const notifMessage = `حان الآن موعد متابعة العميل "${cust.customerName || 'عميل واتساب'}" (${cust.phoneNumber})${notesSnippet}`;
+
+                for (const tUid of targetUserIds) {
+                    await notificationService.createNotification({
+                        type: 'follow_up_due',
+                        title: notifTitle,
+                        message: notifMessage,
+                        targetUserId: tUid,
+                        customerId: cust.id,
+                        ownerId: userId,
+                        io
+                    });
+                }
 
                 console.log(`[FollowUpService] ✅ Sent scheduled follow-up for customer ${cust.phoneNumber}`);
             } else {
@@ -628,15 +755,26 @@ export const checkScheduledFollowUps = async (io) => {
                     UserId: userId
                 });
 
-                await notificationService.createNotification({
-                    type: 'follow_up_due',
-                    title: '⚠️ فشل إرسال متابعة بموعد',
-                    message: `حان موعد متابعة العميل "${cust.customerName || cust.phoneNumber}" ولكن تعذر إرسال رسالة الواتساب (${result.error}). يرجى التواصل هاتفياً معه الآن!`,
-                    targetUserId: cust.assignedToUserId || userId,
-                    customerId: cust.id,
-                    ownerId: userId,
-                    io
-                });
+                // إرسال تنبيه الموعد أيضاً للموظف للتواصل هاتفياً أو يدوياً
+                const targetUserIds = new Set();
+                if (cust.assignedToUserId) targetUserIds.add(cust.assignedToUserId);
+                if (userId) targetUserIds.add(userId);
+
+                const notifTitle = `⏰ موعد متابعة العميل الآن: ${cust.customerName || cust.phoneNumber}`;
+                const notesSnippet = cust.notes ? ` • ملاحظاتك: "${cust.notes}"` : '';
+                const notifMessage = `حان موعد متابعة العميل "${cust.customerName || cust.phoneNumber}" (${cust.phoneNumber})${notesSnippet} (تواصل معه هاتفياً الآن)`;
+
+                for (const tUid of targetUserIds) {
+                    await notificationService.createNotification({
+                        type: 'follow_up_due',
+                        title: notifTitle,
+                        message: notifMessage,
+                        targetUserId: tUid,
+                        customerId: cust.id,
+                        ownerId: userId,
+                        io
+                    });
+                }
 
                 console.error(`[FollowUpService] ❌ Failed scheduled follow-up for ${cust.phoneNumber}: ${result.error}`);
             }
@@ -651,6 +789,52 @@ export const checkScheduledFollowUps = async (io) => {
             const lastActivity = cust.lastReplyAt || cust.updatedAt || cust.firstContactAt || now;
             const hoursPassed = (now.getTime() - new Date(lastActivity).getTime()) / (1000 * 60 * 60);
             const isWindowExpired = hoursPassed >= 24;
+
+            if (isWindowExpired) {
+                console.log(`[FollowUpService] 🛑 Scheduled customer ${cust.phoneNumber} is outside 24h window (${hoursPassed.toFixed(1)}h). WhatsApp message skipped to protect Visa.`);
+
+                await FollowUp.create({
+                    CustomerId: cust.id,
+                    UserId: userId,
+                    type: 'scheduled',
+                    status: 'expired',
+                    message: 'تم إيقاف رسالة الواتساب الآلية لمرور أكثر من 24 ساعة لحماية الفيزا من الرسوم.',
+                    scheduledAt: cust.scheduledFollowUpAt,
+                    sentAt: new Date()
+                });
+
+                cust.scheduledFollowUpAt = null;
+                await cust.save();
+
+                await ChangeLog.create({
+                    action: 'follow_up_skipped',
+                    description: `حان موعد المتابعة المجدولة للعميل. نظراً لمرور أكثر من 24 ساعة على تفاعله، تم إيقاف رسالة الواتساب الآلية لحماية الفيزا من الرسوم، ومطلوب التواصل معه هاتفياً.`,
+                    CustomerId: cust.id,
+                    performedByUserId: userId,
+                    UserId: userId
+                });
+
+                const targetUserIds = new Set();
+                if (cust.assignedToUserId) targetUserIds.add(cust.assignedToUserId);
+                if (userId) targetUserIds.add(userId);
+
+                const notifTitle = `⏰ موعد متابعة العميل الآن: ${cust.customerName || cust.phoneNumber}`;
+                const notesSnippet = cust.notes ? ` • ملاحظاتك: "${cust.notes}"` : '';
+                const notifMessage = `حان موعد متابعة العميل "${cust.customerName || cust.phoneNumber}" (${cust.phoneNumber})${notesSnippet} (يرجى الاتصال به هاتفياً الآن - تم إيقاف رسالة الواتساب الآلية لتجاوز 24 ساعة وتوفير الرسوم)`;
+
+                for (const tUid of targetUserIds) {
+                    await notificationService.createNotification({
+                        type: 'follow_up_due',
+                        title: notifTitle,
+                        message: notifMessage,
+                        targetUserId: tUid,
+                        customerId: cust.id,
+                        ownerId: userId,
+                        io
+                    });
+                }
+                continue;
+            }
 
             const textToSend = `أهلاً بك ${cust.customerName || ''}، بناءً على طلبك نذكرك بموعد المتابعة. هل أنت متاح الآن للحديث؟`;
 
@@ -688,15 +872,26 @@ export const checkScheduledFollowUps = async (io) => {
                     UserId: userId
                 });
 
-                await notificationService.createNotification({
-                    type: 'follow_up_due',
-                    title: 'متابعة مجدولة',
-                    message: `تم إرسال رسالة المتابعة المجدولة للعميل: ${cust.customerName || cust.phoneNumber}`,
-                    targetUserId: cust.assignedToUserId || userId,
-                    customerId: cust.id,
-                    ownerId: userId,
-                    io
-                });
+                // إرسال إشعار وتنبيه فوري للموظف المسؤول وصاحب البوت في نفس وقت وموعد المتابعة
+                const targetUserIds = new Set();
+                if (cust.assignedToUserId) targetUserIds.add(cust.assignedToUserId);
+                if (userId) targetUserIds.add(userId);
+
+                const notifTitle = `⏰ موعد متابعة العميل الآن: ${cust.customerName || cust.phoneNumber}`;
+                const notesSnippet = cust.notes ? ` • ملاحظاتك: "${cust.notes}"` : '';
+                const notifMessage = `حان الآن موعد متابعة العميل "${cust.customerName || 'عميل واتساب'}" (${cust.phoneNumber})${notesSnippet}`;
+
+                for (const tUid of targetUserIds) {
+                    await notificationService.createNotification({
+                        type: 'follow_up_due',
+                        title: notifTitle,
+                        message: notifMessage,
+                        targetUserId: tUid,
+                        customerId: cust.id,
+                        ownerId: userId,
+                        io
+                    });
+                }
 
                 console.log(`[FollowUpService] ✅ Sent scheduled follow-up for customer ${cust.phoneNumber}`);
             } else {
@@ -721,15 +916,26 @@ export const checkScheduledFollowUps = async (io) => {
                     UserId: userId
                 });
 
-                await notificationService.createNotification({
-                    type: 'follow_up_due',
-                    title: '⚠️ فشل إرسال متابعة بموعد',
-                    message: `حان موعد متابعة العميل "${cust.customerName || cust.phoneNumber}" ولكن تعذر إرسال رسالة الواتساب (${result.error}). يرجى التواصل هاتفياً معه الآن!`,
-                    targetUserId: cust.assignedToUserId || userId,
-                    customerId: cust.id,
-                    ownerId: userId,
-                    io
-                });
+                // إرسال تنبيه الموعد أيضاً للموظف للتواصل هاتفياً أو يدوياً
+                const targetUserIds = new Set();
+                if (cust.assignedToUserId) targetUserIds.add(cust.assignedToUserId);
+                if (userId) targetUserIds.add(userId);
+
+                const notifTitle = `⏰ موعد متابعة العميل الآن: ${cust.customerName || cust.phoneNumber}`;
+                const notesSnippet = cust.notes ? ` • ملاحظاتك: "${cust.notes}"` : '';
+                const notifMessage = `حان موعد متابعة العميل "${cust.customerName || cust.phoneNumber}" (${cust.phoneNumber})${notesSnippet} (تواصل معه هاتفياً الآن)`;
+
+                for (const tUid of targetUserIds) {
+                    await notificationService.createNotification({
+                        type: 'follow_up_due',
+                        title: notifTitle,
+                        message: notifMessage,
+                        targetUserId: tUid,
+                        customerId: cust.id,
+                        ownerId: userId,
+                        io
+                    });
+                }
 
                 console.error(`[FollowUpService] ❌ Failed scheduled follow-up for ${cust.phoneNumber}: ${result.error}`);
             }

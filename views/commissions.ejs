@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>إدارة ومتابعة العمولات - Bird-CRM</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="/style.css?v=<%= Date.now() %>" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+
+    <style>
+        .stat-card-comm {
+            background: #ffffff;
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            border-radius: 12px;
+            padding: 1.25rem;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+        }
+        .stat-card-comm:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
+        }
+        .stat-card-comm::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 4px;
+            height: 100%;
+        }
+        .stat-card-comm.sales::before { background: #0d6efd; }
+        .stat-card-comm.cost::before { background: #dc3545; }
+        .stat-card-comm.profit::before { background: #198754; }
+        .stat-card-comm.comm::before { background: #ffc107; }
+
+        .stat-icon {
+            width: 46px;
+            height: 46px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+        }
+        .sales .stat-icon { background: rgba(13, 110, 253, 0.1); color: #0d6efd; }
+        .cost .stat-icon { background: rgba(220, 53, 69, 0.1); color: #dc3545; }
+        .profit .stat-icon { background: rgba(25, 135, 84, 0.1); color: #198754; }
+        .comm .stat-icon { background: rgba(255, 193, 7, 0.15); color: #b8860b; }
+
+        .table-totals-row {
+            background: #f8fafc;
+            border-top: 2px solid #e2e8f0;
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.02);
+        }
+        .table-totals-row td {
+            padding: 12px 6px !important;
+            vertical-align: middle;
+            background: transparent !important;
+        }
+        .totals-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            padding: 5px 12px;
+            border-radius: 8px;
+            font-family: 'Inter', -apple-system, sans-serif;
+            font-size: 13.5px;
+            font-weight: 700;
+            letter-spacing: 0.2px;
+            white-space: nowrap;
+            direction: rtl;
+        }
+        .totals-sales {
+            background-color: #eff6ff;
+            color: #1d4ed8;
+            border: 1px solid #bfdbfe;
+        }
+        .totals-cost {
+            background-color: #fef2f2;
+            color: #b91c1c;
+            border: 1px solid #fecaca;
+        }
+        .totals-profit {
+            background-color: #f0fdf4;
+            color: #15803d;
+            border: 1px solid #bbf7d0;
+        }
+        .totals-comm {
+            background-color: #fffbeb;
+            color: #b45309;
+            border: 1px solid #fde68a;
+        }
+
+        .badge-rate {
+            background-color: rgba(13, 110, 253, 0.1);
+            color: #0d6efd;
+            border: 1px solid rgba(13, 110, 253, 0.2);
+            font-size: 12px;
+            padding: 4px 8px;
+            border-radius: 6px;
+        }
+        .badge-custom-rate {
+            background-color: rgba(255, 193, 7, 0.15);
+            color: #b8860b;
+            border: 1px solid rgba(255, 193, 7, 0.3);
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        .commission-row:hover {
+            background-color: rgba(212, 175, 55, 0.04) !important;
+        }
+
+        .search-pill-wrapper {
+            transition: all 0.2s ease-in-out;
+            background-color: #ffffff;
+            border: 1px solid #ced4da;
+        }
+        .search-pill-wrapper:focus-within {
+            border-color: #86b7fe !important;
+            box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.15) !important;
+        }
+        .filter-pill-select {
+            height: 42px;
+            font-size: 14px;
+            border: 1px solid #ced4da;
+            background-color: #ffffff;
+            transition: all 0.2s ease-in-out;
+            background-position: left 1rem center !important;
+            padding-left: 2.5rem !important;
+            padding-right: 1.25rem !important;
+        }
+        .filter-pill-select:focus {
+            border-color: #86b7fe;
+            box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.15);
+        }
+    </style>
+</head>
+
+<body>
+    <%- include('partials/navbar') %>
+    <%- include('partials/sidebar') %>
+
+    <div class="container-fluid main-content px-4 px-lg-5">
+        
+        <!-- Alerts Container -->
+        <div id="alertContainer" style="position: fixed; top: 100px; left: 50%; transform: translateX(-50%); z-index: 1060; width: 90%; max-width: 400px;"></div>
+
+        <div class="glass-card p-4 animate-fade-in">
+            
+            <!-- Header Section -->
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
+                <div>
+                    <h2 class="m-0 fw-bold d-flex align-items-center gap-2 flex-wrap">
+                        <i class="bi bi-cash-stack text-warning"></i>
+                        <span>إدارة ومتابعة العمولات</span>
+                        <% if (!isAdmin) { %>
+                            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-3 py-1 rounded-pill fs-6 fw-bold ms-md-2" title="نسبة عمولتك المعتمدة">
+                                <i class="bi bi-percent me-1"></i> نسبة عمولتك: <span id="currentEmployeeRateBadge"><%= Math.round(userCommissionRate || 0) %>%</span>
+                            </span>
+                        <% } %>
+                    </h2>
+                    <p class="text-secondary small m-0 mt-1">حساب وإدارة أرباح وعمولات مبيعات الخدمات وتكاليفها مقسمة بالشهور.</p>
+                </div>
+
+                <div class="d-flex gap-2 align-items-center flex-wrap">
+                    <button class="btn btn-primary rounded-pill d-flex align-items-center gap-2 px-3 py-2 text-white shadow-sm" onclick="openAddModal()">
+                        <i class="bi bi-plus-circle-fill"></i>
+                        <span>إضافة معاملة</span>
+                    </button>
+
+                    <% if (isAdmin) { %>
+                        <button class="btn btn-outline-warning rounded-pill d-flex align-items-center gap-2 px-3 py-2 fw-bold" data-bs-toggle="modal" data-bs-target="#employeeRatesModal" title="تحديد نسب العمولات للموظفين">
+                            <i class="bi bi-gear-fill"></i>
+                            <span>نسب الموظفين</span>
+                        </button>
+                    <% } %>
+
+                    <button class="btn btn-outline-secondary rounded-circle d-flex align-items-center justify-content-center" onclick="loadData()" title="تحديث البيانات" style="width: 40px; height: 40px; padding: 0;">
+                        <i class="bi bi-arrow-clockwise fs-5"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Summary Cards Section -->
+            <div class="row g-3 mb-4">
+                <div class="col-12 col-sm-6 col-xl-3">
+                    <div class="stat-card-comm sales">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <span class="text-secondary small fw-bold d-block">إجمالي المدفوع</span>
+                                <h3 class="fw-bold text-dark mt-2 mb-0" id="cardTotalPaid">0 <span class="fs-6 fw-normal text-muted">ج.م</span></h3>
+                            </div>
+                            <div class="stat-icon">
+                                <i class="bi bi-wallet2"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-sm-6 col-xl-3">
+                    <div class="stat-card-comm cost">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <span class="text-secondary small fw-bold d-block">تكلفة الخدمات</span>
+                                <h3 class="fw-bold text-dark mt-2 mb-0" id="cardTotalCost">0 <span class="fs-6 fw-normal text-muted">ج.م</span></h3>
+                            </div>
+                            <div class="stat-icon">
+                                <i class="bi bi-cart-x"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-sm-6 col-xl-3">
+                    <div class="stat-card-comm profit">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <span class="text-secondary small fw-bold d-block">صافي الأرباح</span>
+                                <h3 class="fw-bold text-dark mt-2 mb-0" id="cardTotalProfit">0 <span class="fs-6 fw-normal text-muted">ج.م</span></h3>
+                            </div>
+                            <div class="stat-icon">
+                                <i class="bi bi-graph-up-arrow"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-sm-6 col-xl-3">
+                    <div class="stat-card-comm comm">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <span class="text-secondary small fw-bold d-block">إجمالي العمولات المستحقة</span>
+                                <h3 class="fw-bold text-dark mt-2 mb-0 text-warning-emphasis" id="cardTotalCommission">0 <span class="fs-6 fw-normal text-muted">ج.م</span></h3>
+                            </div>
+                            <div class="stat-icon">
+                                <i class="bi bi-coin"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filters Toolbar -->
+            <div class="card border-0 shadow-sm rounded-4 mb-4 bg-light bg-opacity-75">
+                <div class="card-body p-3">
+                    <div class="row g-2 align-items-end">
+                        <div class="col-12 col-sm-6 col-md-<%= isAdmin ? '2' : '3' %>">
+                            <label class="form-label small fw-bold text-secondary mb-1">الشهر</label>
+                            <select id="filterMonth" class="form-select filter-pill-select rounded-pill shadow-sm" onchange="loadData()">
+                                <option value="all">كل الشهور</option>
+                                <option value="1">يناير (01)</option>
+                                <option value="2">فبراير (02)</option>
+                                <option value="3">مارس (03)</option>
+                                <option value="4">أبريل (04)</option>
+                                <option value="5">مايو (05)</option>
+                                <option value="6">يونيو (06)</option>
+                                <option value="7">يوليو (07)</option>
+                                <option value="8">أغسطس (08)</option>
+                                <option value="9">سبتمبر (09)</option>
+                                <option value="10">أكتوبر (10)</option>
+                                <option value="11">نوفمبر (11)</option>
+                                <option value="12">ديسمبر (12)</option>
+                            </select>
+                        </div>
+
+                        <div class="col-12 col-sm-6 col-md-2">
+                            <label class="form-label small fw-bold text-secondary mb-1">السنة</label>
+                            <select id="filterYear" class="form-select filter-pill-select rounded-pill shadow-sm" onchange="loadData()">
+                                <option value="2025">2025</option>
+                                <option value="2026" selected>2026</option>
+                                <option value="2027">2027</option>
+                            </select>
+                        </div>
+
+                        <% if (isAdmin) { %>
+                        <div class="col-12 col-sm-6 col-md-3">
+                            <label class="form-label small fw-bold text-secondary mb-1">الموظف</label>
+                            <select id="filterEmployee" class="form-select filter-pill-select rounded-pill shadow-sm" onchange="loadData()">
+                                <option value="all">كل الموظفين</option>
+                                <% employees.forEach(emp => { %>
+                                    <option value="<%= emp.id %>"><%= emp.fullName || emp.username %></option>
+                                <% }) %>
+                            </select>
+                        </div>
+                        <% } %>
+
+                        <div class="col-12 col-sm-6 col-md-<%= isAdmin ? '4' : '6' %> flex-grow-1">
+                            <label class="form-label small fw-bold text-secondary mb-1">بحث (اسم الخدمة، حروف منها، أو المبلغ)</label>
+                            <div class="search-pill-wrapper d-flex align-items-center rounded-pill shadow-sm px-2" style="height: 42px;">
+                                <i class="bi bi-search text-muted ps-2 pe-1"></i>
+                                <div class="position-relative flex-grow-1">
+                                    <input type="text" id="filterSearch" class="form-control border-0 shadow-none bg-transparent ps-4" 
+                                           placeholder="ابحث بالاسم، حروف منها، أو المبلغ..." 
+                                           style="font-size: 14px;" 
+                                           onkeyup="onSearchKeyup(event)" 
+                                           oninput="toggleClearBtn()">
+                                    <span id="btnClearSearch" class="position-absolute top-50 translate-middle-y d-none" 
+                                          style="left: 6px; cursor: pointer; z-index: 5;" 
+                                          onclick="clearSearch()" title="مسح">
+                                        <i class="bi bi-x-circle-fill text-secondary"></i>
+                                    </span>
+                                </div>
+                                <button class="btn btn-primary rounded-pill px-3 py-1 fw-bold d-flex align-items-center gap-1 shadow-sm" 
+                                        type="button" onclick="loadData()" id="btnSearch" style="height: 32px; font-size: 13.5px;">
+                                    <span>بحث</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="col-auto">
+                            <button type="button" class="btn btn-outline-secondary rounded-circle d-flex align-items-center justify-content-center shadow-sm" 
+                                    style="width: 42px; height: 42px; min-width: 42px; padding: 0;" 
+                                    onclick="resetFilters()" title="إعادة ضبط الفلاتر">
+                                <i class="bi bi-arrow-counterclockwise fs-5"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Loader -->
+            <div id="loader" class="text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">جاري التحميل...</span>
+                </div>
+                <p class="text-muted mt-2">جاري تحميل بيانات العمولات...</p>
+            </div>
+
+            <!-- Empty State -->
+            <div id="emptyState" class="text-center py-5 d-none">
+                <i class="bi bi-cash-coin text-secondary opacity-25" style="font-size: 4rem;"></i>
+                <h4 class="text-muted mt-3">لا توجد معاملات مسجلة</h4>
+                <p class="text-secondary small">لم يتم العثور على أي معاملات لهذا الشهر أو خيارات البحث المحددة.</p>
+                <button class="btn btn-primary btn-sm rounded-pill px-4 mt-2 text-white" onclick="openAddModal()">
+                    <i class="bi bi-plus-circle me-1"></i> إضافة أول معاملة
+                </button>
+            </div>
+
+            <!-- Commissions Table -->
+            <div id="tableView" class="table-responsive d-none">
+                <table class="table align-middle table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 5%">#</th>
+                            <th style="width: 10%">التاريخ</th>
+                            <% if (isAdmin) { %>
+                                <th style="width: 14%">الموظف</th>
+                            <% } %>
+                            <th style="width: 18%">اسم الخدمة</th>
+                            <th style="width: 11%" class="text-center">إجمالي المدفوع</th>
+                            <th style="width: 11%" class="text-center">تكلفة الخدمة</th>
+                            <th style="width: 11%" class="text-center">الربح الصافي</th>
+                            <th style="width: 9%" class="text-center">النسبة</th>
+                            <th style="width: 11%" class="text-center">العمولة</th>
+                            <th class="text-center" style="width: 10%">إجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody id="commissionsTableBody">
+                        <!-- Dynamic Rows -->
+                    </tbody>
+                    <tfoot class="table-totals-row" id="tableFooter">
+                        <tr>
+                            <td colspan="<%= isAdmin ? '4' : '3' %>" class="text-center">
+                                <span class="fw-bold text-dark fs-6">الإجمالي</span>
+                            </td>
+                            <td class="text-center">
+                                <span class="totals-badge totals-sales" id="footerTotalPaid" dir="rtl">
+                                    <span>0</span> <span class="small opacity-75">ج.م</span>
+                                </span>
+                            </td>
+                            <td class="text-center">
+                                <span class="totals-badge totals-cost" id="footerTotalCost" dir="rtl">
+                                    <span>0</span> <span class="small opacity-75">ج.م</span>
+                                </span>
+                            </td>
+                            <td class="text-center">
+                                <span class="totals-badge totals-profit" id="footerTotalProfit" dir="rtl">
+                                    <span>0</span> <span class="small opacity-75">ج.م</span>
+                                </span>
+                            </td>
+                            <td class="text-center text-muted fw-bold">—</td>
+                            <td class="text-center">
+                                <span class="totals-badge totals-comm" id="footerTotalCommission" dir="rtl">
+                                    <span>0</span> <span class="small opacity-75">ج.م</span>
+                                </span>
+                            </td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Modal: Add / Edit Commission -->
+    <div class="modal fade" id="commissionModal" tabindex="-1" aria-labelledby="commissionModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow-lg border-0 rounded-4">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title fw-bold" id="commissionModalLabel">
+                        <i class="bi bi-plus-circle text-primary me-1"></i> إضافة معاملة عمولة جديدة
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="commissionForm" onsubmit="submitCommission(event)">
+                    <input type="hidden" id="commId" value="">
+                    
+                    <div class="modal-body p-4">
+                        <div class="row g-3">
+                            <% if (isAdmin) { %>
+                            <div class="col-12">
+                                <label class="form-label small fw-bold text-secondary">الموظف المسؤول <span class="text-danger">*</span></label>
+                                <select id="commEmployeeId" class="form-select" onchange="onEmployeeSelectChange()" required>
+                                    <option value="">اختر الموظف...</option>
+                                    <% employees.forEach(emp => { %>
+                                        <option value="<%= emp.id %>" data-rate="<%= Math.round(parseFloat(emp.commissionRate || 0)) %>"><%= emp.fullName || emp.username %> (النسبة: <%= Math.round(parseFloat(emp.commissionRate || 0)) %>%)</option>
+                                    <% }) %>
+                                </select>
+                            </div>
+                            <% } else { %>
+                                <input type="hidden" id="commEmployeeId" value="<%= user.id %>" data-rate="<%= Math.round(userCommissionRate || 0) %>">
+                            <% } %>
+
+                            <div class="col-12">
+                                <label class="form-label small fw-bold text-secondary">اسم الخدمة <span class="text-danger">*</span></label>
+                                <input type="text" id="commServiceName" class="form-control" placeholder="مثال: متجر إلكتروني سنوي / إعلان ممول" required>
+                            </div>
+
+                            <div class="col-6">
+                                <label class="form-label small fw-bold text-secondary">إجمالي المدفوع (ج.م) <span class="text-danger">*</span></label>
+                                <input type="number" step="1" min="0" id="commTotalPaid" class="form-control fw-bold text-primary" placeholder="0" oninput="calculateCommissionModal()" required>
+                            </div>
+
+                            <div class="col-6">
+                                <label class="form-label small fw-bold text-secondary">تكلفة الخدمة (ج.م)</label>
+                                <input type="number" step="1" min="0" id="commServiceCost" class="form-control fw-bold text-danger" placeholder="0" value="0" oninput="calculateCommissionModal()">
+                            </div>
+
+                            <div class="col-6">
+                                <label class="form-label small fw-bold text-secondary">الربح الصافي</label>
+                                <input type="text" id="commNetProfit" class="form-control-plaintext fw-bold text-success fs-6 ps-2" value="0 ج.م" readonly>
+                            </div>
+
+                            <div class="col-6">
+                                <label class="form-label small fw-bold text-secondary">العمولة المستحقة</label>
+                                <input type="text" id="commAmountDisplay" class="form-control-plaintext fw-bold text-warning-emphasis fs-6 ps-2" value="0 ج.م" readonly>
+                            </div>
+
+                            <% if (isAdmin) { %>
+                            <div class="col-12">
+                                <div class="card p-3 bg-light border-0 rounded-3">
+                                    <div class="form-check form-switch mb-2">
+                                        <input class="form-check-input" type="checkbox" role="switch" id="commCustomRateToggle" onchange="toggleCustomRate(this.checked)">
+                                        <label class="form-check-label small fw-bold text-dark" for="commCustomRateToggle">تحديد نسبة مخصصة لهذه المعاملة فقط (خاص بالأدمن)</label>
+                                    </div>
+                                    <div id="customRateContainer" class="d-none">
+                                        <div class="input-group input-group-sm mt-1">
+                                            <span class="input-group-text">النسبة المخصصة</span>
+                                            <input type="number" step="1" min="0" max="100" id="commCustomRate" class="form-control" placeholder="مثال: 15" oninput="calculateCommissionModal()">
+                                            <span class="input-group-text">%</span>
+                                        </div>
+                                        <span class="text-muted small mt-1 d-block" style="font-size: 11px;">تجاوز النسبة الافتراضية للموظف وتطبيق هذه النسبة على هذه المعاملة فقط.</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <% } %>
+
+                            <div class="col-12">
+                                <label class="form-label small fw-bold text-secondary">تاريخ المعاملة <span class="text-danger">*</span></label>
+                                <input type="date" id="commDate" class="form-control" required>
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label small fw-bold text-secondary">ملاحظات (اختياري)</label>
+                                <textarea id="commNotes" class="form-control" rows="2" placeholder="أي تفاصيل أو ملاحظات عن المعاملة..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer border-0 pt-0">
+                        <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">إلغاء</button>
+                        <button type="submit" id="btnSubmitCommission" class="btn btn-primary rounded-pill px-4 text-white">حفظ المعاملة</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <% if (isAdmin) { %>
+    <!-- Modal: Employee Rates Settings (Admin Only) -->
+    <div class="modal fade" id="employeeRatesModal" tabindex="-1" aria-labelledby="employeeRatesModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow-lg border-0 rounded-4">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title fw-bold" id="employeeRatesModalLabel">
+                        <i class="bi bi-percent text-warning me-1"></i> تحديد نسب العمولات الافتراضية للموظفين
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <p class="text-secondary small mb-3">هذه النسب تُطبق تلقائياً على كل العمليات الجديدة التي يسجلها الموظف، ويمكن تعديلها في أي وقت.</p>
+                    
+                    <div class="table-responsive">
+                        <table class="table align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>الموظف</th>
+                                    <th style="width: 150px;" class="text-center">نسبة العمولة (%)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% employees.filter(emp => emp.role !== 'admin' && emp.role !== 'super_admin').forEach(emp => { %>
+                                    <tr>
+                                        <td>
+                                            <div class="fw-bold text-dark"><%= emp.fullName || emp.username %></div>
+                                            <span class="badge bg-secondary-subtle text-secondary small"><%= emp.role %></span>
+                                        </td>
+                                        <td>
+                                            <div class="input-group input-group-sm">
+                                                <input type="number" step="1" min="0" max="100" class="form-control fw-bold text-center emp-rate-input" id="rate-input-<%= emp.id %>" data-emp-id="<%= emp.id %>" value="<%= Math.round(parseFloat(emp.commissionRate || 0)) %>">
+                                                <span class="input-group-text">%</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                <% }) %>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pt-0 d-flex justify-content-between">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">إلغاء</button>
+                    <button type="button" class="btn btn-primary rounded-pill px-5 text-white fw-bold shadow-sm" id="btnSaveAllRates" onclick="saveAllEmployeeRates()">
+                        <i class="bi bi-check-lg me-1"></i> حفظ
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <% } %>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const isAdmin = <%= isAdmin ? 'true' : 'false' %>;
+        let currentLoadedCommissions = [];
+        let modalInstance = null;
+
+        // Set default filter values to current month & year
+        document.addEventListener('DOMContentLoaded', () => {
+            const now = new Date();
+            const currentMonth = now.getMonth() + 1;
+            const currentYear = now.getFullYear();
+
+            const monthSelect = document.getElementById('filterMonth');
+            if (monthSelect) monthSelect.value = String(currentMonth);
+
+            const yearSelect = document.getElementById('filterYear');
+            if (yearSelect) yearSelect.value = String(currentYear);
+
+            // Default date input in modal to today
+            document.getElementById('commDate').value = now.toISOString().split('T')[0];
+
+            modalInstance = new bootstrap.Modal(document.getElementById('commissionModal'));
+
+            loadData();
+        });
+
+        // Alert Helper
+        function showAlert(msg, type = 'success') {
+            const container = document.getElementById('alertContainer');
+            const alertHtml = `
+                <div class="alert alert-${type} alert-dismissible fade show rounded-3 shadow-sm mb-3" role="alert">
+                    <i class="bi ${type === 'success' ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill'} me-2"></i> 
+                    ${msg}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            `;
+            container.innerHTML = alertHtml;
+            setTimeout(() => {
+                const alert = container.querySelector('.alert');
+                if (alert) {
+                    const bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                }
+            }, 4000);
+        }
+
+        function toggleClearBtn() {
+            const val = document.getElementById('filterSearch').value;
+            const btn = document.getElementById('btnClearSearch');
+            if (val && val.trim().length > 0) {
+                btn.classList.remove('d-none');
+            } else {
+                btn.classList.add('d-none');
+            }
+        }
+
+        function clearSearch() {
+            const input = document.getElementById('filterSearch');
+            input.value = '';
+            toggleClearBtn();
+            input.focus();
+            loadData();
+        }
+
+        function onSearchKeyup(event) {
+            toggleClearBtn();
+            if (event.key === 'Enter') {
+                loadData();
+            }
+        }
+
+        // Fetch & Load Data via AJAX
+        function loadData() {
+            const search = document.getElementById('filterSearch').value.trim();
+
+            // إذا كان هناك بحث، يتم البحث في كل الشهور تلقائياً كما طلب المستخدم
+            if (search !== '') {
+                document.getElementById('filterMonth').value = 'all';
+            }
+
+            const month = document.getElementById('filterMonth').value;
+            const year = document.getElementById('filterYear').value;
+            const employeeEl = document.getElementById('filterEmployee');
+            const employeeId = employeeEl ? employeeEl.value : 'all';
+
+            document.getElementById('loader').classList.remove('d-none');
+            document.getElementById('tableView').classList.add('d-none');
+            document.getElementById('emptyState').classList.add('d-none');
+
+            const url = `/dashboard/commissions/data?month=${month}&year=${year}&employeeId=${employeeId}&search=${encodeURIComponent(search)}`;
+
+            fetch(url)
+                .then(res => res.json())
+                .then(res => {
+                    document.getElementById('loader').classList.add('d-none');
+                    if (res.success && res.commissions && res.commissions.length > 0) {
+                        currentLoadedCommissions = res.commissions;
+                        renderTable(res.commissions);
+                        updateCardsAndTotals(res.totals);
+                        document.getElementById('tableView').classList.remove('d-none');
+                    } else {
+                        currentLoadedCommissions = [];
+                        updateCardsAndTotals({ totalPaid: 0, totalCost: 0, totalProfit: 0, totalCommission: 0 });
+                        document.getElementById('emptyState').classList.remove('d-none');
+                    }
+                })
+                .catch(err => {
+                    console.error(err);
+                    document.getElementById('loader').classList.add('d-none');
+                    showAlert('حدث خطأ أثناء تحميل بيانات العمولات.', 'danger');
+                });
+        }
+
+        function resetFilters() {
+            const now = new Date();
+            document.getElementById('filterMonth').value = String(now.getMonth() + 1);
+            document.getElementById('filterYear').value = String(now.getFullYear());
+            const empEl = document.getElementById('filterEmployee');
+            if (empEl) empEl.value = 'all';
+            document.getElementById('filterSearch').value = '';
+            toggleClearBtn();
+            loadData();
+        }
+
+        // Helpers for English number and DateTime formatting (No decimals)
+        function formatMoney(num) {
+            if (num === null || num === undefined || isNaN(num)) return '0';
+            return Math.round(Number(num)).toLocaleString('en-US');
+        }
+
+        function formatDateTimeDisplay(dateStr, createdAtStr) {
+            let datePart = dateStr || '';
+            let timePart = '';
+
+            if (createdAtStr) {
+                const d = new Date(createdAtStr);
+                if (!isNaN(d.getTime())) {
+                    let hours = d.getHours();
+                    const minutes = String(d.getMinutes()).padStart(2, '0');
+                    const ampm = hours >= 12 ? 'PM' : 'AM';
+                    hours = hours % 12;
+                    hours = hours ? hours : 12;
+                    const strHours = String(hours).padStart(2, '0');
+                    timePart = `${strHours}:${minutes} ${ampm}`;
+                }
+            }
+
+            return `
+                <div class="fw-bold text-dark" dir="ltr" style="font-family: monospace, sans-serif; font-size: 13px;">${datePart}</div>
+                ${timePart ? `<div class="text-secondary small mt-0.5" dir="ltr" style="font-size: 11px;"><i class="bi bi-clock me-1"></i>${timePart}</div>` : ''}
+            `;
+        }
+
+        // Render Table Rows
+        function renderTable(commissions) {
+            const tbody = document.getElementById('commissionsTableBody');
+            tbody.innerHTML = '';
+
+            commissions.forEach((c, index) => {
+                const paid = parseFloat(c.totalPaid) || 0;
+                const cost = parseFloat(c.serviceCost) || 0;
+                const profit = parseFloat(c.netProfit) || 0;
+                const commAmount = parseFloat(c.commissionAmount) || 0;
+                const rate = Math.round(parseFloat(c.commissionRate) || 0);
+
+                const empName = c.employee ? (c.employee.fullName || c.employee.username) : '—';
+                const customBadge = c.isCustomRate ? `<span class="badge-custom-rate d-block mt-1">مخصصة</span>` : '';
+
+                const row = `
+                    <tr class="commission-row" id="row-comm-${c.id}">
+                        <td class="text-secondary fw-semibold">${index + 1}</td>
+                        <td class="text-center">${formatDateTimeDisplay(c.date, c.createdAt)}</td>
+                        ${isAdmin ? `<td><div class="fw-bold text-dark">${empName}</div></td>` : ''}
+                        <td>
+                            <div class="fw-bold text-dark">${c.serviceName}</div>
+                            ${c.notes ? `<div class="small text-muted mt-1 text-truncate" style="max-width: 220px;" title="${c.notes}"><i class="bi bi-chat-left-text me-1"></i>${c.notes}</div>` : ''}
+                        </td>
+                        <td class="text-center fw-bold text-primary" dir="ltr">${formatMoney(paid)}</td>
+                        <td class="text-center fw-bold text-danger" dir="ltr">${formatMoney(cost)}</td>
+                        <td class="text-center fw-bold text-success" dir="ltr">${formatMoney(profit)}</td>
+                        <td class="text-center">
+                            <span class="badge-rate">${rate}%</span>
+                            ${customBadge}
+                        </td>
+                        <td class="text-center fw-bold text-warning-emphasis fs-6" dir="ltr">${formatMoney(commAmount)}</td>
+                        <td class="text-center">
+                            <div class="d-flex justify-content-center gap-1">
+                                <button class="btn btn-sm btn-outline-primary px-2 py-1 rounded-pill" onclick="openEditModal(${c.id})" title="تعديل المعاملة">
+                                    <i class="bi bi-pencil-square"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger px-2 py-1 rounded-pill" onclick="deleteCommission(${c.id})" title="حذف المعاملة">
+                                    <i class="bi bi-trash3-fill"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                tbody.insertAdjacentHTML('beforeend', row);
+            });
+        }
+
+        // Update Stat Cards & Footer Totals
+        function updateCardsAndTotals(totals) {
+            const paid = formatMoney(totals.totalPaid);
+            const cost = formatMoney(totals.totalCost);
+            const profit = formatMoney(totals.totalProfit);
+            const comm = formatMoney(totals.totalCommission);
+
+            document.getElementById('cardTotalPaid').innerHTML = `${paid} <span class="fs-6 fw-normal text-muted">ج.م</span>`;
+            document.getElementById('cardTotalCost').innerHTML = `${cost} <span class="fs-6 fw-normal text-muted">ج.م</span>`;
+            document.getElementById('cardTotalProfit').innerHTML = `${profit} <span class="fs-6 fw-normal text-muted">ج.م</span>`;
+            document.getElementById('cardTotalCommission').innerHTML = `${comm} <span class="fs-6 fw-normal text-muted">ج.م</span>`;
+
+            document.getElementById('footerTotalPaid').innerHTML = `<span>${paid}</span> <span class="small opacity-75">ج.م</span>`;
+            document.getElementById('footerTotalCost').innerHTML = `<span>${cost}</span> <span class="small opacity-75">ج.م</span>`;
+            document.getElementById('footerTotalProfit').innerHTML = `<span>${profit}</span> <span class="small opacity-75">ج.م</span>`;
+            document.getElementById('footerTotalCommission').innerHTML = `<span>${comm}</span> <span class="small opacity-75">ج.م</span>`;
+        }
+
+        // Modal: Add
+        function openAddModal() {
+            document.getElementById('commissionForm').reset();
+            document.getElementById('commId').value = '';
+            document.getElementById('commissionModalLabel').innerHTML = '<i class="bi bi-plus-circle text-primary me-1"></i> إضافة معاملة عمولة جديدة';
+            document.getElementById('btnSubmitCommission').textContent = 'حفظ المعاملة';
+
+            const now = new Date();
+            document.getElementById('commDate').value = now.toISOString().split('T')[0];
+            document.getElementById('commServiceCost').value = '0';
+
+            const customRateToggle = document.getElementById('commCustomRateToggle');
+            if (customRateToggle) {
+                customRateToggle.checked = false;
+                toggleCustomRate(false);
+            }
+
+            calculateCommissionModal();
+            modalInstance.show();
+        }
+
+        // Modal: Edit
+        function openEditModal(id) {
+            const comm = currentLoadedCommissions.find(c => c.id === id);
+            if (!comm) return;
+
+            document.getElementById('commId').value = comm.id;
+            document.getElementById('commissionModalLabel').innerHTML = '<i class="bi bi-pencil-square text-primary me-1"></i> تعديل معاملة العمولة';
+            document.getElementById('btnSubmitCommission').textContent = 'حفظ التعديلات';
+
+            document.getElementById('commServiceName').value = comm.serviceName;
+            document.getElementById('commTotalPaid').value = comm.totalPaid;
+            document.getElementById('commServiceCost').value = comm.serviceCost;
+            document.getElementById('commDate').value = comm.date;
+            document.getElementById('commNotes').value = comm.notes || '';
+
+            if (isAdmin) {
+                const empSelect = document.getElementById('commEmployeeId');
+                if (empSelect) empSelect.value = comm.employeeId;
+
+                const customRateToggle = document.getElementById('commCustomRateToggle');
+                const customRateInput = document.getElementById('commCustomRate');
+                if (customRateToggle && customRateInput) {
+                    if (comm.isCustomRate) {
+                        customRateToggle.checked = true;
+                        customRateInput.value = comm.commissionRate;
+                        toggleCustomRate(true);
+                    } else {
+                        customRateToggle.checked = false;
+                        customRateInput.value = '';
+                        toggleCustomRate(false);
+                    }
+                }
+            }
+
+            calculateCommissionModal();
+            modalInstance.show();
+        }
+
+        function toggleCustomRate(checked) {
+            const container = document.getElementById('customRateContainer');
+            if (container) {
+                if (checked) container.classList.remove('d-none');
+                else {
+                    container.classList.add('d-none');
+                    document.getElementById('commCustomRate').value = '';
+                }
+            }
+            calculateCommissionModal();
+        }
+
+        function onEmployeeSelectChange() {
+            calculateCommissionModal();
+        }
+
+        // Real-time calculation inside modal
+        function calculateCommissionModal() {
+            const totalPaid = parseFloat(document.getElementById('commTotalPaid').value) || 0;
+            const serviceCost = parseFloat(document.getElementById('commServiceCost').value) || 0;
+            const netProfit = Math.max(0, totalPaid - serviceCost);
+
+            let rate = 0;
+            const customRateToggle = document.getElementById('commCustomRateToggle');
+            const customRateInput = document.getElementById('commCustomRate');
+
+            if (isAdmin && customRateToggle && customRateToggle.checked && customRateInput && customRateInput.value !== '') {
+                rate = parseFloat(customRateInput.value) || 0;
+            } else {
+                const empEl = document.getElementById('commEmployeeId');
+                if (empEl) {
+                    if (empEl.tagName === 'SELECT') {
+                        const opt = empEl.options[empEl.selectedIndex];
+                        rate = opt ? (parseFloat(opt.getAttribute('data-rate')) || 0) : 0;
+                    } else {
+                        rate = parseFloat(empEl.getAttribute('data-rate')) || 0;
+                    }
+                }
+            }
+
+            const commissionAmount = (netProfit * rate) / 100;
+
+            document.getElementById('commNetProfit').value = `${formatMoney(netProfit)} ج.م`;
+            document.getElementById('commAmountDisplay').value = `${formatMoney(commissionAmount)} ج.م (${Math.round(rate)}%)`;
+        }
+
+        // Submit Add / Edit
+        function submitCommission(event) {
+            event.preventDefault();
+            const id = document.getElementById('commId').value;
+            const isEdit = !!id;
+
+            const serviceName = document.getElementById('commServiceName').value;
+            const totalPaid = document.getElementById('commTotalPaid').value;
+            const serviceCost = document.getElementById('commServiceCost').value;
+            const date = document.getElementById('commDate').value;
+            const notes = document.getElementById('commNotes').value;
+
+            const employeeIdEl = document.getElementById('commEmployeeId');
+            const employeeId = employeeIdEl ? employeeIdEl.value : '';
+
+            let customRate = '';
+            const customRateToggle = document.getElementById('commCustomRateToggle');
+            if (isAdmin && customRateToggle && customRateToggle.checked) {
+                customRate = document.getElementById('commCustomRate').value;
+            }
+
+            const endpoint = isEdit ? '/dashboard/commissions/edit' : '/dashboard/commissions/add';
+            const payload = {
+                id,
+                serviceName,
+                totalPaid,
+                serviceCost,
+                date,
+                notes,
+                employeeId,
+                customRate
+            };
+
+            const submitBtn = document.getElementById('btnSubmitCommission');
+            const originalText = submitBtn.textContent;
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'جاري الحفظ...';
+
+            fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            .then(res => res.json())
+            .then(res => {
+                submitBtn.disabled = false;
+                submitBtn.textContent = originalText;
+                if (res.success) {
+                    modalInstance.hide();
+                    showAlert(res.message || 'تم حفظ المعاملة بنجاح!');
+                    loadData();
+                } else {
+                    showAlert(res.error || 'فشل حفظ المعاملة.', 'danger');
+                }
+            })
+            .catch(err => {
+                submitBtn.disabled = false;
+                submitBtn.textContent = originalText;
+                console.error(err);
+                showAlert('حدث خطأ في الاتصال بالسيرفر.', 'danger');
+            });
+        }
+
+        // Delete Commission
+        function deleteCommission(id) {
+            if (!confirm('هل أنت متأكد من رغبتك في حذف هذه المعاملة؟')) return;
+
+            fetch('/dashboard/commissions/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id })
+            })
+            .then(res => res.json())
+            .then(res => {
+                if (res.success) {
+                    showAlert(res.message || 'تم حذف المعاملة بنجاح!');
+                    loadData();
+                } else {
+                    showAlert(res.error || 'فشل حذف المعاملة.', 'danger');
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                showAlert('حدث خطأ في الاتصال بالسيرفر.', 'danger');
+            });
+        }
+
+        <% if (isAdmin) { %>
+        // Save All Employee Commission Rates (Admin Only)
+        function saveAllEmployeeRates() {
+            const inputs = document.querySelectorAll('.emp-rate-input');
+            const rates = [];
+            inputs.forEach(input => {
+                const empId = input.getAttribute('data-emp-id');
+                const rate = parseFloat(input.value) || 0;
+                rates.push({ employeeId: parseInt(empId), commissionRate: rate });
+            });
+
+            const btn = document.getElementById('btnSaveAllRates');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span> جاري الحفظ...';
+
+            fetch('/dashboard/commissions/update-all-rates', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ rates })
+            })
+            .then(res => res.json())
+            .then(res => {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+                if (res.success) {
+                    const modalEl = document.getElementById('employeeRatesModal');
+                    const modal = bootstrap.Modal.getInstance(modalEl);
+                    if (modal) modal.hide();
+                    showAlert(res.message || 'تم حفظ جميع النسب بنجاح!');
+                    
+                    // Update data-rate attribute in select dropdown
+                    rates.forEach(item => {
+                        const opt = document.querySelector(`#commEmployeeId option[value="${item.employeeId}"]`);
+                        if (opt) opt.setAttribute('data-rate', item.commissionRate);
+                    });
+                } else {
+                    showAlert(res.error || 'فشل حفظ النسب.', 'danger');
+                }
+            })
+            .catch(err => {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+                console.error(err);
+                showAlert('حدث خطأ في الاتصال بالسيرفر.', 'danger');
+            });
+        }
+        <% } %>
+    </script>
+</body>
+
+</html>

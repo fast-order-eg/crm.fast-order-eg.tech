@@ -100,6 +100,19 @@
             </a>
         </li>
 
+        <!-- العمولات (Commissions) -->
+        <li class="sidebar-item <%= page === 'commissions' ? 'active' : '' %>">
+            <a href="/dashboard/commissions" class="sidebar-link">
+                <div class="sidebar-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-cash-stack" viewBox="0 0 16 16">
+                        <path d="M1 3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1H1zm7 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4"/>
+                        <path d="M0 5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H1a1 1 0 0 1-1-1zm3 0a2 2 0 0 1-2 2v4a2 2 0 0 1 2 2h10a2 2 0 0 1 2-2V7a2 2 0 0 1-2-2z"/>
+                    </svg>
+                </div>
+                <span class="sidebar-label">العمولات</span>
+            </a>
+        </li>
+
         <% if (isAdmin) { %>
         <!-- 7. رسائل جماعية (Broadcast) -->
         <li class="sidebar-item <%= page === 'broadcast' ? 'active' : '' %>">
@@ -218,8 +231,7 @@
         </li>
         <% } %>
 
-        <% if (false) { %>
-        <!-- Notifications - hidden but code preserved (bell icon in navbar) -->
+        <!-- Notifications -->
         <li class="sidebar-item <%= page === 'notifications' ? 'active' : '' %>">
             <a href="/dashboard/notifications" class="sidebar-link">
                 <div class="sidebar-icon">
@@ -230,7 +242,6 @@
                 <span class="sidebar-label">الإشعارات</span>
             </a>
         </li>
-        <% } %>
 
 
         <% if (isSuperAdmin) { %>

@@ -10,7 +10,7 @@ const Notification = sequelize.define('Notification', {
         autoIncrement: true
     },
     type: {
-        type: DataTypes.ENUM('customer_assigned', 'status_changed', 'payment_received', 'follow_up_due', 'system'),
+        type: DataTypes.ENUM('customer_assigned', 'status_changed', 'payment_received', 'follow_up_due', 'system', 'customer_note'),
         allowNull: false
     },
     title: {

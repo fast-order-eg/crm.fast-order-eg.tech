@@ -33,12 +33,14 @@
         ${(() => {
                 if (cust.scheduledFollowUpAt) {
                     const formatted = formatDateTime(cust.scheduledFollowUpAt);
+                    const editDate = `<span onclick="openFollowUpModal(${cust.id}, '${cust.scheduledFollowUpAt}')" style="cursor:pointer; text-decoration: underline dotted;" title="اضغط لتعديل موعد المتابعة">${formatted}</span>`;
+                    const cancelBtn = `<i class="fas fa-times text-danger ms-2" style="cursor:pointer;" onclick="cancelFollowUp(${cust.id}, event)" title="إلغاء المتابعة"></i>`;
                     if (cust.status === 'scheduled_follow_up') {
-                        return `<div class="col-12 small text-muted mb-2"><i class="bi bi-clock me-1 text-primary"></i> ${formatted}</div>`;
+                        return `<div class="col-12 small text-muted mb-2"><i class="bi bi-clock me-1 text-primary"></i> ${editDate} ${cancelBtn}</div>`;
                     } else if (cust.status === 'first_follow_up') {
-                        return `<div class="col-12 small text-muted mb-2"><i class="bi bi-clock me-1 text-warning"></i> ${formatted}</div>`;
+                        return `<div class="col-12 small text-muted mb-2"><i class="bi bi-clock me-1 text-warning"></i> ${editDate} ${cancelBtn}</div>`;
                     } else if (cust.status === 'final_follow_up') {
-                        return `<div class="col-12 small text-muted mb-2"><i class="bi bi-clock me-1 text-danger"></i> ${formatted}</div>`;
+                        return `<div class="col-12 small text-muted mb-2"><i class="bi bi-clock me-1 text-danger"></i> ${editDate} ${cancelBtn}</div>`;
                     }
                 }
                 return '';

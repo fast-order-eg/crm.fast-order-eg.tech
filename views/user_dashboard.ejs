@@ -937,7 +937,8 @@
             };
 
             socket.on('pairing_code', (code) => {
-                if (statusText.innerText.includes('متصل')) return;
+                const bDot = document.getElementById('baileys-status-dot');
+                if (bDot && bDot.classList.contains('status-online') && !isPairingFlow) return;
 
                 loader.classList.add('d-none');
                 qrContainer.classList.add('d-none');

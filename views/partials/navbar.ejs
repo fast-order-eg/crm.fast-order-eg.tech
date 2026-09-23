@@ -24,7 +24,7 @@
 
         <div class="d-flex align-items-center gap-3">
             <!-- حاوية التنبيهات الفورية Toasts -->
-            <div id="navbarToastContainer" class="position-fixed top-0 start-50 translate-middle-x p-3" style="z-index: 1100;"></div>
+            <div id="navbarToastContainer" class="position-fixed top-0 start-50 translate-middle-x p-3" style="z-index: 99999; max-width: 95vw; width: 380px; pointer-events: none;"></div>
 
             <div class="dropdown">
                 <!-- Dropdown Toggle Fix: Added id and ensured data-bs-toggle is working -->
@@ -342,5 +342,149 @@
         } else {
             initializeSocketAndNotifications();
         }
+        // ==========================================
+        // 🔔 Web Push Background Auto-Sync & Prompt
+        // ==========================================
+        let cachedGlobalSwReg = null;
+
+        async function syncWebPushBackground() {
+            if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+            
+            try {
+                const reg = await navigator.serviceWorker.register('/sw.js');
+                cachedGlobalSwReg = reg;
+                
+                // إذا كان الموظف قد وافق مسبقاً، نجدد الاشتراك تلقائياً للتأكد من ربطه
+                if (Notification.permission === 'granted') {
+                    let sub = await reg.pushManager.getSubscription();
+                    if (!sub) {
+                        const keyRes = await fetch('/dashboard/push/public-key');
+                        const keyData = await keyRes.json();
+                        if (keyData.success && keyData.publicKey) {
+                            const padding = '='.repeat((4 - keyData.publicKey.length % 4) % 4);
+                            const base64 = (keyData.publicKey + padding).replace(/\-/g, '+').replace(/_/g, '/');
+                            const rawData = window.atob(base64);
+                            const appKey = new Uint8Array(rawData.length);
+                            for (let i = 0; i < rawData.length; ++i) appKey[i] = rawData.charCodeAt(i);
+
+                            sub = await reg.pushManager.subscribe({
+                                userVisibleOnly: true,
+                                applicationServerKey: appKey
+                            });
+                        }
+                    }
+
+                    if (sub) {
+                        fetch('/dashboard/push/subscribe', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ subscription: sub })
+                        }).catch(() => {});
+                    }
+                } else if (Notification.permission === 'default') {
+                    // إظهار تنبيه لطيف مرة واحدة بالسيشن لتشجيع الموظف على تفعيل الإشعارات
+                    if (!sessionStorage.getItem('push_prompt_dismissed')) {
+                        setTimeout(() => {
+                            showPushEnableBanner();
+                        }, 2500);
+                    }
+                }
+            } catch (e) {
+                // Silently ignore background push sync errors
+            }
+        }
+
+        function showPushEnableBanner() {
+            const container = document.getElementById('navbarToastContainer');
+            if (!container) return;
+            const bannerId = 'pushBanner_' + Date.now();
+            const bannerHtml = `
+                <div id="${bannerId}" class="toast show text-dark bg-white border border-primary border-opacity-25 shadow-lg mb-2" role="alert" style="border-radius: 14px; width: 100%; max-width: 360px; pointer-events: auto;">
+                    <div class="p-3">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <span class="p-2 rounded-circle bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
+                                <i class="bi bi-bell-fill"></i>
+                            </span>
+                            <strong class="text-dark small">تفعيل إشعارات العملاء الجدد</strong>
+                        </div>
+                        <p class="text-secondary small mb-3" style="line-height: 1.4; font-size: 12px;">
+                            احصل على تنبيه فوري بصوت واهتزاز على جهازك بمجرد نزول أو نقل عميل إليك، حتى لو المتصفح مغلق.
+                        </p>
+                        <div class="d-flex justify-content-end gap-2">
+                            <button type="button" class="btn btn-sm btn-light text-muted px-2.5 py-1 rounded-pill small" onclick="dismissPushBanner('${bannerId}')">لاحقاً</button>
+                            <button type="button" class="btn btn-sm btn-primary px-3 py-1 rounded-pill fw-semibold small shadow-sm" onclick="requestPushFromBanner('${bannerId}')">تفعيل الآن</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            container.insertAdjacentHTML('beforeend', bannerHtml);
+        }
+
+        window.dismissPushBanner = function(id) {
+            sessionStorage.setItem('push_prompt_dismissed', 'true');
+            const el = document.getElementById(id);
+            if (el) el.remove();
+        };
+
+        window.requestPushFromBanner = async function(id) {
+            window.dismissPushBanner(id);
+            if (!('Notification' in window)) {
+                alert('عذراً، هذا المتصفح لا يدعم خاصية الإشعارات.');
+                return;
+            }
+
+            try {
+                // طلب الإذن فوراً استجابة لنقر المستخدم المباشر
+                const perm = await Notification.requestPermission();
+                if (perm === 'granted') {
+                    let reg = cachedGlobalSwReg;
+                    if (!reg && 'serviceWorker' in navigator) {
+                        reg = await navigator.serviceWorker.ready;
+                        if (!reg) {
+                            reg = await navigator.serviceWorker.register('/sw.js');
+                        }
+                    }
+
+                    if (!reg) {
+                        showNotificationToast('تنبيه', 'تم تفعيل الإذن، يرجى تحديث الصفحة لإكمال الربط.');
+                        return;
+                    }
+
+                    let sub = await reg.pushManager.getSubscription();
+                    if (!sub) {
+                        const keyRes = await fetch('/dashboard/push/public-key');
+                        const keyData = await keyRes.json();
+                        if (keyData.success && keyData.publicKey) {
+                            const padding = '='.repeat((4 - keyData.publicKey.length % 4) % 4);
+                            const base64 = (keyData.publicKey + padding).replace(/\-/g, '+').replace(/_/g, '/');
+                            const rawData = window.atob(base64);
+                            const appKey = new Uint8Array(rawData.length);
+                            for (let i = 0; i < rawData.length; ++i) appKey[i] = rawData.charCodeAt(i);
+
+                            sub = await reg.pushManager.subscribe({
+                                userVisibleOnly: true,
+                                applicationServerKey: appKey
+                            });
+                        }
+                    }
+
+                    if (sub) {
+                        await fetch('/dashboard/push/subscribe', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ subscription: sub })
+                        });
+                        showNotificationToast('🎉 تم تفعيل الإشعارات بنجاح!', 'ستصلك الآن تنبيهات العملاء والمتابعات في الخلفية.');
+                    }
+                } else if (perm === 'denied') {
+                    showNotificationToast('تم حظر الإشعارات', 'يرجى السماح بالإشعارات من إعدادات المتصفح.');
+                }
+            } catch (err) {
+                console.error('Push request error:', err);
+                showNotificationToast('خطأ في التفعيل', err.message || 'حدث خطأ أثناء تفعيل الإشعارات.');
+            }
+        };
+
+        syncWebPushBackground();
     });
 </script>
