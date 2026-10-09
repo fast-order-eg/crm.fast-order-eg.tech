@@ -198,19 +198,57 @@ export function isCampaignCurrentlyRunning(camp) {
 }
 
 /**
- * استخراج رابط المنشور الترويجي للحملة من الإعلانات التابعة لها
+ * استخراج روابط المنشورات الفعلية من الهيكل الهرمي الكامل (campaign -> adsets -> ads -> creative)
  */
-export function getCampaignPostLink(camp) {
-    if (!camp) return null;
-    if (camp.post_url) return camp.post_url;
+export function extractCampaignPostLinks(camp) {
+    if (!camp) return [];
+    const links = [];
+    const seen = new Set();
+
+    const addLink = (rawUrl) => {
+        if (!rawUrl || typeof rawUrl !== 'string') return;
+        const url = rawUrl.trim();
+        if (seen.has(url)) return;
+        seen.add(url);
+
+        let platform = 'منشور';
+        if (url.includes('instagram.com/p/')) {
+            platform = 'إنستجرام';
+        } else if (url.includes('facebook.com/')) {
+            platform = 'فيسبوك';
+        } else if (url.startsWith('http')) {
+            platform = 'رابط خارجي';
+        }
+
+        links.push({ url, platform });
+    };
+
+    // 1. من خلال الهيكل الهرمي: campaign -> adsets -> ads -> creative
+    if (Array.isArray(camp.adsets) && camp.adsets.length > 0) {
+        for (const adset of camp.adsets) {
+            if (Array.isArray(adset.ads) && adset.ads.length > 0) {
+                for (const ad of adset.ads) {
+                    const cr = ad.creative || {};
+                    addLink(cr.post_url || cr.preview_url || cr.instagram_permalink_url || cr.link_url);
+                }
+            }
+        }
+    }
+
+    // 2. فحص مصفوفة الإعلانات المباشرة كاحتياط
     if (Array.isArray(camp.ads) && camp.ads.length > 0) {
         for (const ad of camp.ads) {
             const cr = ad.creative || {};
-            const link = cr.post_url || cr.instagram_permalink_url || cr.preview_url || cr.link_url;
-            if (link) return link;
+            addLink(cr.post_url || cr.preview_url || cr.instagram_permalink_url || cr.link_url);
         }
     }
-    return null;
+
+    // 3. رابط المنشور المباشر بالحملة إن وجد
+    if (camp.post_url) {
+        addLink(camp.post_url);
+    }
+
+    return links;
 }
 
 /**
@@ -334,6 +372,15 @@ export function formatAdsReportMessage(data, requestedId = '', datePreset = 'tod
         }
         if (stopInfo?.remainingText) {
             msg += `• ⏳ المتبقي: ${stopInfo.remainingText}\n`;
+        }
+        const postLinks = extractCampaignPostLinks(camp);
+        if (postLinks.length === 1) {
+            msg += `• 🔗 رابط المنشور (${postLinks[0].platform}): ${postLinks[0].url}\n`;
+        } else if (postLinks.length > 1) {
+            msg += `• 🔗 روابط المنشورات (${postLinks.length}):\n`;
+            postLinks.forEach((pl, pIdx) => {
+                msg += `  ${pIdx + 1}. ${pl.url} (${pl.platform})\n`;
+            });
         }
         msg += `\n`;
     });
