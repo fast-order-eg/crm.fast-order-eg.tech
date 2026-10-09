@@ -103,7 +103,7 @@ export function classifyObjective(objective = '') {
  * تنسيق تاريخ وساعة الانتهاء والوقت المتبقي بتوقيت القاهرة
  */
 export function formatStopTime(stopTimeStr) {
-    if (!stopTimeStr) return null;
+    if (!stopTimeStr) return 'مستمر (بدون تاريخ انتهاء ♾️)';
     const stopDate = new Date(stopTimeStr);
     if (isNaN(stopDate.getTime())) return null;
 
@@ -142,8 +142,10 @@ export function formatStopTime(stopTimeStr) {
     const remainingHours = totalHours % 24;
 
     let remainingText = '';
-    if (days > 0) {
-        remainingText = `متبقي ${days} يوم${days > 1 ? 'اً' : ''}${remainingHours > 0 ? ` و ${remainingHours} ساعة` : ''}`;
+    if (days > 0 && remainingHours > 0) {
+        remainingText = `متبقي ${days} يوم و ${remainingHours} ساعة`;
+    } else if (days > 0) {
+        remainingText = `متبقي ${days} يوم`;
     } else if (remainingHours > 0) {
         remainingText = `متبقي ${remainingHours} ساعة`;
     } else {
@@ -152,6 +154,56 @@ export function formatStopTime(stopTimeStr) {
     }
 
     return `${formattedDate} (${remainingText} ⏳)`;
+}
+
+/**
+ * فحص هل الحملة شغالة ونشطة حالياً وليست منتهية أو متوقفة
+ */
+export function isCampaignCurrentlyRunning(camp) {
+    if (!camp) return false;
+    const status = String(camp.status || '').toUpperCase();
+    const effStatus = String(camp.effective_status || '').toUpperCase();
+    if (status !== 'ACTIVE') return false;
+    if (effStatus && effStatus !== 'ACTIVE') return false;
+
+    if (camp.stop_time) {
+        const stopMs = new Date(camp.stop_time).getTime();
+        if (!isNaN(stopMs) && stopMs <= Date.now()) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * استخراج رابط المنشور الترويجي للحملة من الإعلانات التابعة لها
+ */
+export function getCampaignPostLink(camp) {
+    if (!camp) return null;
+    if (camp.post_url) return camp.post_url;
+    if (Array.isArray(camp.ads) && camp.ads.length > 0) {
+        for (const ad of camp.ads) {
+            const cr = ad.creative || {};
+            const link = cr.post_url || cr.instagram_permalink_url || cr.preview_url || cr.link_url;
+            if (link) return link;
+        }
+    }
+    return null;
+}
+
+/**
+ * تنسيق ميزانية الحملة وتحديد هل هي يومية أم إجمالية
+ */
+export function formatCampaignBudget(camp) {
+    if (!camp) return '';
+    const bAmount = Math.round(Number(camp.budget || camp.daily_budget || camp.lifetime_budget || 0));
+    if (bAmount <= 0) return '';
+    const bType = (camp.budget_type === 'DAILY' || camp.daily_budget)
+        ? 'يومي'
+        : (camp.budget_type === 'LIFETIME' || camp.lifetime_budget)
+            ? 'إجمالي'
+            : '';
+    return `${bAmount.toLocaleString('en-US')}${bType ? ` (${bType})` : ''}`;
 }
 
 /**
@@ -184,93 +236,82 @@ export async function fetchCampaignsSummary({ account_id, campaign_ids, date_pre
 
 /**
  * صياغة رد الواتساب الاحترافي وفق التعليمات:
- * 1. الأرقام بالإنجليزية (en-US).
- * 2. المصروف رقم صحيح بدون كسور (Spend as whole integer).
- * 3. تمييز نوع الإعلان (مبيعات / رسائل).
- * 4. تاريخ وساعة الانتهاء والمتبقي.
- * 5. إيموجيز مناسبة ومنسقة.
+ * 1. عرض الحملات النشطة والشغالة فقط.
+ * 2. الأرقام بالإنجليزية (en-US).
+ * 3. المصروف رقم صحيح بدون كسور، وبدون تكرار العملة أو الترجمة الإنجليزية للفترات.
+ * 4. تمييز نوع الإعلان (مبيعات / رسائل).
+ * 5. إظهار الميزانية ونوعها (يومي / إجمالي).
+ * 6. إظهار عدد الوصول وحذف مرات الظهور.
+ * 7. تاريخ وساعة الانتهاء والمتبقي بدقة (أيام وساعات).
+ * 8. رابط المنشور للتأكد.
  */
-export function formatAdsReportMessage(data, requestedId = '', datePreset = 'today') {
-    const currency = data.currency || 'EGP';
+export function formatAdsReportMessage(data, requestedId = '', datePreset = 'today', isExplicitCampaign = false) {
     const presetLabels = {
-        today: 'اليوم (Today)',
-        yesterday: 'أمس (Yesterday)',
-        last_7d: 'آخر 7 أيام (Last 7 Days)',
-        this_month: 'هذا الشهر (This Month)',
-        maximum: 'الإجمالي (All Time)'
+        today: 'اليوم',
+        yesterday: 'أمس',
+        last_7d: 'آخر 7 أيام',
+        this_month: 'هذا الشهر',
+        maximum: 'كل الفترات (الإجمالي)'
     };
     const periodLabel = presetLabels[datePreset] || datePreset;
 
-    const summary = data.summary || {};
-    const campaigns = data.campaigns || [];
+    const rawCampaigns = data.campaigns || [];
 
-    const totalSpend = Math.round(Number(summary.total_spend || 0)).toLocaleString('en-US');
-    const totalResults = Number(summary.total_results || 0).toLocaleString('en-US');
-    const resultLabel = summary.result_label || 'نتائج';
-    const avgCpa = Number(summary.average_cpa || 0).toFixed(2);
-    const roas = summary.roas ? Number(summary.roas).toFixed(1) : null;
-    const reach = Number(summary.total_reach || 0).toLocaleString('en-US');
-    const impressions = Number(summary.total_impressions || 0).toLocaleString('en-US');
-    const ctr = Number(summary.average_ctr || 0).toFixed(2);
+    // تصفية الحملات: إذا لم يكن الاستعلام عن حملة محددة بعينها، نعرض الحملات النشطة والشغالة فقط
+    const campaigns = isExplicitCampaign
+        ? rawCampaigns
+        : rawCampaigns.filter(isCampaignCurrentlyRunning);
 
     let msg = `📊 *تقرير أداء الإعلانات الممولة*\n`;
     if (requestedId) msg += `🔢 *المعرف:* \`${requestedId}\`\n`;
     msg += `📅 *الفترة:* ${periodLabel}\n`;
-    msg += `💰 *العملة:* ${currency}\n`;
     msg += `════════════════════\n`;
 
-    // الملخص الإجمالي
-    msg += `📌 *الملخص الإجمالي:*\n`;
-    msg += `• 💵 إجمالي المصروف: *${totalSpend} ${currency}*\n`;
-    msg += `• 🎯 إجمالي النتائج: *${totalResults}* (${resultLabel})\n`;
-    msg += `• 🏷️ متوسط تكلفة النتيجة (CPA): *${avgCpa} ${currency}*\n`;
-    if (roas && Number(roas) > 0) {
-        msg += `• 📈 العائد على الإنفاق (ROAS): *${roas}*\n`;
-    }
-    msg += `• 👥 إجمالي الوصول (Reach): *${reach}*\n`;
-    msg += `• 👁️ مرات الظهور (Impressions): *${impressions}*\n`;
-    msg += `• 👆 معدل النقر (CTR): *${ctr}%*\n`;
-    const activeCount = summary.active_campaigns_count ?? campaigns.filter(c => c.status === 'ACTIVE').length;
-    msg += `• 🚀 الحملات النشطة: *${activeCount}* من إجمالي *${campaigns.length}*\n`;
-
     if (campaigns.length === 0) {
-        msg += `════════════════════\n`;
-        msg += `ℹ️ لا توجد حملات نشطة أو نتائج مسجلة خلال الفترة المحددة.\n`;
-        msg += `💡 جرب تطلب تقرير فترة أوسع مثل: *"اخر 7 ايام"* أو *"هذا الشهر"* أو *"الكل"*.\n`;
+        msg += `ℹ️ لا توجد حالياً أي حملات إعلانية نشطة أو شغالة في هذا الحساب (جميع الحملات متوقفة أو انتهت فترتها).\n\n`;
+        msg += `💡 *لتغيير الفترة:* اكتب رقم الحساب مع: "اليوم" أو "امس" أو "اخر 7 ايام" أو "هذا الشهر" أو "الكل".`;
         return msg;
     }
 
-    msg += `════════════════════\n`;
-    msg += `🎯 *تفاصيل الحملات (${campaigns.length}):*\n\n`;
+    const titleCount = campaigns.length > 1 ? ` (${campaigns.length})` : '';
+    msg += `🎯 *الحملات النشطة${titleCount}:*\n\n`;
 
     campaigns.forEach((camp, idx) => {
         const cStatus = camp.status === 'ACTIVE' ? '🟢 نشطة (ACTIVE)' : '⏸️ متوقفة (PAUSED)';
         const cObj = classifyObjective(camp.objective);
         const cSpend = Math.round(Number(camp.spend || 0)).toLocaleString('en-US');
         const cResults = Number(camp.results || 0).toLocaleString('en-US');
-        const cLabel = camp.result_label || resultLabel;
+        const cLabel = camp.result_label || 'نتائج';
         const cCpa = Number(camp.cpa || 0).toFixed(2);
         const cRoas = camp.roas ? Number(camp.roas).toFixed(1) : null;
         const cCtr = Number(camp.ctr || 0).toFixed(2);
         const cReach = camp.reach ? Number(camp.reach).toLocaleString('en-US') : null;
-        const cImpressions = camp.impressions ? Number(camp.impressions).toLocaleString('en-US') : null;
         const endFormatted = formatStopTime(camp.stop_time);
+        const budgetStr = formatCampaignBudget(camp);
+        const postLink = getCampaignPostLink(camp);
 
-        msg += `${idx + 1}️⃣ *${camp.name || 'حملة بدون اسم'}*\n`;
+        const numPrefix = campaigns.length > 1 ? `${idx + 1}️⃣ ` : '📌 ';
+        msg += `${numPrefix}*${camp.name || 'حملة بدون اسم'}*\n`;
         msg += `• الحالة: ${cStatus}\n`;
         msg += `• النوع: *${cObj}*\n`;
-        msg += `• المصروف: *${cSpend} ${currency}*\n`;
-        msg += `• النتائج: *${cResults}* ${cLabel}\n`;
-        msg += `• تكلفة النتيجة (CPA): *${cCpa} ${currency}*\n`;
+        if (budgetStr) {
+            msg += `• 💵 الميزانية: *${budgetStr}*\n`;
+        }
+        msg += `• 💸 المصروف: *${cSpend}*\n`;
+        msg += `• 🎯 النتائج: *${cResults}* ${cLabel}\n`;
+        msg += `• 🏷️ تكلفة النتيجة (CPA): *${cCpa}*\n`;
         if (cRoas && Number(cRoas) > 0) {
-            msg += `• العائد (ROAS): *${cRoas}*\n`;
+            msg += `• 📈 العائد (ROAS): *${cRoas}*\n`;
         }
-        msg += `• معدل النقر (CTR): *${cCtr}%*\n`;
-        if (cReach && cImpressions) {
-            msg += `• الوصول: *${cReach}* | الظهور: *${cImpressions}*\n`;
+        if (cReach) {
+            msg += `• 👥 عدد الوصول: *${cReach}*\n`;
         }
+        msg += `• 👆 معدل النقر (CTR): *${cCtr}%*\n`;
         if (endFormatted) {
-            msg += `• ميعاد الانتهاء: ${endFormatted}\n`;
+            msg += `• ⏳ الانتهاء: ${endFormatted}\n`;
+        }
+        if (postLink) {
+            msg += `• 🔗 رابط المنشور: ${postLink}\n`;
         }
         msg += `\n`;
     });
@@ -366,6 +407,7 @@ export async function handleAdsReportGroupMessage({
     // إشعار جارِ الجلب
     await sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
 
+    let isExplicitCampaign = (idInfo.type === 'campaign');
     let apiResult = null;
 
     if (idInfo.type === 'campaign') {
@@ -382,6 +424,7 @@ export async function handleAdsReportGroupMessage({
             const campaignTry = await fetchCampaignsSummary({ campaign_ids: [idInfo.id], date_preset: datePreset });
             if (campaignTry.success) {
                 apiResult = campaignTry;
+                isExplicitCampaign = true;
             }
         }
     }
@@ -399,7 +442,7 @@ export async function handleAdsReportGroupMessage({
     }
 
     // 4. صياغة التقرير الاحترافي وإرساله
-    const reportText = formatAdsReportMessage(apiResult, idInfo.id, datePreset);
+    const reportText = formatAdsReportMessage(apiResult, idInfo.id, datePreset, isExplicitCampaign);
     await sendGroupReply(sock, remoteJid, { text: reportText });
     return true;
 }
