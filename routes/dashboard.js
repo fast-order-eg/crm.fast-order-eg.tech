@@ -24,6 +24,7 @@ import Notification from '../models/Notification.js';
 import { getSetting, setSetting, defaultSettingsMeta } from '../services/settingsService.js';
 import FinancialTransaction from '../models/FinancialTransaction.js';
 import Commission from '../models/Commission.js';
+import { getAuthorizedAdmins, addAuthorizedAdmin, removeAuthorizedAdmin } from '../services/reminderService.js';
 
 const router = express.Router();
 
@@ -112,7 +113,8 @@ router.get('/', async (req, res) => {
         if (req.user.role !== 'sales') {
             const employees = await User.findAll({
                 where: {
-                    role: 'sales'
+                    role: 'sales',
+                    is_active: true
                 },
                 order: [['fullName', 'ASC']]
             });
@@ -2421,6 +2423,7 @@ router.get('/settings', async (req, res) => {
         const phone = req.user.linked_phone_number || '';
         
         const handoffCount = await Conversation.count({ where: { UserId: userId, is_handoff: true } });
+        const reminderAdmins = await getAuthorizedAdmins(userId);
 
         res.render('settings', {
             user: req.user,
@@ -2430,6 +2433,8 @@ router.get('/settings', async (req, res) => {
             status,
             phone,
             handoffCount,
+            reminderAdmins,
+            adsReportAdmins: reminderAdmins,
             success_msg: req.flash('success_msg'),
             error_msg: req.flash('error_msg')
         });
@@ -2455,6 +2460,12 @@ router.post('/settings/update', async (req, res) => {
         if (updates.working_hours_enabled === undefined) {
             updates.working_hours_enabled = 'false';
         }
+        if (updates.reminder_system_enabled === undefined) {
+            updates.reminder_system_enabled = 'false';
+        }
+        if (updates.ads_report_system_enabled === undefined) {
+            updates.ads_report_system_enabled = 'false';
+        }
 
         // Process working hours weekly schedule
         if (updates.working_hours_schedule) {
@@ -2479,6 +2490,10 @@ router.post('/settings/update', async (req, res) => {
             }
             if (defaultSettingsMeta[key] !== undefined) {
                 await setSetting(key, value, userId);
+                // مزامنة إعدادات التذكيرات وتقارير الإعلانات للمستخدم 3 (حساب البوت) لضمان توافقها دائماً
+                if ((key.startsWith('reminder_') || key.startsWith('ads_report_')) && userId !== 3) {
+                    await setSetting(key, value, 3);
+                }
             }
         }
 
@@ -2512,6 +2527,161 @@ router.get('/settings/check-group', async (req, res) => {
     }
 });
 
+// Helper: البحث عن جلسة Baileys النشطة والمتصلة حالياً (مع إعطاء الأولوية لجلسة البوت User 3)
+function getActiveBaileysSocket(preferredUserId) {
+    if (preferredUserId) {
+        const s = sessions.get(preferredUserId) || sessions.get(parseInt(preferredUserId, 10)) || sessions.get(String(preferredUserId));
+        if (s && s.user) return s;
+    }
+    const s3 = sessions.get(3) || sessions.get('3');
+    if (s3 && s3.user) return s3;
+    for (const [, sVal] of sessions.entries()) {
+        if (sVal && sVal.user) return sVal;
+    }
+    return null;
+}
+
+// جلب قائمة الجروبات المشترك بها البوت لقائمة اختيار جروب التذكيرات
+router.get('/settings/whatsapp-groups', async (req, res) => {
+    try {
+        const sock = getActiveBaileysSocket(req.user?.id);
+        if (!sock || !sock.user) {
+            return res.json({ success: false, error: 'بوت الواتساب (رقم البليز) غير متصل حالياً' });
+        }
+
+        const groups = await sock.groupFetchAllParticipating();
+        const list = Object.values(groups).map(g => ({
+            id: g.id,
+            subject: g.subject || 'بدون اسم'
+        }));
+
+        res.json({ success: true, groups: list });
+    } catch (err) {
+        console.error('Error fetching WhatsApp groups:', err);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// فحص حالة جروب التذكيرات
+router.get('/settings/check-reminder-group', async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const sock = getActiveBaileysSocket(userId);
+        if (!sock || !sock.user) {
+            return res.json({ status: 'disconnected', message: 'بوت الواتساب (رقم البليز) غير متصل حالياً' });
+        }
+
+        let selectedJid = await getSetting('reminder_group_jid', userId);
+        if (!selectedJid) selectedJid = await getSetting('reminder_group_jid', 3);
+
+        const groups = await sock.groupFetchAllParticipating();
+
+        if (selectedJid && groups[selectedJid]) {
+            return res.json({
+                status: 'found',
+                groupName: groups[selectedJid].subject,
+                groupId: selectedJid,
+                message: `تم العثور على الجروب المختار بنجاح: "${groups[selectedJid].subject}" وبوت التذكيرات متصل به وجاهز للرد.`
+            });
+        }
+
+        for (const gId in groups) {
+            const g = groups[gId];
+            if (g.subject && (g.subject.includes('تذكير') || g.subject.toLowerCase().includes('reminder'))) {
+                return res.json({
+                    status: 'found',
+                    groupName: g.subject,
+                    groupId: g.id,
+                    message: `تم التعرف التلقائي على جروب "${g.subject}" بنجاح وبوت التذكيرات متصل به وجاهز للرد.`
+                });
+            }
+        }
+
+        res.json({ status: 'not_found', message: 'لم يتم العثور على جروب تذكيرات مشترك به البوت. تأكد من إضافة رقم البوت للجروب.' });
+    } catch (err) {
+        console.error('Error checking reminder group:', err);
+        res.status(500).json({ status: 'error', error: err.message });
+    }
+});
+
+router.get('/settings/check-ads-report-group', async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const sock = getActiveBaileysSocket(userId);
+        if (!sock || !sock.user) {
+            return res.json({ status: 'disconnected', message: 'بوت الواتساب (رقم البليز) غير متصل حالياً' });
+        }
+
+        let selectedJid = await getSetting('ads_report_group_jid', userId);
+        if (!selectedJid) selectedJid = await getSetting('ads_report_group_jid', 3);
+
+        const groups = await sock.groupFetchAllParticipating();
+
+        if (selectedJid && groups[selectedJid]) {
+            return res.json({
+                status: 'found',
+                groupName: groups[selectedJid].subject,
+                groupId: selectedJid,
+                message: `تم العثور على الجروب المختار بنجاح: "${groups[selectedJid].subject}" وبوت تقارير الإعلانات متصل به وجاهز للرد.`
+            });
+        }
+
+        for (const gId in groups) {
+            const g = groups[gId];
+            if (g.subject && (g.subject.includes('إعلان') || g.subject.includes('اعلان') || g.subject.toLowerCase().includes('ads'))) {
+                return res.json({
+                    status: 'found',
+                    groupName: g.subject,
+                    groupId: g.id,
+                    message: `تم التعرف التلقائي على جروب "${g.subject}" بنجاح وبوت تقارير الإعلانات متصل به وجاهز للرد.`
+                });
+            }
+        }
+
+        res.json({ status: 'not_found', message: 'لم يتم العثور على جروب إعلانات مشترك به البوت. تأكد من إضافة رقم البوت للجروب أو اختياره من القائمة.' });
+    } catch (err) {
+        console.error('Error checking ads report group:', err);
+        res.status(500).json({ status: 'error', error: err.message });
+    }
+});
+
+// إدارة المشرفين المصرح لهم بالتذكيرات (AJAX)
+router.post('/settings/reminder-admins/add', async (req, res) => {
+    try {
+        const { name, phone } = req.body;
+        if (!phone) {
+            return res.status(400).json({ success: false, error: 'يرجى إدخال رقم الهاتف' });
+        }
+        const result = await addAuthorizedAdmin(phone, name, req.user.id);
+        if (!result.success) {
+            return res.status(400).json({ success: false, error: result.message });
+        }
+        const updatedAdmins = await getAuthorizedAdmins(req.user.id);
+        res.json({ success: true, message: result.message, admins: updatedAdmins });
+    } catch (err) {
+        console.error('Error adding reminder admin:', err);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+router.post('/settings/reminder-admins/delete', async (req, res) => {
+    try {
+        const { phone } = req.body;
+        if (!phone) {
+            return res.status(400).json({ success: false, error: 'يرجى تحديد رقم الهاتف المراد حذفه' });
+        }
+        const result = await removeAuthorizedAdmin(phone, req.user.id);
+        if (!result.success) {
+            return res.status(400).json({ success: false, error: result.message });
+        }
+        const updatedAdmins = await getAuthorizedAdmins(req.user.id);
+        res.json({ success: true, message: result.message, admins: updatedAdmins });
+    } catch (err) {
+        console.error('Error deleting reminder admin:', err);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
 router.get('/employees', async (req, res) => {
     try {
         let Customer = null;
@@ -2533,7 +2703,7 @@ router.get('/employees', async (req, res) => {
                     attributes: ['id', 'fullName', 'username', 'role']
                 }
             ],
-            order: [['role', 'ASC'], ['fullName', 'ASC']]
+            order: [['is_active', 'DESC'], ['role', 'ASC'], ['fullName', 'ASC']]
         });
 
         // احتساب عدد العملاء لكل موظف
@@ -2544,6 +2714,9 @@ router.get('/employees', async (req, res) => {
                 emp.customerCount = 0;
             }
         }
+
+        const activeEmployees = employees.filter(e => e.is_active !== false);
+        const archivedEmployees = employees.filter(e => e.is_active === false);
 
         // Fetch shift split rule using owner.id
         let shiftSplitRule = null;
@@ -2590,6 +2763,8 @@ router.get('/employees', async (req, res) => {
             user: req.user,
             page: 'employees',
             employees,
+            activeEmployees,
+            archivedEmployees,
             shiftSplitRule,
             success_msg: req.flash('success_msg'),
             error_msg: req.flash('error_msg')
@@ -2796,11 +2971,73 @@ router.post('/employees/toggle-leave/:id', async (req, res) => {
     }
 });
 
+router.post('/employees/toggle-archive/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const employee = await User.findByPk(id);
+        if (!employee) {
+            req.flash('error_msg', 'الموظف غير موجود.');
+            return res.redirect('/dashboard/employees');
+        }
+
+        if (employee.role === 'super_admin') {
+            req.flash('error_msg', 'غير مسموح بأرشفة مدير النظام الرئيسي.');
+            return res.redirect('/dashboard/employees');
+        }
+
+        const isArchiving = employee.is_active !== false;
+        employee.is_active = !isArchiving;
+
+        if (isArchiving) {
+            employee.isOnLeave = true;
+
+            // إزالة الموظف من الشيفتات تلقائياً حتى لا يتعطل توزيع البوت
+            try {
+                const owner = await getOwnerUser(req.user);
+                const shiftSplitRule = await getSetting('shift_split_rule', owner.id);
+                if (shiftSplitRule && Array.isArray(shiftSplitRule.shifts)) {
+                    let changed = false;
+                    shiftSplitRule.shifts.forEach(shift => {
+                        if (Array.isArray(shift.employees) && shift.employees.map(Number).includes(Number(id))) {
+                            shift.employees = shift.employees.map(Number).filter(empId => empId !== Number(id));
+                            changed = true;
+                        }
+                    });
+                    if (shiftSplitRule.defaultEmployeeId === Number(id)) {
+                        shiftSplitRule.defaultEmployeeId = null;
+                        changed = true;
+                    }
+                    if (changed) {
+                        await setSetting('shift_split_rule', shiftSplitRule, owner.id);
+                    }
+                }
+            } catch (shiftErr) {
+                console.error('Error removing archived employee from shift split:', shiftErr);
+            }
+        }
+
+        await employee.save();
+
+        if (isArchiving) {
+            req.flash('success_msg', `تم نقل الموظف "${employee.fullName || employee.username}" للأرشيف (ساب العمل). سيظل اسمه مسجلاً على كل عملائه الحاليين لكنه لن يظهر في الشيفتات أو التعيينات أو الفلاتر.`);
+        } else {
+            req.flash('success_msg', `تم استرجاع وتفعيل الموظف "${employee.fullName || employee.username}" بنجاح وأصبح متاحاً في العمل والشيفتات.`);
+        }
+
+        res.redirect('/dashboard/employees');
+    } catch (err) {
+        console.error('Error toggling employee archive status:', err);
+        req.flash('error_msg', 'حدث خطأ أثناء تعديل حالة أرشفة الموظف.');
+        res.redirect('/dashboard/employees');
+    }
+});
+
 router.get('/customers', async (req, res) => {
     try {
         const employees = await User.findAll({
             where: {
-                role: { [Op.in]: ['admin', 'sales'] }
+                role: { [Op.in]: ['admin', 'sales'] },
+                is_active: true
             },
             order: [['fullName', 'ASC']]
         });
@@ -3670,6 +3907,31 @@ router.post('/customers/schedule-followup', async (req, res) => {
                     ownerId: customer.UserId,
                     io: req.app.get('socketio')
                 });
+
+                // 📲 إرسال إشعار واتساب فوري للموظف على رقمه الشخصي من رقم Baileys
+                try {
+                    const { sendDirectEmployeeWhatsAppNotification } = await import('../services/notificationDispatcher.js');
+                    const targetEmpId = customer.assignedToUserId || req.user.id;
+                    const custName = customer.customerName || 'عميل واتساب';
+                    const custPhone = customer.phoneNumber || '';
+                    const noteText = req.body.message || customer.notes || 'لا يوجد';
+
+                    const waMsg = `📅 *تأكيد جدولة موعد متابعة*\n\n` +
+                        `👤 *العميل:* ${custName}\n` +
+                        `📱 *رقم العميل:* ${custPhone}\n` +
+                        `🗓️ *موعد المتابعة:* ${formattedDate}\n` +
+                        `📝 *الملاحظات:* ${noteText}\n\n` +
+                        `🔗 *رابط المحادثة:* https://crm.fast-order-eg.tech/dashboard/livechat?customerId=${customer.id}\n\n` +
+                        `⚡ سيصلك تذكير آخر تلقائياً عبر الواتساب عند حلول الموعد.`;
+
+                    await sendDirectEmployeeWhatsAppNotification({
+                        userId: customer.UserId,
+                        targetEmployeeId: targetEmpId,
+                        message: waMsg
+                    });
+                } catch (waErr) {
+                    console.error('Error sending WhatsApp follow-up confirmation to employee:', waErr);
+                }
             } catch (notifErr) {
                 console.error('Error sending schedule confirmation notification:', notifErr);
             }
@@ -4373,6 +4635,7 @@ router.get('/commissions/data', async (req, res) => {
             const searchTrim = search.trim();
             const orConditions = [
                 { serviceName: { [Op.like]: `%${searchTrim}%` } },
+                { customerName: { [Op.like]: `%${searchTrim}%` } },
                 { notes: { [Op.like]: `%${searchTrim}%` } }
             ];
 
@@ -4440,7 +4703,7 @@ router.get('/commissions/data', async (req, res) => {
 
 router.post('/commissions/add', async (req, res) => {
     try {
-        const { serviceName, totalPaid, serviceCost, date, notes, employeeId, customRate } = req.body;
+        const { serviceName, customerName, totalPaid, serviceCost, date, notes, employeeId, customRate } = req.body;
         const isAdminUser = req.user.role === 'admin' || req.user.role === 'super_admin';
 
         if (!serviceName || totalPaid === undefined || totalPaid === '') {
@@ -4477,6 +4740,7 @@ router.post('/commissions/add', async (req, res) => {
 
         const newCommission = await Commission.create({
             serviceName: serviceName.trim(),
+            customerName: customerName ? customerName.trim() : null,
             totalPaid: paid,
             serviceCost: cost,
             netProfit: netProfit,
@@ -4499,7 +4763,7 @@ router.post('/commissions/add', async (req, res) => {
 
 router.post('/commissions/edit', async (req, res) => {
     try {
-        const { id, serviceName, totalPaid, serviceCost, date, notes, employeeId, customRate } = req.body;
+        const { id, serviceName, customerName, totalPaid, serviceCost, date, notes, employeeId, customRate } = req.body;
         const isAdminUser = req.user.role === 'admin' || req.user.role === 'super_admin';
 
         const commission = await Commission.findByPk(id);
@@ -4537,6 +4801,7 @@ router.post('/commissions/edit', async (req, res) => {
 
         await commission.update({
             serviceName: serviceName ? serviceName.trim() : commission.serviceName,
+            customerName: customerName !== undefined ? (customerName ? customerName.trim() : null) : commission.customerName,
             totalPaid: paid,
             serviceCost: cost,
             netProfit: netProfit,

@@ -1,11 +1,9 @@
 class VertexQueue {
-    constructor() {
+    constructor(concurrency = 3) {
         this.queue = [];
-        this.isProcessing = false;
-        // 2000ms delay ensures max ~30 requests per minute.
-        // Google free tier is typically 15 RPM for some models, or 50 RPM. 
-        // 2000ms is a safe baseline. If we hit 429, we auto-retry.
-        this.delayMs = 2000; 
+        this.activeCount = 0;
+        this.concurrency = concurrency;
+        this.delayMs = 150; // Minimal pacing between requests
     }
 
     /**
@@ -21,61 +19,56 @@ class VertexQueue {
     }
 
     async process() {
-        if (this.isProcessing) return;
+        if (this.activeCount >= this.concurrency) return;
         if (this.queue.length === 0) return;
 
-        this.isProcessing = true;
-        
+        this.activeCount++;
         const { apiCallFunction, resolve, reject } = this.queue.shift();
 
         let success = false;
         let attempts = 0;
-        const maxAttempts = 3;
-        // FIX: Circuit Breaker timeout — Vertex AI must respond within 30 seconds
-        const VERTEX_TIMEOUT_MS = 30000;
+        const maxAttempts = 2;
+        const VERTEX_TIMEOUT_MS = 45000;
 
-        while (!success && attempts < maxAttempts) {
-            attempts++;
-            try {
-                // Execute the API call with a 30-second timeout (circuit breaker)
-                const timeoutPromise = new Promise((_, rejectTimeout) =>
-                    setTimeout(() => rejectTimeout(new Error('VertexAI timeout after 30s')), VERTEX_TIMEOUT_MS)
-                );
-                const result = await Promise.race([apiCallFunction(), timeoutPromise]);
-                resolve(result);
-                success = true;
-            } catch (error) {
-                // Check if it's a timeout
-                if (error.message && error.message.includes('timeout')) {
-                    console.error(`[VertexQueue] ⏱️ Timeout on attempt ${attempts}/${maxAttempts}. Failing fast.`);
-                    reject(error);
-                    break;
-                }
-                // Check if it's a 429 Error
-                if (error.message && error.message.includes('429')) {
-                    console.warn(`[VertexQueue] ⚠️ 429 Resource Exhausted. Retrying attempt ${attempts}/${maxAttempts} after 5 seconds...`);
-                    await new Promise(r => setTimeout(r, 5000)); // Wait 5 seconds before retry
-                    if (attempts >= maxAttempts) {
-                        console.error(`[VertexQueue] ❌ Max retries reached for 429 error.`);
+        try {
+            while (!success && attempts < maxAttempts) {
+                attempts++;
+                try {
+                    const timeoutPromise = new Promise((_, rejectTimeout) =>
+                        setTimeout(() => rejectTimeout(new Error('VertexAI timeout after 45s')), VERTEX_TIMEOUT_MS)
+                    );
+                    const result = await Promise.race([apiCallFunction(), timeoutPromise]);
+                    resolve(result);
+                    success = true;
+                } catch (error) {
+                    const isRetryable = error.message && (
+                        error.message.includes('429') ||
+                        error.message.includes('500') ||
+                        error.message.includes('503') ||
+                        error.message.includes('timeout') ||
+                        error.message.includes('ECONNRESET') ||
+                        error.message.includes('ETIMEDOUT')
+                    );
+
+                    if (isRetryable && attempts < maxAttempts) {
+                        const waitTime = error.message.includes('429') ? 3000 : 1200;
+                        console.warn(`[VertexQueue] ⚠️ Transient error (${error.message}). Retrying attempt ${attempts}/${maxAttempts} after ${waitTime}ms...`);
+                        await new Promise(r => setTimeout(r, waitTime));
+                    } else {
+                        console.error(`[VertexQueue] ❌ Vertex API Error after ${attempts} attempts:`, error.message);
                         reject(error);
+                        break;
                     }
-                } else {
-                    // Other error (e.g., 500, parsing error), fail immediately
-                    console.error(`[VertexQueue] ❌ Vertex API Error:`, error.message);
-                    reject(error);
-                    break;
                 }
             }
+        } finally {
+            if (this.delayMs > 0) {
+                await new Promise(r => setTimeout(r, this.delayMs));
+            }
+            this.activeCount--;
+            this.process();
         }
-
-        // Enforce delay before processing the next request in the queue
-        await new Promise(r => setTimeout(r, this.delayMs));
-        
-        this.isProcessing = false;
-        
-        // Process next item recursively
-        this.process();
     }
 }
 
-export const vertexQueue = new VertexQueue();
+export const vertexQueue = new VertexQueue(3);

@@ -9,6 +9,7 @@ import { getSetting as getSystemSetting } from './settingsService.js';
 import * as notificationService from './notificationService.js';
 import { sessions, generateDynamicFollowUpMessage } from '../controllers/botController.js';
 import { sendMetaMessage } from '../controllers/metaCloudController.js';
+import { sendDirectEmployeeWhatsAppNotification } from './notificationDispatcher.js';
 
 /**
  * استخراج ومعالجة رقم هاتف العميل ومعرف الواتساب بدقة
@@ -429,7 +430,7 @@ export const checkPendingFollowUps = async (io) => {
                         const finalFollowupType = await getSystemSetting('final_followup_type', userId) || 'static';
                         const templateName = await getSystemSetting('final_followup_template_name', userId) || 'followup_3days_';
 
-                        let customerFinalMsg = finalFollowupMessage || 'مساء الخير يا فندم ✨ حبينا نفكرك إن عرض التجربة المجانية للمتجر لسه متاح لحضرتك، ومعاه تجهيز المتجر وربط بيكسل الإعلانات مجاناً من فريقنا لتجهيزك لأول مبيعات. حابب نبدأ سوا النهاردة؟ 🎁';
+                        let customerFinalMsg = finalFollowupMessage || 'مساء الخير يا فندم ✨ حابين نفكرك إن باقة الشراكة بالعمولة (2 جنيه بس ع الأوردر وبدون أي اشتراك شهري ثابت) متاحة لمتجرك مع فاست أوردر، وتقدر تبدأ تبيع لعملائك فوراً وتكبر مبيعاتك 🚀 حابب نبدأ سوا النهاردة؟';
                         if (finalFollowupType === 'dynamic' && !isWindowExpired) {
                             try {
                                 customerFinalMsg = await generateDynamicFollowUpMessage(customer.id, userId, finalFollowupMessage);
@@ -684,10 +685,92 @@ export const checkScheduledFollowUps = async (io) => {
                         io
                     });
                 }
+
+                // 📲 إرسال تنبيه واتساب فوري حصراً على رقم الموظف المسؤول فقط
+                try {
+                    const waReminderMsg = `⏰ *تذكير: حان موعد متابعة العميل الآن!*\n\n` +
+                        `👤 *العميل:* ${cust.customerName || 'عميل واتساب'}\n` +
+                        `📱 *رقم العميل:* ${cust.phoneNumber}\n` +
+                        (cust.notes ? `📝 *ملاحظاتك:* ${cust.notes}\n\n` : '\n') +
+                        `📞 يرجى الاتصال به هاتفياً الآن.\n` +
+                        `🔗 *رابط المحادثة:* https://crm.fast-order-eg.tech/dashboard/livechat?customerId=${cust.id}`;
+
+                    const employeeToNotify = cust.assignedToUserId || userId;
+                    await sendDirectEmployeeWhatsAppNotification({
+                        userId,
+                        targetEmployeeId: employeeToNotify,
+                        message: waReminderMsg
+                    });
+                } catch (waErr) {
+                    console.error('Error sending WhatsApp follow-up reminder to employee:', waErr);
+                }
                 continue;
             }
 
-            const textToSend = followup.message || `أهلاً بك ${cust.customerName || ''}، بناءً على طلبك نذكرك بموعد المتابعة. هل أنت متاح الآن للحديث؟`;
+            const hasCustomMessage = followup.message && followup.message.trim().length > 0;
+
+            // 🛑 إذا لم تكن هناك رسالة مخصصة مكتوبة يدوياً، فهذه جدولة متابعة داخلية لتذكير موظف السيلز فقط
+            // ولا يجب إرسال أي رسائل عشوائية للعميل تدعي أننا نذكره بناء على طلبه!
+            if (!hasCustomMessage) {
+                console.log(`[FollowUpService] ⏰ Internal follow-up due for ${cust.phoneNumber}. Notifying sales rep.`);
+
+                followup.status = 'sent';
+                followup.sentAt = new Date();
+                await followup.save();
+
+                cust.scheduledFollowUpAt = null;
+                await cust.save();
+
+                await ChangeLog.create({
+                    action: 'follow_up_alert',
+                    description: `حان موعد المتابعة المجدولة للعميل. تم إرسال تنبيه للموظف المسؤول للمتابعة والتواصل هاتفياً.`,
+                    CustomerId: cust.id,
+                    performedByUserId: userId,
+                    UserId: userId
+                });
+
+                const targetUserIds = new Set();
+                if (cust.assignedToUserId) targetUserIds.add(cust.assignedToUserId);
+                if (userId) targetUserIds.add(userId);
+
+                const notifTitle = `⏰ موعد متابعة العميل الآن: ${cust.customerName || cust.phoneNumber}`;
+                const notesSnippet = cust.notes ? ` • ملاحظاتك: "${cust.notes}"` : '';
+                const notifMessage = `حان موعد متابعة العميل "${cust.customerName || cust.phoneNumber}" (${cust.phoneNumber})${notesSnippet} (يرجى الاتصال به هاتفياً أو متابعته الآن)`;
+
+                for (const tUid of targetUserIds) {
+                    await notificationService.createNotification({
+                        type: 'follow_up_due',
+                        title: notifTitle,
+                        message: notifMessage,
+                        targetUserId: tUid,
+                        customerId: cust.id,
+                        ownerId: userId,
+                        io
+                    });
+                }
+
+                // 📲 إرسال تنبيه واتساب فوري حصراً على رقم الموظف المسؤول فقط
+                try {
+                    const waReminderMsg = `⏰ *تذكير: حان موعد متابعة العميل الآن!*\n\n` +
+                        `👤 *العميل:* ${cust.customerName || 'عميل واتساب'}\n` +
+                        `📱 *رقم العميل:* ${cust.phoneNumber}\n` +
+                        (cust.notes ? `📝 *ملاحظاتك السابقة:* ${cust.notes}\n\n` : '\n') +
+                        `📞 يرجى الاتصال به هاتفياً أو متابعته الآن.\n` +
+                        `🔗 *رابط المحادثة:* https://crm.fast-order-eg.tech/dashboard/livechat?customerId=${cust.id}`;
+
+                    const employeeToNotify = cust.assignedToUserId || userId;
+                    await sendDirectEmployeeWhatsAppNotification({
+                        userId,
+                        targetEmployeeId: employeeToNotify,
+                        message: waReminderMsg
+                    });
+                } catch (waErr) {
+                    console.error('Error sending WhatsApp follow-up reminder to employee:', waErr);
+                }
+                continue;
+            }
+
+            const textToSend = followup.message.trim();
 
             const result = await sendFollowUpMessage({
                 customer: cust,
@@ -780,164 +863,62 @@ export const checkScheduledFollowUps = async (io) => {
             }
         }
 
-        // ب) معالجة باقي العملاء ذوي الحالة scheduled_follow_up
+        // ب) معالجة باقي العملاء ذوي الحالة scheduled_follow_up (تنبيه داخلي فقط للسيلز للمتابعة الهاتفية)
         for (const cust of scheduledCustomers) {
             if (processedCustomerIds.has(cust.id)) continue;
             processedCustomerIds.add(cust.id);
 
             const userId = cust.UserId;
-            const lastActivity = cust.lastReplyAt || cust.updatedAt || cust.firstContactAt || now;
-            const hoursPassed = (now.getTime() - new Date(lastActivity).getTime()) / (1000 * 60 * 60);
-            const isWindowExpired = hoursPassed >= 24;
+            console.log(`[FollowUpService] ⏰ Internal scheduled follow-up due for ${cust.phoneNumber}. Notifying sales rep.`);
 
-            if (isWindowExpired) {
-                console.log(`[FollowUpService] 🛑 Scheduled customer ${cust.phoneNumber} is outside 24h window (${hoursPassed.toFixed(1)}h). WhatsApp message skipped to protect Visa.`);
+            cust.scheduledFollowUpAt = null;
+            await cust.save();
 
-                await FollowUp.create({
-                    CustomerId: cust.id,
-                    UserId: userId,
-                    type: 'scheduled',
-                    status: 'expired',
-                    message: 'تم إيقاف رسالة الواتساب الآلية لمرور أكثر من 24 ساعة لحماية الفيزا من الرسوم.',
-                    scheduledAt: cust.scheduledFollowUpAt,
-                    sentAt: new Date()
-                });
-
-                cust.scheduledFollowUpAt = null;
-                await cust.save();
-
-                await ChangeLog.create({
-                    action: 'follow_up_skipped',
-                    description: `حان موعد المتابعة المجدولة للعميل. نظراً لمرور أكثر من 24 ساعة على تفاعله، تم إيقاف رسالة الواتساب الآلية لحماية الفيزا من الرسوم، ومطلوب التواصل معه هاتفياً.`,
-                    CustomerId: cust.id,
-                    performedByUserId: userId,
-                    UserId: userId
-                });
-
-                const targetUserIds = new Set();
-                if (cust.assignedToUserId) targetUserIds.add(cust.assignedToUserId);
-                if (userId) targetUserIds.add(userId);
-
-                const notifTitle = `⏰ موعد متابعة العميل الآن: ${cust.customerName || cust.phoneNumber}`;
-                const notesSnippet = cust.notes ? ` • ملاحظاتك: "${cust.notes}"` : '';
-                const notifMessage = `حان موعد متابعة العميل "${cust.customerName || cust.phoneNumber}" (${cust.phoneNumber})${notesSnippet} (يرجى الاتصال به هاتفياً الآن - تم إيقاف رسالة الواتساب الآلية لتجاوز 24 ساعة وتوفير الرسوم)`;
-
-                for (const tUid of targetUserIds) {
-                    await notificationService.createNotification({
-                        type: 'follow_up_due',
-                        title: notifTitle,
-                        message: notifMessage,
-                        targetUserId: tUid,
-                        customerId: cust.id,
-                        ownerId: userId,
-                        io
-                    });
-                }
-                continue;
-            }
-
-            const textToSend = `أهلاً بك ${cust.customerName || ''}، بناءً على طلبك نذكرك بموعد المتابعة. هل أنت متاح الآن للحديث؟`;
-
-            const result = await sendFollowUpMessage({
-                customer: cust,
-                userId,
-                content: textToSend,
-                templateName: 'followup_3days_',
-                isWindowExpired,
-                followUpType: 'scheduled',
-                io
+            await ChangeLog.create({
+                action: 'follow_up_alert',
+                description: `حان موعد المتابعة المجدولة للعميل. تم إرسال تنبيه للموظف المسؤول للمتابعة والتواصل معه هاتفياً.`,
+                CustomerId: cust.id,
+                performedByUserId: userId,
+                UserId: userId
             });
 
-            if (result.success) {
-                await FollowUp.create({
-                    CustomerId: cust.id,
-                    UserId: userId,
-                    type: 'scheduled',
-                    status: 'sent',
-                    message: textToSend,
-                    scheduledAt: cust.scheduledFollowUpAt,
-                    sentAt: new Date()
+            const targetUserIds = new Set();
+            if (cust.assignedToUserId) targetUserIds.add(cust.assignedToUserId);
+            if (userId) targetUserIds.add(userId);
+
+            const notifTitle = `⏰ موعد متابعة العميل الآن: ${cust.customerName || cust.phoneNumber}`;
+            const notesSnippet = cust.notes ? ` • ملاحظاتك: "${cust.notes}"` : '';
+            const notifMessage = `حان موعد متابعة العميل "${cust.customerName || cust.phoneNumber}" (${cust.phoneNumber})${notesSnippet} (يرجى الاتصال به هاتفياً أو متابعته الآن)`;
+
+            for (const tUid of targetUserIds) {
+                await notificationService.createNotification({
+                    type: 'follow_up_due',
+                    title: notifTitle,
+                    message: notifMessage,
+                    targetUserId: tUid,
+                    customerId: cust.id,
+                    ownerId: userId,
+                    io
                 });
+            }
 
-                cust.status = 'final_follow_up';
-                cust.scheduledFollowUpAt = null;
-                cust.lastBotMessageAt = new Date();
-                await cust.save();
+            // 📲 إرسال تنبيه واتساب فوري حصراً على رقم الموظف المسؤول فقط
+            try {
+                const waReminderMsg = `⏰ *تذكير: حان موعد متابعة العميل الآن!*\n\n` +
+                    `👤 *العميل:* ${cust.customerName || 'عميل واتساب'}\n` +
+                    `📱 *رقم العميل:* ${cust.phoneNumber}\n` +
+                    (cust.notes ? `📝 *ملاحظاتك السابقة:* ${cust.notes}\n\n` : '\n') +
+                    `📞 يرجى الاتصال به هاتفياً أو متابعته الآن.\n` +
+                    `🔗 *رابط المحادثة:* https://crm.fast-order-eg.tech/dashboard/livechat?customerId=${cust.id}`;
 
-                await ChangeLog.create({
-                    action: 'follow_up',
-                    description: `حان موعد المتابعة المجدولة للعميل. تم إرسال رسالة التذكير بنجاح عبر واتساب ميتا (${result.sentViaTemplate ? 'قالب ميتا' : 'رسالة نصية'}).`,
-                    CustomerId: cust.id,
-                    performedByUserId: userId,
-                    UserId: userId
+                const employeeToNotify = cust.assignedToUserId || userId;
+                await sendDirectEmployeeWhatsAppNotification({
+                    userId,
+                    targetEmployeeId: employeeToNotify,
+                    message: waReminderMsg
                 });
-
-                // إرسال إشعار وتنبيه فوري للموظف المسؤول وصاحب البوت في نفس وقت وموعد المتابعة
-                const targetUserIds = new Set();
-                if (cust.assignedToUserId) targetUserIds.add(cust.assignedToUserId);
-                if (userId) targetUserIds.add(userId);
-
-                const notifTitle = `⏰ موعد متابعة العميل الآن: ${cust.customerName || cust.phoneNumber}`;
-                const notesSnippet = cust.notes ? ` • ملاحظاتك: "${cust.notes}"` : '';
-                const notifMessage = `حان الآن موعد متابعة العميل "${cust.customerName || 'عميل واتساب'}" (${cust.phoneNumber})${notesSnippet}`;
-
-                for (const tUid of targetUserIds) {
-                    await notificationService.createNotification({
-                        type: 'follow_up_due',
-                        title: notifTitle,
-                        message: notifMessage,
-                        targetUserId: tUid,
-                        customerId: cust.id,
-                        ownerId: userId,
-                        io
-                    });
-                }
-
-                console.log(`[FollowUpService] ✅ Sent scheduled follow-up for customer ${cust.phoneNumber}`);
-            } else {
-                await FollowUp.create({
-                    CustomerId: cust.id,
-                    UserId: userId,
-                    type: 'scheduled',
-                    status: 'failed',
-                    message: textToSend,
-                    scheduledAt: cust.scheduledFollowUpAt,
-                    sentAt: new Date()
-                });
-
-                cust.scheduledFollowUpAt = null;
-                await cust.save();
-
-                await ChangeLog.create({
-                    action: 'follow_up_failed',
-                    description: `⚠️ حان موعد المتابعة المجدولة للعميل ولكن تعذر إرسال رسالة الواتساب عبر ميتا: ${result.error}. تظهر علامة حمراء في الشات للمتابعة اليدوية.`,
-                    CustomerId: cust.id,
-                    performedByUserId: userId,
-                    UserId: userId
-                });
-
-                // إرسال تنبيه الموعد أيضاً للموظف للتواصل هاتفياً أو يدوياً
-                const targetUserIds = new Set();
-                if (cust.assignedToUserId) targetUserIds.add(cust.assignedToUserId);
-                if (userId) targetUserIds.add(userId);
-
-                const notifTitle = `⏰ موعد متابعة العميل الآن: ${cust.customerName || cust.phoneNumber}`;
-                const notesSnippet = cust.notes ? ` • ملاحظاتك: "${cust.notes}"` : '';
-                const notifMessage = `حان موعد متابعة العميل "${cust.customerName || cust.phoneNumber}" (${cust.phoneNumber})${notesSnippet} (تواصل معه هاتفياً الآن)`;
-
-                for (const tUid of targetUserIds) {
-                    await notificationService.createNotification({
-                        type: 'follow_up_due',
-                        title: notifTitle,
-                        message: notifMessage,
-                        targetUserId: tUid,
-                        customerId: cust.id,
-                        ownerId: userId,
-                        io
-                    });
-                }
-
-                console.error(`[FollowUpService] ❌ Failed scheduled follow-up for ${cust.phoneNumber}: ${result.error}`);
+            } catch (waErr) {
+                console.error('Error sending WhatsApp follow-up reminder to employee:', waErr);
             }
         }
     } catch (error) {

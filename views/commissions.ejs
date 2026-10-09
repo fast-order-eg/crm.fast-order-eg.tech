@@ -293,12 +293,12 @@
                         <% } %>
 
                         <div class="col-12 col-sm-6 col-md-<%= isAdmin ? '4' : '6' %> flex-grow-1">
-                            <label class="form-label small fw-bold text-secondary mb-1">بحث (اسم الخدمة، حروف منها، أو المبلغ)</label>
+                            <label class="form-label small fw-bold text-secondary mb-1">بحث (اسم العميل، الخدمة، أو المبلغ)</label>
                             <div class="search-pill-wrapper d-flex align-items-center rounded-pill shadow-sm px-2" style="height: 42px;">
                                 <i class="bi bi-search text-muted ps-2 pe-1"></i>
                                 <div class="position-relative flex-grow-1">
                                     <input type="text" id="filterSearch" class="form-control border-0 shadow-none bg-transparent ps-4" 
-                                           placeholder="ابحث بالاسم، حروف منها، أو المبلغ..." 
+                                           placeholder="ابحث باسم العميل، الخدمة، أو المبلغ..." 
                                            style="font-size: 14px;" 
                                            onkeyup="onSearchKeyup(event)" 
                                            oninput="toggleClearBtn()">
@@ -349,18 +349,19 @@
                 <table class="table align-middle table-hover">
                     <thead class="table-light">
                         <tr>
-                            <th style="width: 5%">#</th>
+                            <th style="width: 4%">#</th>
                             <th style="width: 10%">التاريخ</th>
                             <% if (isAdmin) { %>
-                                <th style="width: 14%">الموظف</th>
+                                <th style="width: 12%">الموظف</th>
                             <% } %>
-                            <th style="width: 18%">اسم الخدمة</th>
-                            <th style="width: 11%" class="text-center">إجمالي المدفوع</th>
-                            <th style="width: 11%" class="text-center">تكلفة الخدمة</th>
-                            <th style="width: 11%" class="text-center">الربح الصافي</th>
-                            <th style="width: 9%" class="text-center">النسبة</th>
-                            <th style="width: 11%" class="text-center">العمولة</th>
-                            <th class="text-center" style="width: 10%">إجراءات</th>
+                            <th style="width: 13%">اسم العميل</th>
+                            <th style="width: 14%">اسم الخدمة</th>
+                            <th style="width: 10%" class="text-center">إجمالي المدفوع</th>
+                            <th style="width: 10%" class="text-center">تكلفة الخدمة</th>
+                            <th style="width: 10%" class="text-center">الربح الصافي</th>
+                            <th style="width: 8%" class="text-center">النسبة</th>
+                            <th style="width: 10%" class="text-center">العمولة</th>
+                            <th class="text-center" style="width: 9%">إجراءات</th>
                         </tr>
                     </thead>
                     <tbody id="commissionsTableBody">
@@ -368,7 +369,7 @@
                     </tbody>
                     <tfoot class="table-totals-row" id="tableFooter">
                         <tr>
-                            <td colspan="<%= isAdmin ? '4' : '3' %>" class="text-center">
+                            <td colspan="<%= isAdmin ? '5' : '4' %>" class="text-center">
                                 <span class="fw-bold text-dark fs-6">الإجمالي</span>
                             </td>
                             <td class="text-center">
@@ -429,6 +430,11 @@
                             <% } else { %>
                                 <input type="hidden" id="commEmployeeId" value="<%= user.id %>" data-rate="<%= Math.round(userCommissionRate || 0) %>">
                             <% } %>
+
+                            <div class="col-12">
+                                <label class="form-label small fw-bold text-secondary">اسم العميل <span class="text-secondary opacity-75 small">(اختياري)</span></label>
+                                <input type="text" id="commCustomerName" class="form-control" placeholder="اسم العميل أو المتجر (مثال: متجر السعادة / أحمد محمد)">
+                            </div>
 
                             <div class="col-12">
                                 <label class="form-label small fw-bold text-secondary">اسم الخدمة <span class="text-danger">*</span></label>
@@ -714,12 +720,14 @@
 
                 const empName = c.employee ? (c.employee.fullName || c.employee.username) : '—';
                 const customBadge = c.isCustomRate ? `<span class="badge-custom-rate d-block mt-1">مخصصة</span>` : '';
+                const customerDisplay = c.customerName ? `<div class="fw-bold text-dark text-truncate" style="max-width: 170px;" title="${c.customerName}">${c.customerName}</div>` : `<span class="text-muted small">—</span>`;
 
                 const row = `
                     <tr class="commission-row" id="row-comm-${c.id}">
                         <td class="text-secondary fw-semibold">${index + 1}</td>
                         <td class="text-center">${formatDateTimeDisplay(c.date, c.createdAt)}</td>
                         ${isAdmin ? `<td><div class="fw-bold text-dark">${empName}</div></td>` : ''}
+                        <td>${customerDisplay}</td>
                         <td>
                             <div class="fw-bold text-dark">${c.serviceName}</div>
                             ${c.notes ? `<div class="small text-muted mt-1 text-truncate" style="max-width: 220px;" title="${c.notes}"><i class="bi bi-chat-left-text me-1"></i>${c.notes}</div>` : ''}
@@ -770,6 +778,7 @@
         function openAddModal() {
             document.getElementById('commissionForm').reset();
             document.getElementById('commId').value = '';
+            document.getElementById('commCustomerName').value = '';
             document.getElementById('commissionModalLabel').innerHTML = '<i class="bi bi-plus-circle text-primary me-1"></i> إضافة معاملة عمولة جديدة';
             document.getElementById('btnSubmitCommission').textContent = 'حفظ المعاملة';
 
@@ -796,6 +805,7 @@
             document.getElementById('commissionModalLabel').innerHTML = '<i class="bi bi-pencil-square text-primary me-1"></i> تعديل معاملة العمولة';
             document.getElementById('btnSubmitCommission').textContent = 'حفظ التعديلات';
 
+            document.getElementById('commCustomerName').value = comm.customerName || '';
             document.getElementById('commServiceName').value = comm.serviceName;
             document.getElementById('commTotalPaid').value = comm.totalPaid;
             document.getElementById('commServiceCost').value = comm.serviceCost;
@@ -878,6 +888,7 @@
             const isEdit = !!id;
 
             const serviceName = document.getElementById('commServiceName').value;
+            const customerName = document.getElementById('commCustomerName').value;
             const totalPaid = document.getElementById('commTotalPaid').value;
             const serviceCost = document.getElementById('commServiceCost').value;
             const date = document.getElementById('commDate').value;
@@ -896,6 +907,7 @@
             const payload = {
                 id,
                 serviceName,
+                customerName,
                 totalPaid,
                 serviceCost,
                 date,

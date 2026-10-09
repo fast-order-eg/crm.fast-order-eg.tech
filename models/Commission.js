@@ -13,6 +13,11 @@ const Commission = sequelize.define('Commission', {
         allowNull: false,
         comment: 'اسم الخدمة'
     },
+    customerName: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        comment: 'اسم العميل'
+    },
     totalPaid: {
         type: DataTypes.DECIMAL(10, 2),
         allowNull: false,

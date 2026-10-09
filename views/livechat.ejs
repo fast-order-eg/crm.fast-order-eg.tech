@@ -396,6 +396,32 @@
             color: #d97706 !important;
         }
 
+        /* WhatsApp Date Separator Divider Pill */
+        .lc-date-divider {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 14px 0 8px 0;
+            width: 100%;
+            user-select: none;
+            pointer-events: none;
+            clear: both;
+        }
+        .lc-date-divider-pill {
+            background: #ffffff;
+            color: #54656f;
+            font-size: 11.5px;
+            font-weight: 600;
+            padding: 4px 14px;
+            border-radius: 8px;
+            box-shadow: 0 1px 1.5px rgba(11,20,26,0.12);
+            display: inline-flex;
+            align-items: center;
+            direction: rtl;
+            border: 1px solid rgba(0,0,0,0.04);
+            letter-spacing: -0.2px;
+        }
+
         @media (max-width: 768px) {
             .lc-wrapper { height: calc(100vh - 140px); }
             .lc-contacts { width: 100% !important; border-left: none !important; }
@@ -446,6 +472,49 @@
                         </div>
                         <% } %>
 
+                        <% 
+                            function formatWhatsAppConvDateServer(dateInput) {
+                                if (!dateInput) return '';
+                                const d = new Date(dateInput);
+                                if (isNaN(d.getTime())) return '';
+
+                                let targetYMD = '';
+                                let nowYMD = '';
+                                try {
+                                    targetYMD = d.toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
+                                    nowYMD = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
+                                } catch(e) {
+                                    return '';
+                                }
+
+                                if (!targetYMD || !nowYMD) return '';
+                                if (targetYMD === nowYMD) {
+                                    return d.toLocaleTimeString('en-US', { timeZone: 'Africa/Cairo', hour: '2-digit', minute: '2-digit', hour12: true });
+                                }
+
+                                const [tY, tM, tD] = targetYMD.split('-').map(Number);
+                                const [nY, nM, nD] = nowYMD.split('-').map(Number);
+
+                                const targetMidnight = new Date(tY, tM - 1, tD).getTime();
+                                const nowMidnight = new Date(nY, nM - 1, nD).getTime();
+                                const diffDays = Math.round((nowMidnight - targetMidnight) / (1000 * 60 * 60 * 24));
+
+                                if (diffDays <= 0) {
+                                    return d.toLocaleTimeString('en-US', { timeZone: 'Africa/Cairo', hour: '2-digit', minute: '2-digit', hour12: true });
+                                } else if (diffDays === 1) {
+                                    return 'أمس';
+                                } else if (diffDays > 1 && diffDays < 7) {
+                                    const days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+                                    const dayOfWeekIndex = new Date(tY, tM - 1, tD).getDay();
+                                    return days[dayOfWeekIndex];
+                                } else {
+                                    const dd = String(tD).padStart(2, '0');
+                                    const mm = String(tM).padStart(2, '0');
+                                    return `${dd}/${mm}/${tY}`;
+                                }
+                            }
+                        %>
+
                         <% conversations.forEach(c => {
                             const isLid = c.remoteJid.endsWith('@lid');
                             let phone = c.phoneNumber || ((!isLid && c.remoteJid.endsWith('@s.whatsapp.net')) ? c.remoteJid.split('@')[0] : '');
@@ -457,7 +526,7 @@
                                 if (nm.startsWith('01') && nm.length === 11) nm = '+2' + nm;
                                 else if (nm.startsWith('201') && !nm.startsWith('+')) nm = '+' + nm;
                             }
-                            const ts = new Date(c.lastMessageAt).toLocaleTimeString('en-US',{timeZone: 'Africa/Cairo', hour:'2-digit',minute:'2-digit',hour12:true});
+                            const ts = formatWhatsAppConvDateServer(c.lastMessageAt);
 
                             let badgeBg = 'background-color: #f1f5f9; color: #475569 !important; border: 1px solid #cbd5e1;';
                             const assignedSales = c.Customer && c.Customer.assignedTo ? (c.Customer.assignedTo.fullName || c.Customer.assignedTo.username) : 'غير مخصص';
@@ -703,13 +772,118 @@
         ]
     };
 
+    function getCairoYMD(dateInput) {
+        if (!dateInput) return '';
+        const d = new Date(dateInput);
+        if (isNaN(d.getTime())) return '';
+        try {
+            return d.toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
+        } catch(e) {
+            return '';
+        }
+    }
+
+    function formatWhatsAppConvDate(dateInput) {
+        if (!dateInput) return '';
+        const d = new Date(dateInput);
+        if (isNaN(d.getTime())) return '';
+
+        const targetYMD = getCairoYMD(d);
+        const nowYMD = getCairoYMD(new Date());
+
+        if (!targetYMD || !nowYMD) return '';
+        if (targetYMD === nowYMD) {
+            return d.toLocaleTimeString('en-US', { timeZone: 'Africa/Cairo', hour: '2-digit', minute: '2-digit', hour12: true });
+        }
+
+        const [tY, tM, tD] = targetYMD.split('-').map(Number);
+        const [nY, nM, nD] = nowYMD.split('-').map(Number);
+
+        const targetMidnight = new Date(tY, tM - 1, tD).getTime();
+        const nowMidnight = new Date(nY, nM - 1, nD).getTime();
+        const diffDays = Math.round((nowMidnight - targetMidnight) / (1000 * 60 * 60 * 24));
+
+        if (diffDays <= 0) {
+            return d.toLocaleTimeString('en-US', { timeZone: 'Africa/Cairo', hour: '2-digit', minute: '2-digit', hour12: true });
+        } else if (diffDays === 1) {
+            return 'أمس';
+        } else if (diffDays > 1 && diffDays < 7) {
+            const days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+            const dayOfWeekIndex = new Date(tY, tM - 1, tD).getDay();
+            return days[dayOfWeekIndex];
+        } else {
+            const dd = String(tD).padStart(2, '0');
+            const mm = String(tM).padStart(2, '0');
+            return `${dd}/${mm}/${tY}`;
+        }
+    }
+
+    function formatWhatsAppDividerText(dateInput) {
+        if (!dateInput) return '';
+        const d = new Date(dateInput);
+        if (isNaN(d.getTime())) return '';
+
+        const targetYMD = getCairoYMD(d);
+        const nowYMD = getCairoYMD(new Date());
+
+        if (!targetYMD) return '';
+        if (targetYMD === nowYMD) return 'اليوم';
+
+        const [tY, tM, tD] = targetYMD.split('-').map(Number);
+        const [nY, nM, nD] = nowYMD.split('-').map(Number);
+
+        const targetMidnight = new Date(tY, tM - 1, tD).getTime();
+        const nowMidnight = new Date(nY, nM - 1, nD).getTime();
+        const diffDays = Math.round((nowMidnight - targetMidnight) / (1000 * 60 * 60 * 24));
+
+        if (diffDays <= 0) return 'اليوم';
+        if (diffDays === 1) return 'أمس';
+
+        const arabicDays = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+        const arabicMonths = [
+            'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+            'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
+        ];
+
+        const dayName = arabicDays[new Date(tY, tM - 1, tD).getDay()];
+        const monthName = arabicMonths[tM - 1];
+
+        return `${dayName}، ${tD} ${monthName} ${tY}`;
+    }
+
+    function appendDateDividerIfNeeded(date) {
+        if (!date) return;
+        const msgsEl = document.getElementById('lcMsgs');
+        if (!msgsEl) return;
+
+        const dateKey = getCairoYMD(date);
+        if (!dateKey) return;
+
+        const dividers = msgsEl.querySelectorAll('.lc-date-divider');
+        const lastDivider = dividers.length > 0 ? dividers[dividers.length - 1] : null;
+        if (lastDivider && lastDivider.dataset.dateKey === dateKey) {
+            return;
+        }
+
+        const div = document.createElement('div');
+        div.className = 'lc-date-divider';
+        div.dataset.dateKey = dateKey;
+        div.innerHTML = `<span class="lc-date-divider-pill">${formatWhatsAppDividerText(date)}</span>`;
+        msgsEl.appendChild(div);
+    }
+
     io_.on('new_message',msg=>{
         const el=document.querySelector(`.lc-item[data-jid="${msg.remoteJid}"]`);
         const rawContent = msg.content || '';
         let content = rawContent.replace(/\[M:\d+\]/g, '').trim();
         const menuMatch = rawContent.match(/\[M:(\d+)\]/);
         const menuId = menuMatch ? parseInt(menuMatch[1]) : null;
-        if(el) el.querySelector('.lc-prev').textContent=content;
+        if(el) {
+            el.querySelector('.lc-prev').textContent = content;
+            const tEl = el.querySelector('.lc-t');
+            if (tEl) tEl.textContent = formatWhatsAppConvDate(msg.createdAt || new Date());
+            if (el.parentElement) el.parentElement.prepend(el);
+        }
         if(msg.remoteJid===curJid) addBbl(content, msg.role==='user', new Date(msg.createdAt), msg.media_url || msg.mediaUrl, msg.messageId, msg.status, menuId);
     });
     
@@ -788,7 +962,7 @@
             if (nm.startsWith('01') && nm.length === 11) nm = '+2' + nm;
             else if (nm.startsWith('201') && !nm.startsWith('+')) nm = '+' + nm;
         }
-        const ts = c.lastMessageAt ? new Date(c.lastMessageAt).toLocaleTimeString('en-US',{timeZone: 'Africa/Cairo', hour:'2-digit',minute:'2-digit',hour12:true}) : '';
+        const ts = c.lastMessageAt ? formatWhatsAppConvDate(c.lastMessageAt) : '';
 
         let badgeBg = 'background-color: #f1f5f9; color: #475569 !important; border: 1px solid #cbd5e1;';
         const assignedSales = c.Customer && c.Customer.assignedTo ? (c.Customer.assignedTo.fullName || c.Customer.assignedTo.username) : 'غير مخصص';
@@ -1178,10 +1352,21 @@
     function addBbl(text, isUser, date, mediaUrl, messageId, status, menuId = null){
         if (!text && !mediaUrl) return;
         const msgsEl = document.getElementById('lcMsgs');
+
+        const emptyNotice = msgsEl.querySelector('.text-muted');
+        if (emptyNotice && !msgsEl.querySelector('.bbl')) {
+            emptyNotice.remove();
+        }
+
+        if (date) {
+            appendDateDividerIfNeeded(date);
+        }
+
         const div = document.createElement('div');
         div.className = 'bbl ' + (isUser ? 'usr' : 'bot');
 
         const ts = date ? date.toLocaleTimeString('en-US',{timeZone: 'Africa/Cairo', hour:'2-digit',minute:'2-digit',hour12:true}) : '';
+        const fullTooltip = date ? (formatWhatsAppDividerText(date) + ' ' + ts) : '';
 
         let contentHtml = '';
 
@@ -1226,7 +1411,7 @@
             statusHtml = `<span id="status-${messageId || ''}" class="d-inline-flex align-items-center">${getStatusIcon(status || 'sent')}</span>`;
         }
 
-        div.innerHTML = `${contentHtml}<div class="bbl-t">${statusHtml}<span>${ts}</span></div>`;
+        div.innerHTML = `${contentHtml}<div class="bbl-t" title="${fullTooltip}">${statusHtml}<span>${ts}</span></div>`;
         msgsEl.appendChild(div);
         msgsEl.scrollTop = msgsEl.scrollHeight;
     }
@@ -1302,6 +1487,14 @@
         
         const tempMsgId = 'temp-' + Date.now();
         addBbl(txt, false, new Date(), null, tempMsgId, 'pending');
+
+        const activeConvItem = document.querySelector(`.lc-item[data-jid="${curJid}"]`);
+        if (activeConvItem) {
+            activeConvItem.querySelector('.lc-prev').textContent = txt;
+            const tEl = activeConvItem.querySelector('.lc-t');
+            if (tEl) tEl.textContent = formatWhatsAppConvDate(new Date());
+            if (activeConvItem.parentElement) activeConvItem.parentElement.prepend(activeConvItem);
+        }
 
         try {
             const r = await fetch('/dashboard/livechat/' + encodeURIComponent(curJid) + '/send', {
@@ -1474,7 +1667,12 @@
                 addBbl(content, false, new Date(data.message.createdAt), data.message.mediaUrl || data.message.media_url, data.message.messageId, data.message.status);
                 
                 const el = document.querySelector(`.lc-item[data-jid="${curJid}"]`);
-                if (el) el.querySelector('.lc-prev').textContent = content;
+                if (el) {
+                    el.querySelector('.lc-prev').textContent = content || 'مرفق ميديا 📎';
+                    const tEl = el.querySelector('.lc-t');
+                    if (tEl) tEl.textContent = formatWhatsAppConvDate(data.message.createdAt || new Date());
+                    if (el.parentElement) el.parentElement.prepend(el);
+                }
             } else {
                 alert('حدث خطأ أثناء إرسال الميديا: ' + (data.error || 'فشل الاتصال'));
             }

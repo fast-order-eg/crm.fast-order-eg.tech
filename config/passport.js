@@ -16,7 +16,10 @@ export default function (passport) {
                     return done(null, false, { message: 'Incorrect password.' });
                 }
 
-                // Removed is_active check - dashboard handles subscription expiry display
+                if (user.is_active === false) {
+                    return done(null, false, { message: 'تم أرشفة أو إيقاف هذا الحساب. يرجى مراجعة الإدارة.' });
+                }
+
                 return done(null, user);
             } catch (err) {
                 return done(err);

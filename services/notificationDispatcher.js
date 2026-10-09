@@ -9,8 +9,9 @@ let lastSentTimestamp = 0;
 
 /**
  * Generate a random human-like delay between minSeconds and maxSeconds in ms
+ * Increased to 15-30s to simulate natural intervals between notifications
  */
-function getRandomAntiBanDelay(minSeconds = 5, maxSeconds = 9) {
+function getRandomAntiBanDelay(minSeconds = 15, maxSeconds = 30) {
     const seconds = Math.floor(Math.random() * (maxSeconds - minSeconds + 1)) + minSeconds;
     return seconds * 1000;
 }
@@ -29,7 +30,7 @@ async function processNotificationQueue() {
         try {
             // 1. Enforce strict anti-ban delay from the LAST sent message (even if previous queue emptied)
             if (lastSentTimestamp > 0) {
-                const targetDelay = getRandomAntiBanDelay(5, 9);
+                const targetDelay = getRandomAntiBanDelay(15, 30);
                 const timeSinceLastSend = Date.now() - lastSentTimestamp;
                 if (timeSinceLastSend < targetDelay) {
                     const waitMs = targetDelay - timeSinceLastSend;
@@ -88,9 +89,46 @@ async function processNotificationQueue() {
             }
 
             if (targetGroupJid) {
-                await sock.sendMessage(targetGroupJid, { text: message });
+                // 🛡️ Anti-Ban Human Simulation:
+                // Step A: Announce presence as available
+                try {
+                    if (typeof sock.sendPresenceUpdate === 'function') {
+                        await sock.sendPresenceUpdate('available', targetGroupJid).catch(() => {});
+                    }
+                } catch (pErr) {}
+
+                // Step B: Human typing simulation ('composing') proportional to message length
+                const textLen = (message || '').length;
+                const typingDuration = Math.min(8000, Math.max(3000, Math.floor(textLen * 15) + Math.floor(Math.random() * 2000)));
+
+                try {
+                    if (typeof sock.sendPresenceUpdate === 'function') {
+                        await sock.sendPresenceUpdate('composing', targetGroupJid).catch(() => {});
+                        console.log(`✍️ [Anti-Ban Queue] Simulating human typing for ${(typingDuration / 1000).toFixed(1)}s in group...`);
+                        await new Promise(r => setTimeout(r, typingDuration));
+                        await sock.sendPresenceUpdate('paused', targetGroupJid).catch(() => {});
+                    }
+                } catch (tErr) {}
+
+                // Step C: Append random invisible unicode zero-width space to randomize message hash
+                const zeroWidthSpaces = ['\u200B', '\u200C', '\u200D', '\uFEFF'];
+                const randomJitter = zeroWidthSpaces[Math.floor(Math.random() * zeroWidthSpaces.length)];
+                const messageWithJitter = `${message}${randomJitter}`;
+
+                // Step D: Send message
+                await sock.sendMessage(targetGroupJid, { text: messageWithJitter });
                 lastSentTimestamp = Date.now();
                 console.log(`✅ [Anti-Ban Queue] Delivered "${type}" notification to Bird CRM Group (${targetGroupJid}). Remaining queued: ${notificationQueue.length}`);
+
+                // Step E: Set presence to unavailable after short cooldown
+                setTimeout(() => {
+                    try {
+                        if (typeof sock.sendPresenceUpdate === 'function') {
+                            sock.sendPresenceUpdate('unavailable', targetGroupJid).catch(() => {});
+                        }
+                    } catch (e) {}
+                }, 2000);
+
                 if (resolve) resolve(true);
             } else {
                 console.warn(`⚠️ [Anti-Ban Queue] Bird CRM Control Group not found on Baileys socket for User: ${userId}`);
@@ -158,6 +196,96 @@ export async function sendSystemNotification({ userId, assignedToUserId = null, 
         });
     } catch (err) {
         console.error('❌ [NotificationDispatcher] Global error:', err);
+        return false;
+    }
+}
+
+/**
+ * توحيد ومعالجة رقم الهاتف وتحويله لمعرف واتساب صالح (@s.whatsapp.net)
+ */
+export function normalizePhoneToJid(rawPhone) {
+    if (!rawPhone) return null;
+    let digits = String(rawPhone).replace(/[^0-9]/g, '');
+    if (!digits) return null;
+
+    // أرقام مصر المحلية
+    if (digits.length === 11 && digits.startsWith('01')) {
+        digits = '2' + digits; // 01012345678 -> 201012345678
+    } else if (digits.length === 10 && (digits.startsWith('10') || digits.startsWith('11') || digits.startsWith('12') || digits.startsWith('15'))) {
+        digits = '20' + digits; // 1012345678 -> 201012345678
+    }
+
+    if (digits.length < 10) return null; // رقم قصير غير صالح
+    return `${digits}@s.whatsapp.net`;
+}
+
+/**
+ * إرسال إشعار واتساب مباشر للموظف على رقمه الشخصي من رقم Baileys المتصل
+ * @param {Object} params
+ * @param {number} [params.userId] - معرف المستخدم المالك
+ * @param {number} [params.targetEmployeeId] - معرف الموظف المستهدف
+ * @param {string} [params.customPhone] - رقم الهاتف المستهدف إن وجد مباشرة
+ * @param {string} params.message - نص الرسالة
+ */
+export async function sendDirectEmployeeWhatsAppNotification({ userId, targetEmployeeId, customPhone, message }) {
+    try {
+        if (!message || !message.trim()) return false;
+
+        let employeePhone = customPhone || null;
+        let empName = '';
+
+        if (!employeePhone && targetEmployeeId) {
+            const employee = await User.findByPk(targetEmployeeId);
+            if (employee) {
+                empName = employee.fullName || employee.username;
+                employeePhone = employee.phone || employee.notificationPhone;
+            }
+        }
+
+        if (!employeePhone && userId) {
+            const employee = await User.findByPk(userId);
+            if (employee) {
+                empName = employee.fullName || employee.username;
+                employeePhone = employee.phone || employee.notificationPhone;
+            }
+        }
+
+        const targetJid = normalizePhoneToJid(employeePhone);
+        if (!targetJid) {
+            console.warn(`[EmployeeNotify] ⚠️ No valid phone number found for employee (ID: ${targetEmployeeId || userId}, Name: ${empName || 'Unknown'})`);
+            return false;
+        }
+
+        // البحث عن جلسة Baileys نشطة للإرسال
+        let sock = sessions.get(parseInt(userId, 10)) || sessions.get(String(userId)) || sessions.get(userId);
+        if (!sock || !sock.user) {
+            for (const [sKey, sVal] of sessions.entries()) {
+                if (sVal && sVal.user) {
+                    sock = sVal;
+                    break;
+                }
+            }
+        }
+
+        if (!sock || !sock.user) {
+            console.warn(`[EmployeeNotify] ⚠️ No active Baileys session found to send message to employee (${targetJid})`);
+            return false;
+        }
+
+        // محاكاة كتابة بشرية بسيطة قبل الإرسال لمنع أي شك من خوارزميات واتساب
+        try {
+            if (typeof sock.sendPresenceUpdate === 'function') {
+                await sock.sendPresenceUpdate('composing', targetJid).catch(() => {});
+                await new Promise(r => setTimeout(r, 1200));
+                await sock.sendPresenceUpdate('paused', targetJid).catch(() => {});
+            }
+        } catch (pErr) {}
+
+        await sock.sendMessage(targetJid, { text: message.trim() });
+        console.log(`✅ [EmployeeNotify] Delivered direct WhatsApp notification to employee (${empName || targetJid}) at ${targetJid}`);
+        return true;
+    } catch (err) {
+        console.error(`❌ [EmployeeNotify] Error delivering WhatsApp notification:`, err?.message || err);
         return false;
     }
 }

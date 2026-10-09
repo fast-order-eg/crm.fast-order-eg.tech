@@ -179,6 +179,64 @@
             border-color: #dc2626;
         }
 
+        .btn-archive-emp {
+            background-color: #fffbeb;
+            color: #b45309 !important;
+            border: 1px solid #fde68a;
+            height: 38px;
+            width: 38px;
+            min-width: 38px;
+            padding: 0;
+            font-size: 14px;
+            border-radius: 10px;
+            transition: all 0.2s;
+        }
+        .btn-archive-emp:hover, .btn-archive-emp:active {
+            background-color: #f59e0b;
+            color: #ffffff !important;
+            border-color: #f59e0b;
+        }
+
+        .btn-restore-emp {
+            background-color: #ecfdf5;
+            color: #059669 !important;
+            border: 1px solid #a7f3d0;
+            font-size: 12px;
+            height: 38px;
+            transition: all 0.2s;
+        }
+        .btn-restore-emp:hover, .btn-restore-emp:active {
+            background-color: #10b981;
+            color: #ffffff !important;
+            border-color: #10b981;
+        }
+
+        .employee-nav-pills .nav-link {
+            border-radius: 50rem;
+            padding: 8px 18px;
+            font-size: 13.5px;
+            font-weight: 600;
+            color: #64748b;
+            background: #f1f5f9;
+            transition: all 0.2s ease-in-out;
+            border: 1px solid transparent;
+        }
+        .employee-nav-pills .nav-link:hover {
+            background: #e2e8f0;
+            color: #1e293b;
+        }
+        .employee-nav-pills .nav-link.active {
+            color: #ffffff !important;
+            background-color: #0d6efd !important;
+            box-shadow: 0 4px 12px rgba(13, 110, 253, 0.25);
+            border-color: #0d6efd;
+        }
+        .employee-nav-pills .nav-link.active.archive-pill {
+            background-color: #64748b !important;
+            box-shadow: 0 4px 12px rgba(100, 116, 139, 0.25);
+            border-color: #64748b;
+        }
+
         /* Day Check Pills in Modals */
         .day-select-pill {
             display: inline-flex;
@@ -272,12 +330,16 @@
                         إدارة الموظفين
                     </h2>
                     <div class="text-muted small mt-1 d-flex flex-wrap align-items-center gap-2">
+                        <% 
+                            const activeList = (typeof activeEmployees !== 'undefined' ? activeEmployees : employees.filter(e => e.is_active !== false));
+                            const archivedList = (typeof archivedEmployees !== 'undefined' ? archivedEmployees : employees.filter(e => e.is_active === false));
+                        %>
                         <span>إجمالي الموظفين: <strong class="text-dark"><%= employees.length %></strong></span>
                         <span class="text-secondary opacity-50">•</span>
-                        <span class="text-success"><i class="bi bi-check-circle-fill me-1"></i><%= employees.filter(e => !e.isOnLeave).length %> نشط</span>
-                        <% if (employees.some(e => e.isOnLeave)) { %>
+                        <span class="text-success"><i class="bi bi-person-check-fill me-1"></i><%= activeList.length %> نشط</span>
+                        <% if (archivedList.length > 0) { %>
                             <span class="text-secondary opacity-50">•</span>
-                            <span class="text-danger"><i class="bi bi-moon-fill me-1"></i><%= employees.filter(e => e.isOnLeave).length %> في إجازة</span>
+                            <span class="text-secondary"><i class="bi bi-archive-fill me-1"></i><%= archivedList.length %> في الأرشيف (ساب العمل)</span>
                         <% } %>
                     </div>
                 </div>
@@ -318,7 +380,7 @@
                     shifts: (shiftSplitRule?.shifts && shiftSplitRule.shifts.length > 0) ? shiftSplitRule.shifts : [],
                     defaultEmployeeId: shiftSplitRule?.defaultEmployeeId || null
                 };
-                const salesList = employees.filter(e => e.role === 'sales');
+                const salesList = activeList.filter(e => e.role === 'sales');
             %>
             <div class="card mb-3 border-primary border-opacity-25 shadow-sm rounded-3" style="background: #f8fafc;">
                 <div class="card-header bg-white border-bottom py-2.5 px-3 d-flex flex-row justify-content-between align-items-center gap-2 rounded-top-3">
@@ -505,75 +567,233 @@
             </template>
             <% } %>
 
-            <!-- Empty State -->
-            <% if (employees.length === 0) { %>
-                <div class="text-center py-5 glass-card mb-4" style="background: rgba(0, 0, 0, 0.02);">
-                    <i class="bi bi-people text-secondary opacity-50" style="font-size: 4rem;"></i>
-                    <h4 class="text-muted mt-3">لا يوجد موظفون مضافون حالياً</h4>
-                    <p class="text-secondary small">قم بإضافة موظف مبيعات (Sales) أو مدير (Admin) للبدء في توزيع العملاء.</p>
-                    <button class="btn btn-outline-primary rounded-pill mt-2 px-4" data-bs-toggle="modal" data-bs-target="#addEmployeeModal">أضف موظف الآن</button>
-                </div>
-            <% } else { %>
-                
-                <!-- Desktop Table View -->
-                <div class="d-none d-lg-block table-responsive">
-                    <table class="table align-middle">
-                        <thead>
-                            <tr>
-                                <th>الاسم الكامل</th>
-                                <th>اسم المستخدم</th>
-                                <th>الهاتف</th>
-                                <th>الدور</th>
-                                <th>الموظف البديل</th>
-                                <th class="text-center">العملاء الحاليين</th>
-                                <th class="text-center">الحالة</th>
-                                <th class="text-center">إجراءات</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <% employees.forEach(emp => { %>
-                                <tr>
-                                    <td>
-                                        <div class="fw-bold text-dark"><%= emp.fullName || '—' %></div>
-                                    </td>
-                                    <td>
-                                        <code class="text-primary"><%= emp.username %></code>
-                                    </td>
-                                    <td>
-                                        <span class="text-secondary"><%= emp.phone || '—' %></span>
-                                    </td>
-                                    <td>
-                                        <% if (emp.role === 'super_admin') { %>
-                                            <span class="badge bg-danger rounded-pill">Super Admin</span>
-                                        <% } else if (emp.role === 'admin') { %>
-                                            <span class="badge bg-warning text-dark rounded-pill">Admin</span>
-                                        <% } else { %>
-                                            <span class="badge bg-info text-white rounded-pill">Sales</span>
-                                        <% } %>
-                                    </td>
-                                    <td>
-                                        <% if (emp.substituteUser) { %>
-                                            <span class="text-dark fw-semibold small"><%= emp.substituteUser.fullName %></span>
-                                        <% } else { %>
-                                            <span class="text-muted small">—</span>
-                                        <% } %>
-                                    </td>
-                                    <td class="text-center">
-                                        <span class="badge bg-light text-dark border border-secondary border-opacity-10 px-3 py-1 rounded">
-                                            <%= emp.customerCount || 0 %>
-                                        </span>
-                                    </td>
-                                    <td class="text-center">
-                                        <form action="/dashboard/employees/toggle-leave/<%= emp.id %>" method="POST" class="d-inline">
-                                            <button type="submit" class="btn btn-sm <%= emp.isOnLeave ? 'btn-danger' : 'btn-success' %> rounded-pill px-3 py-1 fw-bold text-white d-inline-flex align-items-center gap-1" style="font-size: 12px;">
-                                                <i class="bi <%= emp.isOnLeave ? 'bi-moon-fill' : 'bi-sun-fill' %>"></i>
-                                                <%= emp.isOnLeave ? 'إجازة' : 'نشط' %>
-                                            </button>
-                                        </form>
-                                    </td>
-                                    <td class="text-center">
-                                        <div class="d-flex justify-content-center align-items-center gap-2">
-                                            <button class="btn btn-sm btn-outline-primary rounded px-2" 
+            <!-- Tabs for Active vs Archived Employees -->
+            <ul class="nav nav-pills employee-nav-pills mb-4 gap-2" id="empTab" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active d-flex align-items-center gap-2" id="active-tab" data-bs-toggle="pill" data-bs-target="#active-tab-pane" type="button" role="tab" aria-controls="active-tab-pane" aria-selected="true">
+                        <i class="bi bi-person-check-fill"></i>
+                        <span>الموظفون الحاليون</span>
+                        <span class="badge bg-white text-primary rounded-pill"><%= activeList.length %></span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link archive-pill d-flex align-items-center gap-2" id="archive-tab" data-bs-toggle="pill" data-bs-target="#archive-tab-pane" type="button" role="tab" aria-controls="archive-tab-pane" aria-selected="false">
+                        <i class="bi bi-archive-fill"></i>
+                        <span>أرشيف سابوا العمل</span>
+                        <span class="badge <%= archivedList.length > 0 ? 'bg-warning text-dark' : 'bg-light text-secondary' %> rounded-pill"><%= archivedList.length %></span>
+                    </button>
+                </li>
+            </ul>
+
+            <div class="tab-content" id="empTabContent">
+                <!-- ========================================== -->
+                <!-- 1. تبويب الموظفين الحاليين (Active) -->
+                <!-- ========================================== -->
+                <div class="tab-pane fade show active" id="active-tab-pane" role="tabpanel" aria-labelledby="active-tab" tabindex="0">
+                    <% if (activeList.length === 0) { %>
+                        <div class="text-center py-5 glass-card mb-4" style="background: rgba(0, 0, 0, 0.02);">
+                            <i class="bi bi-people text-secondary opacity-50" style="font-size: 4rem;"></i>
+                            <h4 class="text-muted mt-3">لا يوجد موظفون نشطون حالياً</h4>
+                            <p class="text-secondary small">قم بإضافة موظف جديد أو استرجاع موظف من الأرشيف.</p>
+                            <button class="btn btn-outline-primary rounded-pill mt-2 px-4" data-bs-toggle="modal" data-bs-target="#addEmployeeModal">أضف موظف الآن</button>
+                        </div>
+                    <% } else { %>
+                        <!-- Desktop Table View (Active) -->
+                        <div class="d-none d-lg-block table-responsive">
+                            <table class="table align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>الاسم الكامل</th>
+                                        <th>اسم المستخدم</th>
+                                        <th>الهاتف</th>
+                                        <th>الدور</th>
+                                        <th>الموظف البديل</th>
+                                        <th class="text-center">العملاء الحاليين</th>
+                                        <th class="text-center">الحالة</th>
+                                        <th class="text-center">إجراءات</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <% activeList.forEach(emp => { %>
+                                        <tr>
+                                            <td>
+                                                <div class="fw-bold text-dark"><%= emp.fullName || '—' %></div>
+                                            </td>
+                                            <td>
+                                                <code class="text-primary"><%= emp.username %></code>
+                                            </td>
+                                            <td>
+                                                <span class="text-secondary"><%= emp.phone || '—' %></span>
+                                            </td>
+                                            <td>
+                                                <% if (emp.role === 'super_admin') { %>
+                                                    <span class="badge bg-danger rounded-pill">Super Admin</span>
+                                                <% } else if (emp.role === 'admin') { %>
+                                                    <span class="badge bg-warning text-dark rounded-pill">Admin</span>
+                                                <% } else { %>
+                                                    <span class="badge bg-info text-white rounded-pill">Sales</span>
+                                                <% } %>
+                                            </td>
+                                            <td>
+                                                <% if (emp.substituteUser) { %>
+                                                    <span class="text-dark fw-semibold small"><%= emp.substituteUser.fullName %></span>
+                                                <% } else { %>
+                                                    <span class="text-muted small">—</span>
+                                                <% } %>
+                                            </td>
+                                            <td class="text-center">
+                                                <span class="badge bg-light text-dark border border-secondary border-opacity-10 px-3 py-1 rounded">
+                                                    <%= emp.customerCount || 0 %>
+                                                </span>
+                                            </td>
+                                            <td class="text-center">
+                                                <form action="/dashboard/employees/toggle-leave/<%= emp.id %>" method="POST" class="d-inline">
+                                                    <button type="submit" class="btn btn-sm <%= emp.isOnLeave ? 'btn-danger' : 'btn-success' %> rounded-pill px-3 py-1 fw-bold text-white d-inline-flex align-items-center gap-1" style="font-size: 12px;">
+                                                        <i class="bi <%= emp.isOnLeave ? 'bi-moon-fill' : 'bi-sun-fill' %>"></i>
+                                                        <%= emp.isOnLeave ? 'إجازة' : 'نشط' %>
+                                                    </button>
+                                                </form>
+                                            </td>
+                                            <td class="text-center">
+                                                <div class="d-flex justify-content-center align-items-center gap-2">
+                                                    <button class="btn btn-sm btn-outline-primary rounded px-2" 
+                                                            onclick="editEmployee(this)"
+                                                            data-id="<%= emp.id %>"
+                                                            data-fullname="<%= emp.fullName || '' %>"
+                                                            data-username="<%= emp.username %>"
+                                                            data-phone="<%= emp.phone || '' %>"
+                                                            data-role="<%= emp.role %>"
+                                                            data-substitute="<%= emp.substituteUserId || '' %>"
+                                                            data-max="<%= emp.maxCustomers %>"
+                                                            title="تعديل">
+                                                        <i class="bi bi-pencil-square"></i>
+                                                    </button>
+                                                    
+                                                    <% if (emp.role !== 'super_admin') { %>
+                                                        <!-- Archive Button (Left Job) -->
+                                                        <form action="/dashboard/employees/toggle-archive/<%= emp.id %>" method="POST" class="m-0 d-inline" onsubmit="return confirm('هل أنت متأكد من أرشفة هذا الموظف (ساب العمل)؟ سيظل اسمه مسجلاً على كل عملائه الحاليين لكنه سيختفي من الشيفتات والتعيينات والفلاتر.')">
+                                                            <button type="submit" class="btn btn-sm btn-outline-warning rounded px-2" title="أرشفة (ساب العمل)">
+                                                                <i class="bi bi-archive"></i>
+                                                            </button>
+                                                        </form>
+
+                                                        <!-- Delete Button -->
+                                                        <form action="/dashboard/employees/delete" method="POST" class="m-0 d-inline" onsubmit="return confirm('هل أنت متأكد من حذف هذا الموظف؟ سيتم نقل عملائه للموظف البديل أو تصنيفهم كغير مخصصين.')">
+                                                            <input type="hidden" name="id" value="<%= emp.id %>">
+                                                            <button type="submit" class="btn btn-sm btn-outline-danger rounded px-2" title="حذف">
+                                                                <i class="bi bi-trash3"></i>
+                                                            </button>
+                                                        </form>
+                                                    <% } %>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    <% }) %>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Mobile Card View (Active) -->
+                        <div class="d-block d-lg-none">
+                            <% activeList.forEach(emp => { 
+                                const initial = (emp.fullName && emp.fullName.trim()) ? emp.fullName.trim()[0] : (emp.username ? emp.username[0].toUpperCase() : '؟');
+                                let avatarBg = '#e0e7ff';
+                                let avatarColor = '#3730a3';
+                                let roleTitle = 'موظف مبيعات (Sales)';
+                                let roleBadgeClass = 'emp-badge-sales';
+
+                                if (emp.role === 'super_admin') {
+                                    avatarBg = '#fee2e2';
+                                    avatarColor = '#991b1b';
+                                    roleTitle = 'مدير عام (Super Admin)';
+                                    roleBadgeClass = 'emp-badge-superadmin';
+                                } else if (emp.role === 'admin') {
+                                    avatarBg = '#fef3c7';
+                                    avatarColor = '#92400e';
+                                    roleTitle = 'مشرف (Admin)';
+                                    roleBadgeClass = 'emp-badge-admin';
+                                }
+                            %>
+                                <div class="employee-card-mobile shadow-sm">
+                                    <div class="d-flex align-items-center justify-content-between pb-3 border-bottom gap-2">
+                                        <div class="d-flex align-items-center gap-2 min-w-0">
+                                            <div class="emp-avatar-wrapper flex-shrink-0">
+                                                <div class="emp-avatar shadow-xs" style="background-color: <%= avatarBg %>; color: <%= avatarColor %>;">
+                                                    <%= initial %>
+                                                </div>
+                                                <span class="emp-status-dot <%= emp.isOnLeave ? 'leave' : 'active' %>" title="<%= emp.isOnLeave ? 'في إجازة' : 'نشط' %>"></span>
+                                            </div>
+                                            <div class="min-w-0">
+                                                <h5 class="fw-bold text-dark mb-0 text-truncate" style="font-size: 15px;"><%= emp.fullName || '—' %></h5>
+                                                <div class="d-flex align-items-center gap-1.5 flex-wrap mt-0.5">
+                                                    <span class="badge bg-light text-secondary border px-2 py-0.5 font-monospace" style="font-size: 10.5px; font-weight: 500;">
+                                                        <i class="bi bi-person-fill text-muted me-0.5"></i>@<%= emp.username %>
+                                                    </span>
+                                                    <% if (emp.isOnLeave) { %>
+                                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-1.5 py-0.5" style="font-size: 9.5px;">إجازة</span>
+                                                    <% } else { %>
+                                                        <span class="badge bg-success-subtle text-success border border-success-subtle px-1.5 py-0.5" style="font-size: 9.5px;">نشط</span>
+                                                    <% } %>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="flex-shrink-0">
+                                            <span class="badge <%= roleBadgeClass %> shadow-xs">
+                                                <%= emp.role === 'super_admin' ? 'Super Admin' : (emp.role === 'admin' ? 'Admin' : 'Sales') %>
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div class="row g-2 my-2">
+                                        <div class="col-6">
+                                            <div class="emp-info-tile">
+                                                <span class="text-muted small d-flex align-items-center gap-1" style="font-size: 10.5px;">
+                                                    <i class="bi bi-telephone-fill text-primary"></i>
+                                                    <span>الهاتف</span>
+                                                </span>
+                                                <% if (emp.phone) { %>
+                                                    <a href="tel:<%= emp.phone %>" class="text-decoration-none fw-semibold text-dark text-truncate mt-0.5" style="font-size: 12px; direction: ltr; text-align: right;">
+                                                        <%= emp.phone %>
+                                                    </a>
+                                                <% } else { %>
+                                                    <span class="text-muted small mt-0.5" style="font-size: 12px;">—</span>
+                                                <% } %>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="emp-info-tile">
+                                                <span class="text-muted small d-flex align-items-center gap-1" style="font-size: 10.5px;">
+                                                    <i class="bi bi-people-fill text-primary"></i>
+                                                    <span>العملاء الحاليين</span>
+                                                </span>
+                                                <span class="fw-bold text-primary mt-0.5" style="font-size: 13px;">
+                                                    <%= emp.customerCount || 0 %> <small class="fw-normal text-muted" style="font-size: 11px;">عميل</small>
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div class="col-12">
+                                            <div class="emp-info-tile">
+                                                <span class="text-muted small d-flex align-items-center gap-1" style="font-size: 10.5px;">
+                                                    <i class="bi bi-arrow-repeat text-info"></i>
+                                                    <span>الموظف البديل</span>
+                                                </span>
+                                                <span class="fw-semibold text-dark text-truncate mt-0.5" style="font-size: 11.5px;" title="<%= emp.substituteUser ? emp.substituteUser.fullName : 'لا يوجد' %>">
+                                                    <%= emp.substituteUser ? emp.substituteUser.fullName : 'لا يوجد بديل' %>
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="pt-2 mt-2 border-top">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <form action="/dashboard/employees/toggle-leave/<%= emp.id %>" method="POST" class="m-0 flex-grow-1">
+                                                <button type="submit" class="btn btn-sm w-100 <%= emp.isOnLeave ? 'btn-status-leave' : 'btn-status-active' %> rounded-pill py-2 px-2 fw-bold d-flex align-items-center justify-content-center gap-1.5 shadow-xs" title="<%= emp.isOnLeave ? 'تفعيل الموظف (إلغاء الإجازة)' : 'وضع الموظف في إجازة' %>">
+                                                    <i class="bi <%= emp.isOnLeave ? 'bi-moon-fill' : 'bi-sun-fill' %>"></i>
+                                                    <span><%= emp.isOnLeave ? 'في إجازة' : 'نشط (متاح)' %></span>
+                                                </button>
+                                            </form>
+
+                                            <button type="button" class="btn btn-sm btn-edit-emp rounded-pill py-2 px-3 fw-semibold d-flex align-items-center justify-content-center gap-1.5 flex-grow-1 shadow-xs"
                                                     onclick="editEmployee(this)"
                                                     data-id="<%= emp.id %>"
                                                     data-fullname="<%= emp.fullName || '' %>"
@@ -581,166 +801,178 @@
                                                     data-phone="<%= emp.phone || '' %>"
                                                     data-role="<%= emp.role %>"
                                                     data-substitute="<%= emp.substituteUserId || '' %>"
-                                                    data-max="<%= emp.maxCustomers %>"
-                                                    title="تعديل">
+                                                    data-max="<%= emp.maxCustomers %>">
                                                 <i class="bi bi-pencil-square"></i>
+                                                <span>تعديل</span>
                                             </button>
-                                            
+
                                             <% if (emp.role !== 'super_admin') { %>
-                                                <form action="/dashboard/employees/delete" method="POST" class="m-0 d-inline" onsubmit="return confirm('هل أنت متأكد من حذف هذا الموظف؟ سيتم نقل عملائه للموظف البديل أو تصنيفهم كغير مخصصين.')">
+                                                <form action="/dashboard/employees/toggle-archive/<%= emp.id %>" method="POST" class="m-0" onsubmit="return confirm('هل أنت متأكد من أرشفة هذا الموظف (ساب العمل)؟ سيظل اسمه مسجلاً على كل عملائه الحاليين لكنه سيختفي من الشيفتات والتعيينات والفلاتر.')">
+                                                    <button type="submit" class="btn btn-sm btn-archive-emp d-flex align-items-center justify-content-center shadow-xs" title="أرشفة (ساب العمل)">
+                                                        <i class="bi bi-archive"></i>
+                                                    </button>
+                                                </form>
+
+                                                <form action="/dashboard/employees/delete" method="POST" class="m-0" onsubmit="return confirm('هل أنت متأكد من حذف هذا الموظف؟')">
                                                     <input type="hidden" name="id" value="<%= emp.id %>">
-                                                    <button type="submit" class="btn btn-sm btn-outline-danger rounded px-2" title="حذف">
+                                                    <button type="submit" class="btn btn-sm btn-delete-emp d-flex align-items-center justify-content-center shadow-xs" title="حذف الموظف">
                                                         <i class="bi bi-trash3"></i>
                                                     </button>
                                                 </form>
                                             <% } %>
                                         </div>
-                                    </td>
-                                </tr>
+                                    </div>
+                                </div>
                             <% }) %>
-                        </tbody>
-                    </table>
+                        </div>
+                    <% } %>
                 </div>
 
-                <!-- Mobile Card View -->
-                <div class="d-block d-lg-none">
-                    <% employees.forEach(emp => { 
-                        const initial = (emp.fullName && emp.fullName.trim()) ? emp.fullName.trim()[0] : (emp.username ? emp.username[0].toUpperCase() : '؟');
-                        let avatarBg = '#e0e7ff';
-                        let avatarColor = '#3730a3';
-                        let roleTitle = 'موظف مبيعات (Sales)';
-                        let roleBadgeClass = 'emp-badge-sales';
+                <!-- ========================================== -->
+                <!-- 2. تبويب أرشيف الموظفين السابقين (Archived) -->
+                <!-- ========================================== -->
+                <div class="tab-pane fade" id="archive-tab-pane" role="tabpanel" aria-labelledby="archive-tab" tabindex="0">
+                    <% if (archivedList.length === 0) { %>
+                        <div class="text-center py-5 glass-card mb-4" style="background: rgba(0, 0, 0, 0.01);">
+                            <i class="bi bi-archive text-secondary opacity-25" style="font-size: 3.5rem;"></i>
+                            <h5 class="text-muted mt-3">الأرشيف فارغ</h5>
+                            <p class="text-secondary small">لم يتم أرشفة أي موظف حتى الآن. الموظفون الذين يسيبون العمل يمكنك أرشفتهم ليظهروا هنا مع الحفاظ على عملائهم وسجلاتهم.</p>
+                        </div>
+                    <% } else { %>
+                        <!-- Desktop Table View (Archived) -->
+                        <div class="d-none d-lg-block table-responsive">
+                            <table class="table align-middle table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>الاسم الكامل</th>
+                                        <th>اسم المستخدم</th>
+                                        <th>الهاتف</th>
+                                        <th>الدور السابق</th>
+                                        <th class="text-center">العملاء المسجلين باسمه</th>
+                                        <th class="text-center">الحالة</th>
+                                        <th class="text-center">إجراءات</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <% archivedList.forEach(emp => { %>
+                                        <tr style="background-color: #f8fafc;">
+                                            <td>
+                                                <div class="fw-bold text-secondary text-decoration-line-through"><%= emp.fullName || '—' %></div>
+                                                <span class="badge bg-secondary-subtle text-secondary border small mt-1">سابق</span>
+                                            </td>
+                                            <td>
+                                                <code class="text-secondary"><%= emp.username %></code>
+                                            </td>
+                                            <td>
+                                                <span class="text-secondary"><%= emp.phone || '—' %></span>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-secondary text-white rounded-pill"><%= emp.role %></span>
+                                            </td>
+                                            <td class="text-center">
+                                                <span class="badge bg-white text-secondary border px-3 py-1 rounded fw-bold" title="العملاء المسجلين باسمه ما زالوا يحتفظون باسمه">
+                                                    <%= emp.customerCount || 0 %> عميل
+                                                </span>
+                                            </td>
+                                            <td class="text-center">
+                                                <span class="badge bg-secondary rounded-pill px-3 py-1.5 text-white fw-bold">
+                                                    <i class="bi bi-archive-fill me-1"></i> ساب العمل (مؤرشف)
+                                                </span>
+                                            </td>
+                                            <td class="text-center">
+                                                <div class="d-flex justify-content-center align-items-center gap-2">
+                                                    <!-- Restore Button -->
+                                                    <form action="/dashboard/employees/toggle-archive/<%= emp.id %>" method="POST" class="m-0 d-inline" onsubmit="return confirm('هل تريد استرجاع وتفعيل الموظف &quot;<%= emp.fullName || emp.username %>&quot; للعمل مرة أخرى؟')">
+                                                        <button type="submit" class="btn btn-sm btn-success rounded-pill px-3 py-1 fw-bold text-white d-inline-flex align-items-center gap-1 shadow-xs" title="استرجاع الموظف للعمل">
+                                                            <i class="bi bi-arrow-counterclockwise"></i>
+                                                            <span>استرجاع للعمل</span>
+                                                        </button>
+                                                    </form>
 
-                        if (emp.role === 'super_admin') {
-                            avatarBg = '#fee2e2';
-                            avatarColor = '#991b1b';
-                            roleTitle = 'مدير عام (Super Admin)';
-                            roleBadgeClass = 'emp-badge-superadmin';
-                        } else if (emp.role === 'admin') {
-                            avatarBg = '#fef3c7';
-                            avatarColor = '#92400e';
-                            roleTitle = 'مشرف (Admin)';
-                            roleBadgeClass = 'emp-badge-admin';
-                        }
-                    %>
-                        <div class="employee-card-mobile shadow-sm">
-                            <!-- Card Header: Avatar, Name, Username & Role -->
-                            <div class="d-flex align-items-center justify-content-between pb-3 border-bottom gap-2">
-                                <div class="d-flex align-items-center gap-2 min-w-0">
-                                    <div class="emp-avatar-wrapper flex-shrink-0">
-                                        <div class="emp-avatar shadow-xs" style="background-color: <%= avatarBg %>; color: <%= avatarColor %>;">
-                                            <%= initial %>
+                                                    <!-- Delete Button -->
+                                                    <form action="/dashboard/employees/delete" method="POST" class="m-0 d-inline" onsubmit="return confirm('تحذير: هل أنت متأكد من الحذف النهائي لهذا الموظف؟')">
+                                                        <input type="hidden" name="id" value="<%= emp.id %>">
+                                                        <button type="submit" class="btn btn-sm btn-outline-danger rounded px-2" title="حذف نهائي">
+                                                            <i class="bi bi-trash3"></i>
+                                                        </button>
+                                                    </form>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    <% }) %>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Mobile Card View (Archived) -->
+                        <div class="d-block d-lg-none">
+                            <% archivedList.forEach(emp => { 
+                                const initial = (emp.fullName && emp.fullName.trim()) ? emp.fullName.trim()[0] : (emp.username ? emp.username[0].toUpperCase() : '؟');
+                            %>
+                                <div class="employee-card-mobile shadow-sm border-secondary border-opacity-25" style="background: #f8fafc;">
+                                    <div class="d-flex align-items-center justify-content-between pb-3 border-bottom gap-2">
+                                        <div class="d-flex align-items-center gap-2 min-w-0">
+                                            <div class="emp-avatar-wrapper flex-shrink-0">
+                                                <div class="emp-avatar shadow-xs" style="background-color: #e2e8f0; color: #64748b;">
+                                                    <%= initial %>
+                                                </div>
+                                                <span class="emp-status-dot" style="background-color: #94a3b8;" title="مؤرشف"></span>
+                                            </div>
+                                            <div class="min-w-0">
+                                                <h5 class="fw-bold text-secondary mb-0 text-truncate text-decoration-line-through" style="font-size: 15px;"><%= emp.fullName || '—' %></h5>
+                                                <div class="d-flex align-items-center gap-1.5 flex-wrap mt-0.5">
+                                                    <span class="badge bg-light text-secondary border px-2 py-0.5 font-monospace" style="font-size: 10.5px;">
+                                                        @<%= emp.username %>
+                                                    </span>
+                                                    <span class="badge bg-secondary text-white px-2 py-0.5 rounded-pill" style="font-size: 9.5px;">
+                                                        ساب العمل
+                                                    </span>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <span class="emp-status-dot <%= emp.isOnLeave ? 'leave' : 'active' %>" title="<%= emp.isOnLeave ? 'في إجازة' : 'نشط' %>"></span>
-                                    </div>
-                                    <div class="min-w-0">
-                                        <h5 class="fw-bold text-dark mb-0 text-truncate" style="font-size: 15px;"><%= emp.fullName || '—' %></h5>
-                                        <div class="d-flex align-items-center gap-1.5 flex-wrap mt-0.5">
-                                            <span class="badge bg-light text-secondary border px-2 py-0.5 font-monospace" style="font-size: 10.5px; font-weight: 500;">
-                                                <i class="bi bi-person-fill text-muted me-0.5"></i>@<%= emp.username %>
+                                        <div class="flex-shrink-0">
+                                            <span class="badge bg-secondary-subtle text-secondary border shadow-xs">
+                                                <%= emp.role %>
                                             </span>
-                                            <% if (emp.isOnLeave) { %>
-                                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-1.5 py-0.5" style="font-size: 9.5px;">إجازة</span>
-                                            <% } else { %>
-                                                <span class="badge bg-success-subtle text-success border border-success-subtle px-1.5 py-0.5" style="font-size: 9.5px;">نشط</span>
-                                            <% } %>
                                         </div>
                                     </div>
-                                </div>
-                                <div class="flex-shrink-0">
-                                    <span class="badge <%= roleBadgeClass %> shadow-xs">
-                                        <%= emp.role === 'super_admin' ? 'Super Admin' : (emp.role === 'admin' ? 'Admin' : 'Sales') %>
-                                    </span>
-                                </div>
-                            </div>
 
-                            <!-- Card Body: 2x2 Info Grid -->
-                            <div class="row g-2 my-2">
-                                <!-- Phone -->
-                                <div class="col-6">
-                                    <div class="emp-info-tile">
-                                        <span class="text-muted small d-flex align-items-center gap-1" style="font-size: 10.5px;">
-                                            <i class="bi bi-telephone-fill text-primary"></i>
-                                            <span>الهاتف</span>
-                                        </span>
-                                        <% if (emp.phone) { %>
-                                            <a href="tel:<%= emp.phone %>" class="text-decoration-none fw-semibold text-dark text-truncate mt-0.5" style="font-size: 12px; direction: ltr; text-align: right;">
-                                                <%= emp.phone %>
-                                            </a>
-                                        <% } else { %>
-                                            <span class="text-muted small mt-0.5" style="font-size: 12px;">—</span>
-                                        <% } %>
+                                    <div class="row g-2 my-2">
+                                        <div class="col-6">
+                                            <div class="emp-info-tile">
+                                                <span class="text-muted small" style="font-size: 10.5px;">الهاتف</span>
+                                                <span class="fw-semibold text-secondary mt-0.5" style="font-size: 12px;"><%= emp.phone || '—' %></span>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="emp-info-tile">
+                                                <span class="text-muted small" style="font-size: 10.5px;">العملاء المسجلين</span>
+                                                <span class="fw-bold text-secondary mt-0.5" style="font-size: 13px;"><%= emp.customerCount || 0 %> عميل</span>
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
 
-                                <!-- Current Customers -->
-                                <div class="col-6">
-                                    <div class="emp-info-tile">
-                                        <span class="text-muted small d-flex align-items-center gap-1" style="font-size: 10.5px;">
-                                            <i class="bi bi-people-fill text-primary"></i>
-                                            <span>العملاء الحاليين</span>
-                                        </span>
-                                        <span class="fw-bold text-primary mt-0.5" style="font-size: 13px;">
-                                            <%= emp.customerCount || 0 %> <small class="fw-normal text-muted" style="font-size: 11px;">عميل</small>
-                                        </span>
-                                    </div>
-                                </div>
+                                    <div class="pt-2 mt-2 border-top d-flex align-items-center gap-2">
+                                        <form action="/dashboard/employees/toggle-archive/<%= emp.id %>" method="POST" class="m-0 flex-grow-1" onsubmit="return confirm('هل تريد استرجاع وتفعيل الموظف &quot;<%= emp.fullName || emp.username %>&quot; للعمل مرة أخرى؟')">
+                                            <button type="submit" class="btn btn-sm w-100 btn-restore-emp rounded-pill py-2 px-3 fw-bold d-flex align-items-center justify-content-center gap-1.5 shadow-xs" title="استرجاع الموظف للعمل">
+                                                <i class="bi bi-arrow-counterclockwise"></i>
+                                                <span>استرجاع وتفعيل للعمل</span>
+                                            </button>
+                                        </form>
 
-                                <!-- Substitute -->
-                                <div class="col-12">
-                                    <div class="emp-info-tile">
-                                        <span class="text-muted small d-flex align-items-center gap-1" style="font-size: 10.5px;">
-                                            <i class="bi bi-arrow-repeat text-info"></i>
-                                            <span>الموظف البديل</span>
-                                        </span>
-                                        <span class="fw-semibold text-dark text-truncate mt-0.5" style="font-size: 11.5px;" title="<%= emp.substituteUser ? emp.substituteUser.fullName : 'لا يوجد' %>">
-                                            <%= emp.substituteUser ? emp.substituteUser.fullName : 'لا يوجد بديل' %>
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Card Footer: Mobile Touch-Friendly Action Buttons -->
-                            <div class="pt-2 mt-2 border-top">
-                                <div class="d-flex align-items-center gap-2">
-                                    <!-- Toggle Leave Form & Button -->
-                                    <form action="/dashboard/employees/toggle-leave/<%= emp.id %>" method="POST" class="m-0 flex-grow-1">
-                                        <button type="submit" class="btn btn-sm w-100 <%= emp.isOnLeave ? 'btn-status-leave' : 'btn-status-active' %> rounded-pill py-2 px-2 fw-bold d-flex align-items-center justify-content-center gap-1.5 shadow-xs" title="<%= emp.isOnLeave ? 'تفعيل الموظف (إلغاء الإجازة)' : 'وضع الموظف في إجازة' %>">
-                                            <i class="bi <%= emp.isOnLeave ? 'bi-moon-fill' : 'bi-sun-fill' %>"></i>
-                                            <span><%= emp.isOnLeave ? 'في إجازة' : 'نشط (متاح)' %></span>
-                                        </button>
-                                    </form>
-
-                                    <!-- Edit Button -->
-                                    <button type="button" class="btn btn-sm btn-edit-emp rounded-pill py-2 px-3 fw-semibold d-flex align-items-center justify-content-center gap-1.5 flex-grow-1 shadow-xs"
-                                            onclick="editEmployee(this)"
-                                            data-id="<%= emp.id %>"
-                                            data-fullname="<%= emp.fullName || '' %>"
-                                            data-username="<%= emp.username %>"
-                                            data-phone="<%= emp.phone || '' %>"
-                                            data-role="<%= emp.role %>"
-                                            data-substitute="<%= emp.substituteUserId || '' %>"
-                                            data-max="<%= emp.maxCustomers %>">
-                                        <i class="bi bi-pencil-square"></i>
-                                        <span>تعديل</span>
-                                    </button>
-
-                                    <!-- Delete Button (Only for non-super_admin) -->
-                                    <% if (emp.role !== 'super_admin') { %>
-                                        <form action="/dashboard/employees/delete" method="POST" class="m-0" onsubmit="return confirm('هل أنت متأكد من حذف هذا الموظف؟')">
+                                        <form action="/dashboard/employees/delete" method="POST" class="m-0" onsubmit="return confirm('تحذير: هل أنت متأكد من الحذف النهائي لهذا الموظف؟')">
                                             <input type="hidden" name="id" value="<%= emp.id %>">
-                                            <button type="submit" class="btn btn-sm btn-delete-emp d-flex align-items-center justify-content-center shadow-xs" title="حذف الموظف">
+                                            <button type="submit" class="btn btn-sm btn-delete-emp d-flex align-items-center justify-content-center shadow-xs" title="حذف نهائي">
                                                 <i class="bi bi-trash3"></i>
                                             </button>
                                         </form>
-                                    <% } %>
+                                    </div>
                                 </div>
-                            </div>
+                            <% }) %>
                         </div>
-                    <% }) %>
+                    <% } %>
                 </div>
-
-            <% } %>
+            </div>
         </div>
     </div>
 
