@@ -1,5 +1,6 @@
 import express from 'express';
 import session from 'express-session';
+import Redis from 'ioredis';
 import { restoreSessions, checkSocketHealth, checkSubscriptionExpiry, checkPauseTimer, checkInactivitySummary, checkNoActionCustomers, generateDailyKPI } from './controllers/botController.js';
 import { checkScheduledFollowUps, checkPendingFollowUps } from './services/followUpService.js';
 import cron from 'node-cron';
@@ -41,6 +42,8 @@ import KPIRecord from './models/KPIRecord.js';
 import FinancialTransaction from './models/FinancialTransaction.js';
 import FollowUp from './models/FollowUp.js';
 import PushSubscription from './models/PushSubscription.js';
+import GroupReminder from './models/GroupReminder.js';
+import { checkDueReminders } from './services/reminderService.js';
 // Routes
 import authRoutes from './routes/auth.js';
 import adminRoutes from './routes/admin.js';
@@ -77,6 +80,12 @@ async function gracefulShutdown(signal) {
             await sequelize.close();
             console.log('[Graceful Shutdown] DB pool closed.');
         } catch (e) { console.error('[Graceful Shutdown] DB error:', e.message); }
+        try {
+            if (typeof redisClient !== 'undefined' && redisClient) {
+                redisClient.disconnect();
+                console.log('[Graceful Shutdown] Redis client disconnected.');
+            }
+        } catch (_) {}
         setTimeout(() => process.exit(0), 1000);
     } catch (err) {
         console.error('[Graceful Shutdown] Error:', err);
@@ -140,18 +149,115 @@ app.use(limiter);
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
-// Session (60 Days Persistence)
-app.use(session({
+// ====== Redis RAM Session Store (Persistent across server restarts & 100 Days validity) ======
+const redisClient = new Redis({
+    host: process.env.REDIS_HOST || '127.0.0.1',
+    port: parseInt(process.env.REDIS_PORT || '6379', 10),
+    password: process.env.REDIS_PASSWORD || undefined,
+    retryStrategy: (times) => Math.min(times * 150, 3000),
+    maxRetriesPerRequest: null,
+    enableReadyCheck: true,
+    lazyConnect: false
+});
+
+redisClient.on('connect', () => {
+    console.log('⚡ [Redis Session] Connected to Redis RAM Store successfully! Sessions are persistent.');
+});
+
+redisClient.on('error', (err) => {
+    console.error('⚠️ [Redis Session] Redis connection warning:', err.message);
+});
+
+// Custom IORedis Session Store (100% compatible with Redis 6.2+ without syntax errors)
+class IORedisSessionStore extends session.Store {
+    constructor({ client, prefix = 'crm_sess:', ttl = 8640000 }) {
+        super();
+        this.client = client;
+        this.prefix = prefix;
+        this.ttl = ttl;
+    }
+    async get(sid, fn = () => {}) {
+        try {
+            const data = await this.client.get(this.prefix + sid);
+            if (!data) return fn(null, null);
+            let result;
+            try {
+                result = JSON.parse(data);
+            } catch (parseErr) {
+                return fn(null, null);
+            }
+            return fn(null, result);
+        } catch (e) {
+            return fn(e);
+        }
+    }
+    async set(sid, sess, fn = () => {}) {
+        try {
+            let ttl = this.ttl;
+            if (sess && sess.cookie) {
+                if (sess.cookie.originalMaxAge) {
+                    ttl = Math.ceil(sess.cookie.originalMaxAge / 1000);
+                } else if (sess.cookie.expires) {
+                    ttl = Math.ceil((new Date(sess.cookie.expires).getTime() - Date.now()) / 1000);
+                }
+            }
+            if (!ttl || ttl <= 0) ttl = this.ttl;
+            await this.client.set(this.prefix + sid, JSON.stringify(sess), 'EX', ttl);
+            return fn(null);
+        } catch (e) {
+            return fn(e);
+        }
+    }
+    async touch(sid, sess, fn = () => {}) {
+        try {
+            let ttl = this.ttl;
+            if (sess && sess.cookie) {
+                if (sess.cookie.originalMaxAge) {
+                    ttl = Math.ceil(sess.cookie.originalMaxAge / 1000);
+                } else if (sess.cookie.expires) {
+                    ttl = Math.ceil((new Date(sess.cookie.expires).getTime() - Date.now()) / 1000);
+                }
+            }
+            if (!ttl || ttl <= 0) ttl = this.ttl;
+            await this.client.expire(this.prefix + sid, ttl);
+            return fn(null);
+        } catch (e) {
+            return fn(e);
+        }
+    }
+    async destroy(sid, fn = () => {}) {
+        try {
+            await this.client.del(this.prefix + sid);
+            return fn(null);
+        } catch (e) {
+            return fn(e);
+        }
+    }
+}
+
+const redisStore = new IORedisSessionStore({
+    client: redisClient,
+    prefix: 'crm_sess:',
+    ttl: 100 * 24 * 60 * 60 // 100 Days in seconds
+});
+
+// Session (100 Days Persistence in RAM via Redis Store)
+const sessionMiddleware = session({
+    store: redisStore,
     secret: process.env.SESSION_SECRET || 'secret',
     resave: false,
     saveUninitialized: false,
+    rolling: true, // Renews the 100-day countdown on each user interaction
     cookie: {
-        maxAge: 60 * 24 * 60 * 60 * 1000, // 60 Days
+        maxAge: 100 * 24 * 60 * 60 * 1000, // 100 Days
         httpOnly: true,
         secure: false, // works seamlessly on reverse proxy / https
         sameSite: 'lax'
     }
-}));
+});
+
+app.use(sessionMiddleware);
+io.engine.use(sessionMiddleware);
 
 // Passport
 passportConfig(passport);
@@ -238,6 +344,12 @@ cron.schedule('* * * * *', async () => {
         await checkScheduledCampaigns(io);
     } catch (e) {
         console.error('[Cron Error] checkScheduledCampaigns:', e.message);
+    }
+
+    try {
+        await checkDueReminders(io);
+    } catch (e) {
+        console.error('[Cron Error] checkDueReminders:', e.message);
     }
 });
 

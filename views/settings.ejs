@@ -116,6 +116,18 @@
                         التوقيتات والمدد
                     </button>
                 </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="reminders-tab" data-bs-toggle="pill" data-bs-target="#reminders-pane" type="button" role="tab" aria-controls="reminders-pane" aria-selected="false">
+                        <i class="bi bi-bell-fill text-warning"></i>
+                        التذكيرات
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="ads-reports-tab" data-bs-toggle="pill" data-bs-target="#ads-reports-pane" type="button" role="tab" aria-controls="ads-reports-pane" aria-selected="false">
+                        <i class="bi bi-graph-up-arrow text-primary"></i>
+                        تقارير الإعلانات
+                    </button>
+                </li>
             </ul>
 
             <!-- Unified Form for all settings -->
@@ -366,6 +378,380 @@
                         </div>
                     </div>
 
+                    <!-- 3. Reminders Tab (التذكيرات) -->
+                    <div class="tab-pane fade" id="reminders-pane" role="tabpanel" aria-labelledby="reminders-tab">
+                        <div class="d-flex align-items-center justify-content-between mb-4">
+                            <div>
+                                <h5 class="section-title mb-1">
+                                    <i class="bi bi-bell-fill text-warning me-2"></i>
+                                    نظام تذكيرات جروب الواتساب بالذكاء الاصطناعي
+                                </h5>
+                                <p class="text-muted small mb-0">تحكم في الجروب المخصص للتذكيرات، الأرقام المصرح لها، والمنشن التلقائي للموظفين المسؤولين.</p>
+                            </div>
+                        </div>
+
+                        <div class="row g-4">
+                            <!-- Left Column: Group Selection & Authorized Numbers -->
+                            <div class="col-lg-7">
+                                <!-- Card: Group Selection -->
+                                <div class="card border-0 shadow-sm p-4 rounded-4 bg-light mb-4">
+                                    <div class="d-flex align-items-center justify-content-between mb-3">
+                                        <div class="d-flex align-items-center">
+                                            <div class="bg-success bg-opacity-10 p-2.5 rounded-circle me-3 d-flex align-items-center justify-content-center" style="width: 44px; height: 44px;">
+                                                <i class="bi bi-whatsapp text-success fs-4"></i>
+                                            </div>
+                                            <div>
+                                                <h6 class="fw-bold mb-0 text-dark">جروب واتساب المعتمد للتذكيرات</h6>
+                                                <small class="text-muted">الجروب الذي يراقب فيه البوت أوامر التذكير ويرسل فيه التنبيهات</small>
+                                            </div>
+                                        </div>
+                                        <div class="form-check form-switch mb-0">
+                                            <input class="form-check-input" type="checkbox" name="reminder_system_enabled" id="reminder_system_enabled" value="true" <%= settings.reminder_system_enabled !== false ? 'checked' : '' %> style="width: 2.8rem; height: 1.4rem;">
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold text-secondary small">اختر الجروب من قائمة جروبات البوت:</label>
+                                        <div class="input-group shadow-sm rounded-3 overflow-hidden">
+                                            <select name="reminder_group_jid" id="reminderGroupSelect" class="form-select border-0 py-2.5 fw-medium">
+                                                <option value="" <%= !settings.reminder_group_jid ? 'selected' : '' %>>⚡ التعرف التلقائي على أي جروب اسمه (تذكيرات)</option>
+                                                <% if (settings.reminder_group_jid) { %>
+                                                    <option value="<%= settings.reminder_group_jid %>" selected>📌 الجروب الحالي المحفوظ (<%= settings.reminder_group_name || 'تذكيرات' %>)</option>
+                                                <% } %>
+                                            </select>
+                                            <button type="button" id="refreshGroupsBtn" class="btn btn-outline-secondary bg-white px-3 fw-bold" title="تحديث قائمة الجروبات من الواتساب">
+                                                <i class="bi bi-arrow-clockwise me-1"></i> جلب الجروبات
+                                            </button>
+                                        </div>
+                                        <input type="hidden" name="reminder_group_name" id="reminderGroupName" value="<%= settings.reminder_group_name || 'تذكيرات' %>">
+                                        <div class="form-text text-muted small mt-1">إذا تركت الخيار التلقائي، سيتعرف البوت تلقائياً على أي جروب يحتوي اسمه على كلمة "تذكيرات".</div>
+                                    </div>
+
+                                    <!-- Check Status Button -->
+                                    <div class="d-flex gap-2">
+                                        <button type="button" id="checkReminderGroupBtn" class="btn btn-primary fw-bold rounded-3 py-2 px-3 shadow-sm flex-grow-1">
+                                            <i class="bi bi-search me-1"></i> فحص حالة جروب التذكيرات
+                                        </button>
+                                    </div>
+                                    <div id="checkReminderGroupResult" class="mt-3 small rounded-3" style="display: none;"></div>
+                                </div>
+
+                                <!-- Card: Authorized Admins -->
+                                <div class="card border-0 shadow-sm p-4 rounded-4 bg-light">
+                                    <div class="d-flex align-items-center justify-content-between mb-3">
+                                        <div class="d-flex align-items-center">
+                                            <div class="bg-primary bg-opacity-10 p-2.5 rounded-circle me-3 d-flex align-items-center justify-content-center" style="width: 44px; height: 44px;">
+                                                <i class="bi bi-shield-lock-fill text-primary fs-4"></i>
+                                            </div>
+                                            <div>
+                                                <h6 class="fw-bold mb-0 text-dark">المشرفون المصرح لهم بإدارة التذكيرات</h6>
+                                                <small class="text-muted">الأشخاص والأرقام المصرح لها بإعطاء أوامر التذكير للبوت</small>
+                                            </div>
+                                        </div>
+                                        <span class="badge bg-primary bg-opacity-10 text-primary px-3 py-2 rounded-pill fw-bold" id="adminsCountBadge">
+                                            <%= (typeof reminderAdmins !== 'undefined' && reminderAdmins && reminderAdmins.length) || 1 %> مشرفين
+                                        </span>
+                                    </div>
+
+                                    <!-- Hidden input to keep form submission synced -->
+                                    <input type="hidden" name="reminder_authorized_phones" id="reminderAuthorizedPhonesInput" value="<%= settings.reminder_authorized_phones || '01092308465' %>">
+
+                                    <!-- Admin List Table -->
+                                    <div class="table-responsive bg-white rounded-3 shadow-sm border mb-3 overflow-hidden">
+                                        <table class="table table-hover align-middle mb-0 text-nowrap">
+                                            <thead class="table-light">
+                                                <tr class="small text-secondary">
+                                                    <th class="ps-3 py-2.5">الاسم</th>
+                                                    <th class="py-2.5">رقم الهاتف</th>
+                                                    <th class="py-2.5">الدور والصلاحية</th>
+                                                    <th class="text-center pe-3 py-2.5" style="width: 80px;">إجراء</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="reminderAdminsTableBody">
+                                                <% const listToRender = (typeof reminderAdmins !== 'undefined' && reminderAdmins && reminderAdmins.length) ? reminderAdmins : [{ name: 'راضي', phone: '01092308465', isPrimary: true }]; %>
+                                                <% listToRender.forEach(function(admin) { %>
+                                                    <tr id="admin-row-<%= admin.phone %>">
+                                                        <td class="ps-3 fw-bold">
+                                                            <% if (admin.isPrimary) { %>
+                                                                <span class="d-inline-flex align-items-center text-primary">
+                                                                    <i class="bi bi-star-fill text-warning me-1"></i>
+                                                                    <%= admin.name %>
+                                                                </span>
+                                                            <% } else { %>
+                                                                <span class="d-inline-flex align-items-center text-dark">
+                                                                    <i class="bi bi-person-fill text-secondary me-1"></i>
+                                                                    <%= admin.name %>
+                                                                </span>
+                                                            <% } %>
+                                                        </td>
+                                                        <td>
+                                                            <code class="fw-bold text-dark px-2 py-1 bg-light rounded font-monospace"><%= admin.phone %></code>
+                                                        </td>
+                                                        <td>
+                                                            <% if (admin.isPrimary) { %>
+                                                                <span class="badge bg-warning bg-opacity-25 text-dark border border-warning px-2.5 py-1">
+                                                                    👑 الأدمن الرئيسي
+                                                                </span>
+                                                            <% } else { %>
+                                                                <span class="badge bg-info bg-opacity-10 text-info border border-info px-2.5 py-1">
+                                                                    مشرف معتمد
+                                                                </span>
+                                                            <% } %>
+                                                        </td>
+                                                        <td class="text-center pe-3">
+                                                            <% if (admin.isPrimary) { %>
+                                                                <span class="text-muted small" title="لا يمكن حذف الأدمن الرئيسي">
+                                                                    <i class="bi bi-lock-fill text-secondary"></i> أساسي
+                                                                </span>
+                                                            <% } else { %>
+                                                                <button type="button" class="btn btn-sm btn-outline-danger px-2.5 py-1 rounded-2" onclick="deleteReminderAdmin('<%= admin.phone %>', '<%= admin.name %>')" title="حذف المشرف">
+                                                                    <i class="bi bi-trash3"></i>
+                                                                </button>
+                                                            <% } %>
+                                                        </td>
+                                                    </tr>
+                                                <% }); %>
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    <!-- Quick Add Admin Form -->
+                                    <div class="p-3 bg-white rounded-3 border">
+                                        <label class="form-label fw-bold text-dark small mb-2 d-flex align-items-center">
+                                            <i class="bi bi-person-plus-fill text-primary me-1"></i> إضافة مشرف جديد:
+                                        </label>
+                                        <div class="row g-2">
+                                            <div class="col-md-5">
+                                                <input type="text" id="newAdminNameInput" class="form-control form-control-sm py-2 rounded-2" placeholder="الاسم (مثال: خدمة العملاء)">
+                                            </div>
+                                            <div class="col-md-5">
+                                                <input type="text" id="newAdminPhoneInput" class="form-control form-control-sm py-2 rounded-2 font-monospace" placeholder="رقم الهاتف (مثال: 01012027705)">
+                                            </div>
+                                            <div class="col-md-2">
+                                                <button type="button" id="addNewAdminBtn" class="btn btn-sm btn-primary w-100 py-2 rounded-2 fw-bold">
+                                                    <i class="bi bi-plus-lg me-1"></i> إضافة
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div id="newAdminAlert" class="mt-2 small" style="display: none;"></div>
+                                        <div class="form-text text-muted small mt-2">
+                                            <i class="bi bi-info-circle me-1"></i>
+                                            رقمك الأساسي (<strong>01092308465</strong> - راضي) مصرح له دائماً وأساسي في النظام. يمكنك أيضاً كتابة <code>اسمح للرقم 010xxxxxxxx لخدمة العملاء</code> داخل الجروب في أي وقت.
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Right Column: Quick Instructions & Command Guide -->
+                            <div class="col-lg-5">
+                                <div class="card border-0 shadow-sm p-4 rounded-4 bg-white border-top border-4 border-warning h-100">
+                                    <h6 class="fw-bold text-dark mb-3">
+                                        <i class="bi bi-lightbulb-fill text-warning me-2"></i>
+                                        طريقة الاستخدام والأوامر المتاحة:
+                                    </h6>
+                                    
+                                    <div class="list-group list-group-flush small">
+                                        <div class="list-group-item px-0 py-2.5 bg-transparent border-0">
+                                            <strong class="text-primary d-block mb-1">1️⃣ إضافة تذكير بالعامية:</strong>
+                                            <span class="text-muted">اكتب كأنك بتكلم سكرتيرك:</span>
+                                            <div class="bg-light p-2 rounded-2 mt-1 font-monospace">"فكرنا بكرة الساعة 3 نبعت تقرير للعميل أحمد"</div>
+                                        </div>
+
+                                        <div class="list-group-item px-0 py-2.5 bg-transparent border-0">
+                                            <strong class="text-primary d-block mb-1">2️⃣ تذكير موظف محدد مع المنشن:</strong>
+                                            <span class="text-muted">اكتب اسم الموظف:</span>
+                                            <div class="bg-light p-2 rounded-2 mt-1 font-monospace">"فكر ساهر يوم الأحد 10 الصبح اشتراك العميل كذا"</div>
+                                            <small class="text-success d-block mt-1">✨ البوت هيسجل التذكير، وفي الميعاد بالظبط هيعمل لساهر منشن (@ساهر) علشان تليفونه يرن.</small>
+                                        </div>
+
+                                        <div class="list-group-item px-0 py-2.5 bg-transparent border-0">
+                                            <strong class="text-primary d-block mb-1">3️⃣ عرض المجدول أو الإلغاء:</strong>
+                                            <span class="text-muted">اكتب في الجروب:</span>
+                                            <div class="bg-light p-2 rounded-2 mt-1 font-monospace">"التذكيرات" أو "المجدول"</div>
+                                            <span class="text-muted mt-1 d-block">وللإلغاء:</span>
+                                            <div class="bg-light p-2 rounded-2 mt-1 font-monospace">"الغاء 1" أو "حذف 1"</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 4. Ads Reports Tab -->
+                    <div class="tab-pane fade" id="ads-reports-pane" role="tabpanel" aria-labelledby="ads-reports-tab">
+                        <div class="d-flex align-items-center justify-content-between mb-4 pb-2 border-bottom">
+                            <div>
+                                <h5 class="fw-bold mb-1 text-dark d-flex align-items-center">
+                                    <i class="bi bi-graph-up-arrow text-primary me-2"></i>
+                                    نظام تقارير إعلانات فيسبوك / ميتا في جروب الواتساب
+                                </h5>
+                                <p class="text-muted small mb-0">تحكم في الجروب المخصص لتقارير أداء الحملات الممولة، استعلام فوري عن أداء الحساب الإعلاني برقم البليز.</p>
+                            </div>
+                        </div>
+
+                        <div class="row g-4">
+                            <!-- Left Column: Group Selection & Authorized Numbers -->
+                            <div class="col-lg-7">
+                                <!-- Card: Group Selection -->
+                                <div class="card border-0 shadow-sm p-4 rounded-4 bg-light mb-4">
+                                    <div class="d-flex align-items-center justify-content-between mb-3">
+                                        <div class="d-flex align-items-center">
+                                            <div class="bg-primary bg-opacity-10 p-2.5 rounded-circle me-3 d-flex align-items-center justify-content-center" style="width: 44px; height: 44px;">
+                                                <i class="bi bi-whatsapp text-success fs-4"></i>
+                                            </div>
+                                            <div>
+                                                <h6 class="fw-bold mb-0 text-dark">جروب واتساب المعتمد لتقارير الإعلانات</h6>
+                                                <small class="text-muted">الجروب الذي يراقب فيه البوت أرقام الحسابات الإعلانية ويرسل فيه التقارير</small>
+                                            </div>
+                                        </div>
+                                        <div class="form-check form-switch mb-0">
+                                            <input class="form-check-input" type="checkbox" name="ads_report_system_enabled" id="ads_report_system_enabled" value="true" <%= settings.ads_report_system_enabled !== false ? 'checked' : '' %> style="width: 2.8rem; height: 1.4rem;">
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold text-secondary small">اختر الجروب من قائمة جروبات البوت:</label>
+                                        <div class="input-group shadow-sm rounded-3 overflow-hidden">
+                                            <select name="ads_report_group_jid" id="adsReportGroupSelect" class="form-select border-0 py-2.5 fw-medium">
+                                                <option value="" <%= !settings.ads_report_group_jid ? 'selected' : '' %>>⚡ التعرف التلقائي على أي جروب اسمه (إعلانات / تقارير الإعلانات)</option>
+                                                <% if (settings.ads_report_group_jid) { %>
+                                                    <option value="<%= settings.ads_report_group_jid %>" selected>📌 الجروب الحالي المحفوظ (<%= settings.ads_report_group_name || 'تقارير الإعلانات' %>)</option>
+                                                <% } %>
+                                            </select>
+                                            <button type="button" id="refreshAdsReportGroupsBtn" class="btn btn-outline-secondary bg-white px-3 fw-bold" title="تحديث قائمة الجروبات من الواتساب">
+                                                <i class="bi bi-arrow-clockwise me-1"></i> جلب الجروبات
+                                            </button>
+                                        </div>
+                                        <input type="hidden" name="ads_report_group_name" id="adsReportGroupName" value="<%= settings.ads_report_group_name || 'تقارير الإعلانات' %>">
+                                        <div class="form-text text-muted small mt-1">إذا تركت الخيار التلقائي، سيتعرف البوت تلقائياً على أي جروب يحتوي اسمه على كلمة "إعلان" أو "ads".</div>
+                                    </div>
+
+                                    <!-- Check Status Button -->
+                                    <div class="d-flex gap-2">
+                                        <button type="button" id="checkAdsReportGroupBtn" class="btn btn-primary fw-bold rounded-3 py-2 px-3 shadow-sm flex-grow-1">
+                                            <i class="bi bi-search me-1"></i> فحص حالة جروب تقارير الإعلانات
+                                        </button>
+                                    </div>
+                                    <div id="checkAdsReportGroupResult" class="mt-3 small rounded-3" style="display: none;"></div>
+                                </div>
+
+                                <!-- Card: Authorized Admins -->
+                                <div class="card border-0 shadow-sm p-4 rounded-4 bg-light">
+                                    <div class="d-flex align-items-center justify-content-between mb-3">
+                                        <div class="d-flex align-items-center">
+                                            <div class="bg-primary bg-opacity-10 p-2.5 rounded-circle me-3 d-flex align-items-center justify-content-center" style="width: 44px; height: 44px;">
+                                                <i class="bi bi-shield-lock-fill text-primary fs-4"></i>
+                                            </div>
+                                            <div>
+                                                <h6 class="fw-bold mb-0 text-dark">المشرفون المصرح لهم بطلب التقارير</h6>
+                                                <small class="text-muted">الأشخاص والأرقام المصرح لها بطلب فحص الحسابات الإعلانية من البوت</small>
+                                            </div>
+                                        </div>
+                                        <span class="badge bg-primary bg-opacity-10 text-primary px-3 py-2 rounded-pill fw-bold">
+                                            <%= (typeof reminderAdmins !== 'undefined' && reminderAdmins && reminderAdmins.length) || 1 %> مشرفين
+                                        </span>
+                                    </div>
+
+                                    <!-- Admin List Table -->
+                                    <div class="table-responsive bg-white rounded-3 shadow-sm border mb-3 overflow-hidden">
+                                        <table class="table table-hover align-middle mb-0 text-nowrap">
+                                            <thead class="table-light">
+                                                <tr class="small text-secondary">
+                                                    <th class="ps-3 py-2.5">الاسم</th>
+                                                    <th class="py-2.5">رقم الهاتف</th>
+                                                    <th class="py-2.5">الصلاحية</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <% const adsAdminList = (typeof reminderAdmins !== 'undefined' && reminderAdmins && reminderAdmins.length) ? reminderAdmins : [{ name: 'راضي', phone: '01092308465', isPrimary: true }]; %>
+                                                <% adsAdminList.forEach(function(admin) { %>
+                                                    <tr>
+                                                        <td class="ps-3 fw-bold">
+                                                            <% if (admin.isPrimary) { %>
+                                                                <span class="d-inline-flex align-items-center text-primary">
+                                                                    <i class="bi bi-star-fill text-warning me-1"></i>
+                                                                    <%= admin.name %>
+                                                                </span>
+                                                            <% } else { %>
+                                                                <span class="d-inline-flex align-items-center text-dark">
+                                                                    <i class="bi bi-person-fill text-secondary me-1"></i>
+                                                                    <%= admin.name %>
+                                                                </span>
+                                                            <% } %>
+                                                        </td>
+                                                        <td>
+                                                            <code class="fw-bold text-dark px-2 py-1 bg-light rounded font-monospace"><%= admin.phone %></code>
+                                                        </td>
+                                                        <td>
+                                                            <% if (admin.isPrimary) { %>
+                                                                <span class="badge bg-warning bg-opacity-25 text-dark border border-warning px-2.5 py-1">
+                                                                    👑 الأدمن الرئيسي
+                                                                </span>
+                                                            <% } else { %>
+                                                                <span class="badge bg-info bg-opacity-10 text-info border border-info px-2.5 py-1">
+                                                                    مشرف معتمد
+                                                                </span>
+                                                            <% } %>
+                                                        </td>
+                                                    </tr>
+                                                <% }); %>
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    <div class="form-text text-muted small">
+                                        <i class="bi bi-info-circle me-1"></i>
+                                        قائمة المشرفين موحدة ومطابقة لقائمة المشرفين المعتمدين في تبويب التذكيرات، بحيث يستطيع نفس المشرفين طلب تقارير الإعلانات مباشرة.
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Right Column: Quick Instructions & Command Guide -->
+                            <div class="col-lg-5">
+                                <div class="card border-0 shadow-sm p-4 rounded-4 bg-white border-top border-4 border-primary h-100">
+                                    <h6 class="fw-bold text-dark mb-3">
+                                        <i class="bi bi-lightbulb-fill text-primary me-2"></i>
+                                        طريقة الاستخدام وسحب نتائج الإعلانات:
+                                    </h6>
+                                    
+                                    <div class="list-group list-group-flush small">
+                                        <div class="list-group-item px-0 py-2.5 bg-transparent border-0">
+                                            <strong class="text-primary d-block mb-1">1️⃣ استعلام مباشر برقم الحساب الإعلاني:</strong>
+                                            <span class="text-muted">أرسل رقم الحساب مباشرة في الجروب:</span>
+                                            <div class="bg-light p-2 rounded-2 mt-1 font-monospace">1234567890</div>
+                                            <small class="text-muted mt-1 d-block">سيقوم البوت تلقائياً بجلب ملخص حملات اليوم لحساب التاجر عبر منصة الإعلانات.</small>
+                                        </div>
+
+                                        <div class="list-group-item px-0 py-2.5 bg-transparent border-0">
+                                            <strong class="text-primary d-block mb-1">2️⃣ تحديد الفترة الزمنية المطلوبة:</strong>
+                                            <span class="text-muted">اكتب اسم الفترة مع الرقم:</span>
+                                            <div class="bg-light p-2 rounded-2 mt-1 font-monospace mb-1">"تقرير 1234567890 امبارح"</div>
+                                            <div class="bg-light p-2 rounded-2 mt-1 font-monospace mb-1">"1234567890 اخر 7 ايام"</div>
+                                            <div class="bg-light p-2 rounded-2 mt-1 font-monospace mb-1">"1234567890 هذا الشهر"</div>
+                                            <div class="bg-light p-2 rounded-2 mt-1 font-monospace">"1234567890 الكل"</div>
+                                        </div>
+
+                                        <div class="list-group-item px-0 py-2.5 bg-transparent border-0">
+                                            <strong class="text-primary d-block mb-1">3️⃣ استعلام بحملة إعلانية محددة:</strong>
+                                            <span class="text-muted">أرسل رقم الحملة:</span>
+                                            <div class="bg-light p-2 rounded-2 mt-1 font-monospace">"حملة 120252812532900334"</div>
+                                        </div>
+
+                                        <div class="list-group-item px-0 py-2.5 bg-transparent border-0">
+                                            <strong class="text-primary d-block mb-1">✨ محتويات التقرير المنسق:</strong>
+                                            <ul class="mb-0 ps-3 text-muted">
+                                                <li>إجمالي المصروف كمبلغ صحيح بدون كسور بالعملة (EGP).</li>
+                                                <li>النتائج وتكلفة النتيجة (CPA) ومعدل العائد (ROAS).</li>
+                                                <li>تمييز نوع الإعلان: 🛍️ إعلان مبيعات أو 💬 إعلان رسائل.</li>
+                                                <li>تاريخ وساعة الانتهاء والوقت المتبقي بدقة.</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
 
                 <!-- Unified Save Button -->
@@ -557,6 +943,9 @@
                     toast.classList.add('fade');
                     setTimeout(() => document.body.removeChild(toast), 300);
                 }, 2000);
+            });
+        }
+
         function toggleWorkingHoursTable(enabled) {
             const container = document.getElementById('workingHoursContainer');
             if (container) {
@@ -588,6 +977,300 @@
                     }
                 });
             });
+        });
+
+        // --- فحص وجلب جروبات التذكيرات ---
+        document.addEventListener('DOMContentLoaded', function() {
+            const refreshGroupsBtn = document.getElementById('refreshGroupsBtn');
+            const reminderGroupSelect = document.getElementById('reminderGroupSelect');
+            const reminderGroupName = document.getElementById('reminderGroupName');
+            const checkReminderGroupBtn = document.getElementById('checkReminderGroupBtn');
+            const checkReminderGroupResult = document.getElementById('checkReminderGroupResult');
+
+            if (refreshGroupsBtn && reminderGroupSelect) {
+                refreshGroupsBtn.addEventListener('click', async () => {
+                    refreshGroupsBtn.disabled = true;
+                    refreshGroupsBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> جاري الجلب...';
+                    try {
+                        const res = await fetch('/dashboard/settings/whatsapp-groups');
+                        const data = await res.json();
+                        if (data.success && data.groups) {
+                            const currentVal = reminderGroupSelect.value;
+                            reminderGroupSelect.innerHTML = '<option value="">⚡ التعرف التلقائي على أي جروب اسمه (تذكيرات)</option>';
+                            data.groups.forEach(g => {
+                                const opt = document.createElement('option');
+                                opt.value = g.id;
+                                opt.textContent = `👥 ${g.subject}`;
+                                if (g.id === currentVal) opt.selected = true;
+                                reminderGroupSelect.appendChild(opt);
+                            });
+                        } else {
+                            alert(data.error || 'تعذر جلب الجروبات. تأكد من اتصال بوت الواتساب.');
+                        }
+                    } catch (e) {
+                        alert('حدث خطأ أثناء جلب الجروبات: ' + e.message);
+                    } finally {
+                        refreshGroupsBtn.disabled = false;
+                        refreshGroupsBtn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i> جلب الجروبات';
+                    }
+                });
+
+                reminderGroupSelect.addEventListener('change', () => {
+                    const selectedOpt = reminderGroupSelect.options[reminderGroupSelect.selectedIndex];
+                    if (reminderGroupName && selectedOpt) {
+                        reminderGroupName.value = selectedOpt.textContent.replace('👥 ', '').replace('⚡ ', '').trim();
+                    }
+                });
+
+                // جلب الجروبات تلقائياً عند الدخول على تاب التذكيرات لأول مرة
+                const remindersTabBtn = document.getElementById('reminders-tab');
+                if (remindersTabBtn) {
+                    remindersTabBtn.addEventListener('shown.bs.tab', () => {
+                        if (reminderGroupSelect.options.length <= 2 && !refreshGroupsBtn.disabled) {
+                            refreshGroupsBtn.click();
+                        }
+                    });
+                }
+            }
+
+            if (checkReminderGroupBtn && checkReminderGroupResult) {
+                checkReminderGroupBtn.addEventListener('click', async () => {
+                    checkReminderGroupBtn.disabled = true;
+                    checkReminderGroupBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> جاري الفحص...';
+                    checkReminderGroupResult.style.display = 'none';
+
+                    try {
+                        const res = await fetch('/dashboard/settings/check-reminder-group');
+                        const data = await res.json();
+                        checkReminderGroupResult.style.display = 'block';
+
+                        if (data.status === 'found') {
+                            checkReminderGroupResult.className = 'mt-3 small p-3 rounded-3 bg-success bg-opacity-10 text-success border border-success';
+                            checkReminderGroupResult.innerHTML = `<div class="d-flex align-items-center fw-bold"><i class="bi bi-check-circle-fill fs-5 me-2"></i> ${data.message}</div>`;
+                        } else if (data.status === 'disconnected') {
+                            checkReminderGroupResult.className = 'mt-3 small p-3 rounded-3 bg-danger text-white';
+                            checkReminderGroupResult.innerHTML = `<i class="bi bi-x-circle me-1"></i> ${data.message}`;
+                        } else {
+                            checkReminderGroupResult.className = 'mt-3 small p-3 rounded-3 bg-warning text-dark border border-warning';
+                            checkReminderGroupResult.innerHTML = `<i class="bi bi-exclamation-triangle me-1"></i> ${data.message}`;
+                        }
+                    } catch (e) {
+                        checkReminderGroupResult.style.display = 'block';
+                        checkReminderGroupResult.className = 'mt-3 small p-3 rounded-3 bg-danger text-white';
+                        checkReminderGroupResult.innerHTML = 'حدث خطأ أثناء الفحص: ' + e.message;
+                    } finally {
+                        checkReminderGroupBtn.disabled = false;
+                        checkReminderGroupBtn.innerHTML = '<i class="bi bi-search me-1"></i> فحص حالة جروب التذكيرات';
+                    }
+                });
+            }
+
+            // --- فحص وجلب جروبات تقارير الإعلانات ---
+            const refreshAdsReportGroupsBtn = document.getElementById('refreshAdsReportGroupsBtn');
+            const adsReportGroupSelect = document.getElementById('adsReportGroupSelect');
+            const adsReportGroupName = document.getElementById('adsReportGroupName');
+            const checkAdsReportGroupBtn = document.getElementById('checkAdsReportGroupBtn');
+            const checkAdsReportGroupResult = document.getElementById('checkAdsReportGroupResult');
+
+            if (refreshAdsReportGroupsBtn && adsReportGroupSelect) {
+                refreshAdsReportGroupsBtn.addEventListener('click', async () => {
+                    refreshAdsReportGroupsBtn.disabled = true;
+                    refreshAdsReportGroupsBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> جاري الجلب...';
+                    try {
+                        const res = await fetch('/dashboard/settings/whatsapp-groups');
+                        const data = await res.json();
+                        if (data.success && data.groups) {
+                            const currentVal = adsReportGroupSelect.value;
+                            adsReportGroupSelect.innerHTML = '<option value="">⚡ التعرف التلقائي على أي جروب اسمه (إعلانات / تقارير الإعلانات)</option>';
+                            data.groups.forEach(g => {
+                                const opt = document.createElement('option');
+                                opt.value = g.id;
+                                opt.textContent = `👥 ${g.subject}`;
+                                if (g.id === currentVal) opt.selected = true;
+                                adsReportGroupSelect.appendChild(opt);
+                            });
+                        } else {
+                            alert(data.error || 'تعذر جلب الجروبات. تأكد من اتصال بوت الواتساب.');
+                        }
+                    } catch (e) {
+                        alert('حدث خطأ أثناء جلب الجروبات: ' + e.message);
+                    } finally {
+                        refreshAdsReportGroupsBtn.disabled = false;
+                        refreshAdsReportGroupsBtn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i> جلب الجروبات';
+                    }
+                });
+
+                adsReportGroupSelect.addEventListener('change', () => {
+                    const selectedOpt = adsReportGroupSelect.options[adsReportGroupSelect.selectedIndex];
+                    if (adsReportGroupName && selectedOpt) {
+                        adsReportGroupName.value = selectedOpt.textContent.replace('👥 ', '').replace('⚡ ', '').trim();
+                    }
+                });
+
+                // جلب الجروبات تلقائياً عند الدخول على تاب تقارير الإعلانات لأول مرة
+                const adsReportsTabBtn = document.getElementById('ads-reports-tab');
+                if (adsReportsTabBtn) {
+                    adsReportsTabBtn.addEventListener('shown.bs.tab', () => {
+                        if (adsReportGroupSelect.options.length <= 2 && !refreshAdsReportGroupsBtn.disabled) {
+                            refreshAdsReportGroupsBtn.click();
+                        }
+                    });
+                }
+            }
+
+            if (checkAdsReportGroupBtn && checkAdsReportGroupResult) {
+                checkAdsReportGroupBtn.addEventListener('click', async () => {
+                    checkAdsReportGroupBtn.disabled = true;
+                    checkAdsReportGroupBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> جاري الفحص...';
+                    checkAdsReportGroupResult.style.display = 'none';
+
+                    try {
+                        const res = await fetch('/dashboard/settings/check-ads-report-group');
+                        const data = await res.json();
+                        checkAdsReportGroupResult.style.display = 'block';
+
+                        if (data.status === 'found') {
+                            checkAdsReportGroupResult.className = 'mt-3 small p-3 rounded-3 bg-success bg-opacity-10 text-success border border-success';
+                            checkAdsReportGroupResult.innerHTML = `<div class="d-flex align-items-center fw-bold"><i class="bi bi-check-circle-fill fs-5 me-2"></i> ${data.message}</div>`;
+                        } else if (data.status === 'disconnected') {
+                            checkAdsReportGroupResult.className = 'mt-3 small p-3 rounded-3 bg-danger text-white';
+                            checkAdsReportGroupResult.innerHTML = `<i class="bi bi-x-circle me-1"></i> ${data.message}`;
+                        } else {
+                            checkAdsReportGroupResult.className = 'mt-3 small p-3 rounded-3 bg-warning text-dark border border-warning';
+                            checkAdsReportGroupResult.innerHTML = `<i class="bi bi-exclamation-triangle me-1"></i> ${data.message}`;
+                        }
+                    } catch (e) {
+                        checkAdsReportGroupResult.style.display = 'block';
+                        checkAdsReportGroupResult.className = 'mt-3 small p-3 rounded-3 bg-danger text-white';
+                        checkAdsReportGroupResult.innerHTML = 'حدث خطأ أثناء الفحص: ' + e.message;
+                    } finally {
+                        checkAdsReportGroupBtn.disabled = false;
+                        checkAdsReportGroupBtn.innerHTML = '<i class="bi bi-search me-1"></i> فحص حالة جروب تقارير الإعلانات';
+                    }
+                });
+            }
+
+            // إدارة المشرفين المصرح لهم بالتذكيرات
+            const addNewAdminBtn = document.getElementById('addNewAdminBtn');
+            const newAdminNameInput = document.getElementById('newAdminNameInput');
+            const newAdminPhoneInput = document.getElementById('newAdminPhoneInput');
+            const newAdminAlert = document.getElementById('newAdminAlert');
+            const reminderAdminsTableBody = document.getElementById('reminderAdminsTableBody');
+            const adminsCountBadge = document.getElementById('adminsCountBadge');
+            const reminderAuthorizedPhonesInput = document.getElementById('reminderAuthorizedPhonesInput');
+
+            function updateAdminListUI(admins) {
+                if (!reminderAdminsTableBody || !Array.isArray(admins)) return;
+                
+                if (adminsCountBadge) {
+                    adminsCountBadge.textContent = `${admins.length} مشرفين`;
+                }
+
+                if (reminderAuthorizedPhonesInput) {
+                    reminderAuthorizedPhonesInput.value = admins.map(a => a.phone).join(',');
+                }
+
+                reminderAdminsTableBody.innerHTML = '';
+                admins.forEach(admin => {
+                    const tr = document.createElement('tr');
+                    tr.id = `admin-row-${admin.phone}`;
+                    
+                    const nameCol = admin.isPrimary 
+                        ? `<span class="d-inline-flex align-items-center text-primary"><i class="bi bi-star-fill text-warning me-1"></i> ${admin.name}</span>`
+                        : `<span class="d-inline-flex align-items-center text-dark"><i class="bi bi-person-fill text-secondary me-1"></i> ${admin.name}</span>`;
+                        
+                    const badgeCol = admin.isPrimary
+                        ? `<span class="badge bg-warning bg-opacity-25 text-dark border border-warning px-2.5 py-1">👑 الأدمن الرئيسي</span>`
+                        : `<span class="badge bg-info bg-opacity-10 text-info border border-info px-2.5 py-1">مشرف معتمد</span>`;
+
+                    const actionCol = admin.isPrimary
+                        ? `<span class="text-muted small" title="لا يمكن حذف الأدمن الرئيسي"><i class="bi bi-lock-fill text-secondary"></i> أساسي</span>`
+                        : `<button type="button" class="btn btn-sm btn-outline-danger px-2.5 py-1 rounded-2" onclick="deleteReminderAdmin('${admin.phone}', '${admin.name}')" title="حذف المشرف"><i class="bi bi-trash3"></i></button>`;
+
+                    tr.innerHTML = `
+                        <td class="ps-3 fw-bold">${nameCol}</td>
+                        <td><code class="fw-bold text-dark px-2 py-1 bg-light rounded font-monospace">${admin.phone}</code></td>
+                        <td>${badgeCol}</td>
+                        <td class="text-center pe-3">${actionCol}</td>
+                    `;
+                    reminderAdminsTableBody.appendChild(tr);
+                });
+            }
+
+            if (addNewAdminBtn) {
+                addNewAdminBtn.addEventListener('click', async () => {
+                    const name = (newAdminNameInput.value || '').trim();
+                    const phone = (newAdminPhoneInput.value || '').trim();
+
+                    if (!phone) {
+                        newAdminAlert.style.display = 'block';
+                        newAdminAlert.className = 'mt-2 small text-danger fw-bold';
+                        newAdminAlert.innerHTML = '<i class="bi bi-exclamation-circle me-1"></i> يرجى إدخال رقم الهاتف أولاً.';
+                        return;
+                    }
+
+                    addNewAdminBtn.disabled = true;
+                    addNewAdminBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> جاري الإضافة...';
+                    newAdminAlert.style.display = 'none';
+
+                    try {
+                        const res = await fetch('/dashboard/settings/reminder-admins/add', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ name, phone })
+                        });
+                        const data = await res.json();
+
+                        if (data.success) {
+                            newAdminAlert.style.display = 'block';
+                            newAdminAlert.className = 'mt-2 small text-success fw-bold';
+                            newAdminAlert.innerHTML = `<i class="bi bi-check-circle me-1"></i> ${data.message}`;
+                            newAdminNameInput.value = '';
+                            newAdminPhoneInput.value = '';
+                            if (data.admins) updateAdminListUI(data.admins);
+                            setTimeout(() => { newAdminAlert.style.display = 'none'; }, 4000);
+                        } else {
+                            newAdminAlert.style.display = 'block';
+                            newAdminAlert.className = 'mt-2 small text-danger fw-bold';
+                            newAdminAlert.innerHTML = `<i class="bi bi-exclamation-circle me-1"></i> ${data.error || 'تعذر إضافة المشرف'}`;
+                        }
+                    } catch (e) {
+                        newAdminAlert.style.display = 'block';
+                        newAdminAlert.className = 'mt-2 small text-danger fw-bold';
+                        newAdminAlert.innerHTML = 'حدث خطأ: ' + e.message;
+                    } finally {
+                        addNewAdminBtn.disabled = false;
+                        addNewAdminBtn.innerHTML = '<i class="bi bi-plus-lg me-1"></i> إضافة';
+                    }
+                });
+            }
+
+            window.deleteReminderAdmin = async function(phone, name) {
+                if (!confirm(`هل أنت متأكد من حذف المشرف "${name}" (${phone}) من قائمة المشرفين المصرح لهم؟`)) {
+                    return;
+                }
+
+                try {
+                    const res = await fetch('/dashboard/settings/reminder-admins/delete', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ phone })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        if (data.admins) {
+                            updateAdminListUI(data.admins);
+                        } else {
+                            const row = document.getElementById(`admin-row-${phone}`);
+                            if (row) row.remove();
+                        }
+                    } else {
+                        alert(data.error || 'تعذر حذف المشرف');
+                    }
+                } catch (e) {
+                    alert('حدث خطأ أثناء الحذف: ' + e.message);
+                }
+            };
         });
     </script>
 </body>

@@ -26,6 +26,8 @@ import ChangeLog from '../models/ChangeLog.js';
 import Campaign from '../models/Campaign.js';
 import * as notificationService from '../services/notificationService.js';
 import { handleStaffMessage } from '../services/whatsappProductCreatorService.js';
+import { handleReminderGroupMessage } from '../services/reminderService.js';
+import { handleAdsReportGroupMessage } from '../services/adsReportService.js';
 
 const handoffMessages = [
     "ثواني وهخلي حد من المبيعات يكلمك، خليك معايا! 🙏",
@@ -399,16 +401,23 @@ async function callVertexAI(remoteJid, userText, mediaBuffer = null, mediaMime =
     // Strict rules, conversation-driving hooks, and handoff instruction
     systemInstruction += '\n\n 💡 **تعليمات هامة جداً لأسلوب الحوار والرد (يجب الالتزام بها):**\n';
     systemInstruction += '1. أنت مساعد مبيعات ذكي ومحترف، ردودك دائماً بالعامية المصرية اللطيفة والمهذبة كأنك شخص حقيقي شاطر وودود بيتكلم على واتساب.\n';
-    systemInstruction += '2. ⚡ **قاعدة الاختصار الشديد والسرعة (صارمة جداً وبأعلى أولوية):**\n';
-    systemInstruction += '   - ردودك دائماً شديدة الاختصار ومباشرة جداً في سطر أو سطرين فقط بدون أي حشو أو كلام مكرر أو إطالة.\n';
-    systemInstruction += '   - ادخل في الموضوع فوراً: أجب العميل مباشرة أو أعطه الرابط المطلوب، واختم بسؤال تفاعلي قصير جداً.\n';
-    systemInstruction += '   - تجنب تماماً الشرح النظري الطويل أو القوائم أو التفاصيل التي لم يطلبها العميل.\n';
+    systemInstruction += '2. ⚡ **قواعد التنسيق والاختصار والإغلاق البيعي (صارمة جداً وبأعلى أولوية):**\n';
+    systemInstruction += '   - **الاختصار الشديد:** ردك دائماً شديد الاختصار وسريع في سطر أو سطرين فقط بالعامية المصرية المباشرة والواضحة بدون أي حشو أو كلام مكرر.\n';
+    systemInstruction += '   - **التنسيق المريح للعين (Compact & Clean):** سطر الإجابة المباشر، سطر الرابط (إن طلبه العميل)، وسطر السؤال الختامي مع إيموجي خفيف وهادئ.\n';
+    systemInstruction += '   - **الفصل الذكي بين الروابط ومكالمة السيلز:**\n';
+    systemInstruction += '     🎯 **الهدف الأساسي لختام معظم الردود:** اسأل العميل إن كان يحب حد من المبيعات يكلمه يوضحله كل حاجة واطلب رقمه والوقت المناسب، مثلاً: "تحب حد من فريق المبيعات يكلمك يشرحلك كل التفاصيل خطوة بخطوة؟ سيبلي رقمك والوقت المناسب لحضرتك ✨".\n';
+    systemInstruction += '     🔗 **استثناء الروابط المباشرة:** إذا طلب العميل رابط التسجيل أو المعاينة صراحة وبشكل مباشر، أرسل له الرابط فوراً وبدون أي مماطلة.\n';
     systemInstruction += '3. 🚫 **حظر تكرار جمل الترحيب (صارمة جداً):** الترحيب ("أهلاً بيك يا فندم"، "نورتنا"، "يا هلا") يُقال فقط في أول رسالة على الإطلاق عند بدء المحادثة لأول مرة. إذا كانت المحادثة مستمرة، أو العميل رد على سؤالك، أو أرسل فويس أو صورة، **ممنوع نهائياً تكرار أي صيغة ترحيب** (لا تقل "أهلاً بيك" ولا "أهلاً بيك تاني" ولا "نورتنا"). ادخل في الموضوع فوراً وأجب على العميل مباشرة.\n';
     systemInstruction += '4. 🎤 **التعامل مع التسجيلات الصوتية واختبارات الصوت:** إذا أرسل العميل تسجيلاً صوتياً به تحية فقط مثل ("ألو"، "سامعني"، "ألو آه"): رد عليه بود وتأكيد مباشر: "أيوا يا فندم سامعك، اتفضل قولّي..." بدون أي ترحيب مكرر واستكمل السؤال المطروح.\n';
     systemInstruction += '5. 🤝 **طمأنة المبتدئين (Empathy & Reassurance):** إذا لاحظت تردد أو خوف من صعوبة البداية، طمّن العميل بروح دافية وأسلوب عفوي متنوع، وتجنب تكرار نفس الجملة بحذافيرها في كل رسالة.\n';
-    systemInstruction += '6. 🌐 **روابط المنصة الرسمية وحظر الروابط الوهمية (قاعدة صارمة قطعية):**\n';
-    systemInstruction += '   - رابط تسجيل متجر جديد وتجربة الـ 7 أيام المجانية: https://app.fast-order-eg.tech/register\n';
+    systemInstruction += '6. 🌐 **روابط وباقات منصة Fast Order الرسمية المعتمدة (قاعدة صارمة قطعية):**\n';
+    systemInstruction += '   - رابط تسجيل وإنشاء متجر جديد: https://app.fast-order-eg.tech/register\n';
     systemInstruction += '   - رابط تسجيل الدخول ولوحة تحكم التاجر لإدارة المتجر: https://app.fast-order-eg.tech/login\n';
+    systemInstruction += '   - 💰 **باقات وأسعار المتجر الرسمية:**\n';
+    systemInstruction += '     1️⃣ **باقة الشراكة بالعمولة:** عمولة 2 جنيه فقط على الأوردر، وبدون أي اشتراك شهري ثابت. الحد الأدنى لشحن رصيد المحفظة 300 جنيه (رصيدك ملكك وبيكفيك أول 150 أوردر مبيعات).\n';
+    systemInstruction += '     2️⃣ **الباقة الشهرية:** 500 جنيه شهرياً بدون أي عمولة على الأوردرات.\n';
+    systemInstruction += '     3️⃣ **الباقة السنوية:** 5000 جنيه سنوياً بدون أي عمولة (توفير شهرين مجاناً + ربط دومين خاص مجاناً).\n';
+    systemInstruction += '   - 🛑 **حظر قاطع للعرض المجاني:** تم إلغاء أي تجربة مجانية تماماً، وممنوع نهائياً ذكر "متجر مجاني" أو "تجربة مجانية". وإذا سأل العميل "مش كان مجاني؟" رد عليه بأسلوب ودود ومقنع: "المتجر المجاني كان فترة تجريبية وانتهت يا فندم، وحالياً وفرنا نظام الشراكة بالعمولة 2 جنيه بس ع الأوردر وبدون أي اشتراك شهري، والـ 300 جنيه رصيدك إنت في المحفظة بتكفيك أول 150 أوردر! تحب حد من المبيعات يكلمك يشرحلك التفاصيل؟ سيبلي رقمك والوقت المناسب ✨".\n';
     systemInstruction += '   - 🛑 ممنوع منعاً باتاً تأليف أو تخمين أي دومين من خيالك (مثل fastorder.store أو غيره نهائياً). المنصة تعمل حصرياً عبر app.fast-order-eg.tech فقط.\n';
     systemInstruction += '   - إذا قال العميل إنه سجل ويبحث عن طريقة الدخول لحسابه أو لوحة التحكم، رد عليه باختصار شديد وبشكل مباشر هكذا:\n';
     systemInstruction += '     "تقدر تسجل دخول لمتجرك من هنا:\n';
@@ -416,7 +425,7 @@ async function callVertexAI(remoteJid, userText, mediaBuffer = null, mediaMime =
     systemInstruction += '     جرب كدا وقولي لو وقفت في أي حاجة؟"\n';
     systemInstruction += '     (ممنوع كتابة أي شرح مطول إضافي).\n';
     systemInstruction += '   - إذا أرسل العميل سكرين شوت بها مشكلة تسجيل دخول أو 404 أو واجه صعوبة متكررة، طمئنه ولا تكرر الرابط مراراً، بل اعرض عليه فوراً التواصل المباشر مع الدعم أو أرسل [HANDOFF] ليتدخل مسؤول المبيعات.\n';
-    systemInstruction += '7. 🎯 **قاعدة استمرار الحوار (Question Hook):** احرص دائماً على إنهاء ردك بسؤال تفاعلي واحد ذكي ومرتبط بسياق كلام العميل، ليشجعه على اتخاذ الخطوة التالية مباشرة (مثل التسجيل في المتجر، إضافة أول منتج، أو مشاهدة فيديو الشرح المناسب).\n';
+    systemInstruction += '7. 🎯 **قاعدة استمرار الحوار والدفع نحو المبيعات:** اجعل ختام ردك دائماً مركزاً على عرض مساعدة مسؤول المبيعات وطلب رقم تليفونه للتواصل، إلا إذا كان العميل طلب رابطاً محدداً فيتم إرسال الرابط.\n';
     systemInstruction += '8. 📹 **إرسال روابط الشرح:** إذا سأل العميل عن طريقة عمل شيء في المتجر، اشرح له الخطوة في سطرين وأرسل له الرابط المناسب فقط لسؤاله من قائمة الفيديوهات التالية:\n';
     systemInstruction += '   - كيفية التسجيل على المتجر: https://youtube.com/shorts/Enq-JEUI3pU?si=r5LljIhpVDWuX6hc\n';
     systemInstruction += '   - كيفية شحن المحفظة: https://youtube.com/shorts/I5HOD7b3gYQ?si=u36ZCeytwKByiuY9\n';
@@ -448,20 +457,26 @@ async function callVertexAI(remoteJid, userText, mediaBuffer = null, mediaMime =
 
     // 3. Prepare Current Request
     const currentParts = [];
-    if (userText) currentParts.push({ text: userText });
+    if (userText && String(userText).trim()) currentParts.push({ text: String(userText).trim() });
     if (mediaBuffer) {
         currentParts.push({
             inline_data: {
-                mime_type: mediaMime,
+                mime_type: mediaMime || "image/jpeg",
                 data: mediaBuffer.toString('base64')
             }
         });
     }
 
-    // Add current message to history for the API call
-    history.push({ role: "user", parts: currentParts });
+    // Safety: ensure currentParts is never empty to prevent Vertex AI Error 400
+    if (currentParts.length === 0) {
+        currentParts.push({ text: "مرحباً" });
+    }
 
-    const contents = history;
+    // Filter pastMessages history to remove any empty parts
+    const validHistory = history.filter(h => h.parts && h.parts.length > 0 && h.parts.some(p => (p.text && p.text.trim()) || p.inline_data));
+    validHistory.push({ role: "user", parts: currentParts });
+
+    const contents = validHistory;
 
         // Vertex AI URL
         const url = CONFIG.getVertexUrl();
@@ -515,7 +530,7 @@ async function callVertexAI(remoteJid, userText, mediaBuffer = null, mediaMime =
         const textPart = data.candidates?.[0]?.content?.parts?.find(p => p.text && !p.thought) || data.candidates?.[0]?.content?.parts?.[0];
         const rawReply = textPart?.text;
         
-        let parsedReply = { text: "عذراً، حدث خطأ في معالجة الرد.", show_products: [] };
+        let parsedReply = { text: "أهلاً بك! كيف يمكنني مساعدتك بخصوص المتجر اليوم؟ 🌸", show_products: [] };
         try {
             if (rawReply) {
                 const cleanJson = rawReply.replace(/^```json\s*/i, "").replace(/^```\s*/, "").replace(/\s*```$/, "").trim();
@@ -596,7 +611,12 @@ async function callVertexAI(remoteJid, userText, mediaBuffer = null, mediaMime =
         return parsedReply;
     } catch (error) {
         console.error("AI Call Failed:", error);
-        return { text: "عذراً، هناك مشكلة في الاتصال حالياً.", show_products: [] };
+        // 🛑 يمنع منعاً باتاً إرسال "عذراً هناك مشكلة في الاتصال حالياً" للعميل!
+        // بدلاً من ذلك، نقوم بعمل تحويل سلس واحترافي لفريق المبيعات ليستلم المحادثة فوراً:
+        return { 
+            text: "أهلاً بحضرتك يا فندم 🌸 سجلت استفسارك، وثواني وهيكون معاك أحد مسؤولي المبيعات للرد على استفسارك ومساعدتك بالتفصيل ✨ [HANDOFF]", 
+            show_products: [] 
+        };
     }
 }
 
@@ -721,9 +741,13 @@ async function handleOrderCompletion(sock, customerJid, lastMessage, aiResponse,
             return;
         }
 
-        // 8. Send message to group
-        await sock.sendMessage(targetGroupJid, { text: groupMsg });
-        console.log(`✅ Order forwarded to group "${targetGroup}"!`);
+        // 8. Send message to group via unified Anti-Ban Notification Dispatcher
+        await sendSystemNotification({
+            userId,
+            message: groupMsg,
+            type: 'new_order'
+        });
+        console.log(`✅ Order forwarded to group "${targetGroup}" via Anti-Ban dispatcher!`);
 
     } catch (error) {
         console.error("❌ handleOrderCompletion Error:", error);
@@ -1211,8 +1235,12 @@ export async function handleFunnelStep(sock, remoteJid, customer, userText, msg,
 
     // Helper to send message and save to DB
     const sendAndSave = async (textToSend, menuTag = null) => {
-        // Send clean text to WhatsApp
-        await sock.sendMessage(remoteJid, { text: textToSend });
+        // Send clean text to WhatsApp with human pacing and presence
+        if (typeof sendHumanMessage === 'function') {
+            await sendHumanMessage(sock, remoteJid, { text: textToSend }, { userId });
+        } else {
+            await sock.sendMessage(remoteJid, { text: textToSend });
+        }
         // Save to DB (tagged if menu)
         const contentToSave = menuTag ? `${textToSend}\n\n[M:${menuTag}]` : textToSend;
         const savedMsg = await Message.create({ UserId: userId, remoteJid, role: 'model', content: contentToSave });
@@ -1952,15 +1980,21 @@ export const startSession = async (userId, io, phoneNumber = null) => {
         
         if (remoteJid === 'status@broadcast') return;
         if (msg.key.remoteJid === 'status@broadcast') return;
-        const messageType = Object.keys(msg.message)[0];
+
+        // فك تغليف الرسالة في حال كانت الرسائل ذاتية الاختفاء (ephemeral) أو عرض لمرة واحدة
+        let actualMsg = msg.message;
+        while (actualMsg?.ephemeralMessage?.message || actualMsg?.viewOnceMessage?.message || actualMsg?.viewOnceMessageV2?.message || actualMsg?.documentWithCaptionMessage?.message) {
+            actualMsg = actualMsg.ephemeralMessage?.message || actualMsg.viewOnceMessage?.message || actualMsg.viewOnceMessageV2?.message || actualMsg.documentWithCaptionMessage?.message;
+        }
+        const messageType = Object.keys(actualMsg || {})[0];
 
         let text = "";
         let incomingMediaUrl = null; // URL للميديا المحفوظة محلياً
         let currentImgBuffer = null;
         if (messageType === 'conversation') {
-            text = msg.message.conversation;
+            text = actualMsg.conversation;
         } else if (messageType === 'extendedTextMessage') {
-            text = msg.message.extendedTextMessage.text;
+            text = actualMsg.extendedTextMessage?.text;
         } else if (messageType === 'audioMessage') {
             text = "رسالة صوتية 🎙️";
             // حفظ الفويس محلياً عشان يتعرض في اللايف شات
@@ -1977,7 +2011,7 @@ export const startSession = async (userId, io, phoneNumber = null) => {
                 console.error('❌ [Media Save] Failed to save audio:', mediaSaveErr);
             }
         } else if (messageType === 'imageMessage') {
-            const caption = msg.message.imageMessage?.caption;
+            const caption = actualMsg.imageMessage?.caption;
             text = caption ? `📷 صورة: ${caption}` : "📷 صورة";
             // حفظ الصورة محلياً
             try {
@@ -1994,7 +2028,7 @@ export const startSession = async (userId, io, phoneNumber = null) => {
                 console.error('❌ [Media Save] Failed to save image:', mediaSaveErr);
             }
         } else if (messageType === 'videoMessage') {
-            const caption = msg.message.videoMessage?.caption;
+            const caption = actualMsg.videoMessage?.caption;
             text = caption ? `🎥 فيديو: ${caption}` : "🎥 فيديو";
             // حفظ الفيديو محلياً
             try {
@@ -2010,11 +2044,7 @@ export const startSession = async (userId, io, phoneNumber = null) => {
                 console.error('❌ [Media Save] Failed to save video:', mediaSaveErr);
             }
         } else if (messageType === 'documentMessage') {
-            text = `📄 مستند: ${msg.message.documentMessage?.title || msg.message.documentMessage?.fileName || "ملف"}`;
-        } else if (messageType === 'documentWithCaptionMessage') {
-            const docMsg = msg.message.documentWithCaptionMessage?.message?.documentMessage;
-            const docName = docMsg?.caption || docMsg?.title || docMsg?.fileName || "ملف";
-            text = `📄 مستند: ${docName}`;
+            text = `📄 مستند: ${actualMsg.documentMessage?.title || actualMsg.documentMessage?.fileName || "ملف"}`;
         } else if (messageType === 'locationMessage') {
             text = "📍 موقع جغرافي";
         } else if (messageType === 'contactMessage') {
@@ -2025,14 +2055,23 @@ export const startSession = async (userId, io, phoneNumber = null) => {
             text = "sticker 💟";
         }
 
+        // تأكيد استخراج النص من أي حقل متاح
+        if (!text) {
+            text = actualMsg?.conversation
+                || actualMsg?.extendedTextMessage?.text
+                || actualMsg?.imageMessage?.caption
+                || actualMsg?.videoMessage?.caption
+                || "";
+        }
+
         // === Extract Button / Interactive Selection ID ===
         let selectedId = null;
         if (messageType === 'buttonsResponseMessage' || messageType === 'listResponseMessage') {
-            selectedId = msg.message.buttonsResponseMessage?.selectedButtonId
-                      || msg.message.listResponseMessage?.singleSelectReply?.selectedRowId;
+            selectedId = actualMsg.buttonsResponseMessage?.selectedButtonId
+                      || actualMsg.listResponseMessage?.singleSelectReply?.selectedRowId;
         } else if (messageType === 'interactiveResponseMessage') {
             try {
-                const interactiveResponse = msg.message.interactiveResponseMessage;
+                const interactiveResponse = actualMsg.interactiveResponseMessage;
                 const body = interactiveResponse?.nativeFlowResponseMessage?.paramsJson;
                 if (body) {
                     const parsed = JSON.parse(body);
@@ -2103,14 +2142,149 @@ export const startSession = async (userId, io, phoneNumber = null) => {
         }
 
 
-        // 2. Check for "Bird CRM" or "Abkarino" Group Message (High Priority)
+        // 2. Check for "Bird CRM", "Abkarino", or "تذكيرات" Group Message (High Priority)
         if (remoteJid.endsWith('@g.us')) {
             try {
-                // Fetch group metadata to check name
-                const groupMetadata = await sock.groupMetadata(remoteJid);
+                // Fetch group metadata to check name (safely with fallback)
+                let groupMetadata = null;
+                try {
+                    groupMetadata = await sock.groupMetadata(remoteJid);
+                } catch (gErr) {
+                    console.warn(`[Baileys Group] Could not fetch groupMetadata for ${remoteJid}:`, gErr.message);
+                }
+                const rawSubject = groupMetadata?.subject || '';
+                const subjectLower = rawSubject.toLowerCase();
+
+                // Check for "تذكيرات" Group (Reminders Group via Saved ID or Name)
+                const configuredReminderGroupJid = (await getSystemSetting('reminder_group_jid', userId).catch(() => null))
+                    || (await getSystemSetting('reminder_group_jid', 1).catch(() => null))
+                    || (await getSystemSetting('reminder_group_jid', 3).catch(() => null));
+
+                const isReminderGroup = (configuredReminderGroupJid && remoteJid === configuredReminderGroupJid)
+                    || rawSubject.includes("تذكير")
+                    || subjectLower.includes("reminder");
+
+                // Check for "تقارير الإعلانات" Group (Ads Reports Group via Saved ID or Name)
+                const configuredAdsReportGroupJid = (await getSystemSetting('ads_report_group_jid', userId).catch(() => null))
+                    || (await getSystemSetting('ads_report_group_jid', 1).catch(() => null))
+                    || (await getSystemSetting('ads_report_group_jid', 3).catch(() => null));
+
+                const isAdsReportGroup = (configuredAdsReportGroupJid && remoteJid === configuredAdsReportGroupJid)
+                    || rawSubject.includes("إعلان")
+                    || rawSubject.includes("اعلان")
+                    || subjectLower.includes("ads")
+                    || subjectLower.includes("campaign");
+
+                // استخراج رقم هاتف مرسل رسالة الجروب بدقة متناهية مع دعم كامل للـ Devices و LID و groupMetadata
+                let groupSenderPhone = null;
+                const rawParticipant = msg.key?.participant || msg.participant || '';
+
+                // 1. تنظيف معرف المشارك من أي Device Suffix (مثال: 201092308465:2@s.whatsapp.net -> 201092308465)
+                if (msg.key?.participantPn) {
+                    groupSenderPhone = msg.key.participantPn.split(':')[0].replace('@s.whatsapp.net', '').replace(/[^0-9]/g, '');
+                } else if (msg.key?.senderPn) {
+                    groupSenderPhone = msg.key.senderPn.split(':')[0].replace('@s.whatsapp.net', '').replace(/[^0-9]/g, '');
+                } else if (rawParticipant && rawParticipant.includes('@s.whatsapp.net')) {
+                    groupSenderPhone = rawParticipant.split(':')[0].replace('@s.whatsapp.net', '').replace(/[^0-9]/g, '');
+                }
+
+                // 2. إذا كان المشارك معرف LID (@lid)
+                if (!groupSenderPhone && rawParticipant && rawParticipant.includes('@lid')) {
+                    const cleanLid = rawParticipant.split(':')[0];
+                    
+                    // أ) فحص كاش الـ LID في الذاكرة
+                    if (lidPhoneMap.has(rawParticipant)) {
+                        groupSenderPhone = lidPhoneMap.get(rawParticipant);
+                    } else if (lidPhoneMap.has(cleanLid)) {
+                        groupSenderPhone = lidPhoneMap.get(cleanLid);
+                    }
+                    
+                    // ب) فحص الـ LID الخاص برئيس النظام راضي المعروف (243593499418829)
+                    if (!groupSenderPhone && (cleanLid.startsWith('243593499418829') || cleanLid.includes('243593499418829'))) {
+                        groupSenderPhone = '01092308465';
+                        lidPhoneMap.set(rawParticipant, '01092308465');
+                        lidPhoneMap.set(cleanLid, '01092308465');
+                    }
+
+                    // ج) البحث في أعضاء الجروب من groupMetadata لمطابقة الـ LID
+                    if (!groupSenderPhone && groupMetadata?.participants?.length) {
+                        const found = groupMetadata.participants.find(p => {
+                            if (!p) return false;
+                            const pId = (p.id || '').split(':')[0];
+                            const pLid = (p.lid || '').split(':')[0];
+                            return pId === cleanLid || pLid === cleanLid || p.id === rawParticipant || p.lid === rawParticipant;
+                        });
+                        if (found) {
+                            if (found.id && found.id.includes('@s.whatsapp.net')) {
+                                groupSenderPhone = found.id.split(':')[0].replace('@s.whatsapp.net', '').replace(/[^0-9]/g, '');
+                            } else if (found.phoneNumber) {
+                                groupSenderPhone = String(found.phoneNumber).replace(/[^0-9]/g, '');
+                            }
+                            if (groupSenderPhone) {
+                                lidPhoneMap.set(rawParticipant, groupSenderPhone);
+                                lidPhoneMap.set(cleanLid, groupSenderPhone);
+                            }
+                        }
+                    }
+
+                    // د) فحص قاعدة بيانات جهات الاتصال والمحادثات
+                    if (!groupSenderPhone) {
+                        try {
+                            const conv = await Conversation.findOne({ where: { UserId: userId, remoteJid: cleanLid } });
+                            if (conv && conv.phoneNumber && !conv.phoneNumber.includes('@lid')) {
+                                groupSenderPhone = conv.phoneNumber.replace(/[^0-9]/g, '');
+                                lidPhoneMap.set(rawParticipant, groupSenderPhone);
+                            }
+                        } catch (_) {}
+                    }
+                }
+
+                // 3. التحقق الاحتياطي: لو مرسل الرسالة في جروب تذكيرات أو تقارير إعلانات هو الأونر/المدير
+                if (!groupSenderPhone && (isReminderGroup || isAdsReportGroup) && groupMetadata) {
+                    const owner = groupMetadata.owner || groupMetadata.subjectOwner;
+                    const cleanOwner = (owner || '').split(':')[0];
+                    if (cleanOwner.includes('201092308465')) {
+                        const isOwnerSender = rawParticipant && (rawParticipant.includes(cleanOwner) || rawParticipant.startsWith('243593499418829'));
+                        if (isOwnerSender) {
+                            groupSenderPhone = '01092308465';
+                            lidPhoneMap.set(rawParticipant, '01092308465');
+                        }
+                    }
+                }
+
+                if (isReminderGroup) {
+                    console.log(`⏰ [Reminder Group] Message received: "${text}" from ${groupSenderPhone || rawParticipant} in group "${rawSubject || remoteJid}"`);
+                    const handled = await handleReminderGroupMessage({
+                        sock,
+                        remoteJid,
+                        senderPhone: groupSenderPhone,
+                        participantJid: rawParticipant || remoteJid,
+                        text,
+                        msg,
+                        groupMetadata,
+                        userId,
+                        io
+                    });
+                    if (handled) return;
+                }
+
+                if (isAdsReportGroup) {
+                    console.log(`📊 [Ads Report Group] Message received: "${text}" from ${groupSenderPhone || rawParticipant} in group "${rawSubject || remoteJid}"`);
+                    const handled = await handleAdsReportGroupMessage({
+                        sock,
+                        remoteJid,
+                        senderPhone: groupSenderPhone,
+                        participantJid: rawParticipant || remoteJid,
+                        text,
+                        msg,
+                        groupMetadata,
+                        userId,
+                        io
+                    });
+                    if (handled) return;
+                }
 
                 // Check for "Bird CRM Group" (Control Center)
-                const subjectLower = groupMetadata.subject ? groupMetadata.subject.toLowerCase() : '';
                 if (subjectLower === "bird crm") {
                     console.log(`🔧 Bird CRM Control Group Message: ${text}`);
 
@@ -2311,6 +2485,15 @@ export const startSession = async (userId, io, phoneNumber = null) => {
     return { status: 'started' };
 };
 
+// 🛡️ Deduplication Cache: Prevent duplicate processing of the exact same message across Baileys / Meta
+const processedUnifiedMessageIds = new Map();
+setInterval(() => {
+    const now = Date.now();
+    for (const [id, timestamp] of processedUnifiedMessageIds.entries()) {
+        if (now - timestamp > 120000) processedUnifiedMessageIds.delete(id); // 2 min TTL
+    }
+}, 60000);
+
 /**
  * 🤖 Unified Bot Handler: Processes incoming messages across Baileys and Meta WhatsApp Cloud API
  * Supports Hybrid Mode (Menus + Vertex AI Gemini), Menu-Only Mode, AI-Only Mode, and Sales Handoff
@@ -2332,6 +2515,16 @@ export async function handleIncomingUnifiedMessage({
 }) {
     try {
         if (!remoteJid || remoteJid.endsWith('@g.us')) return;
+
+        // 🛡️ Deduplication Guard: Ignore duplicate processing of the exact same message
+        const incomingMsgId = rawMsg?.key?.id || rawMsg?.id;
+        if (incomingMsgId) {
+            if (processedUnifiedMessageIds.has(incomingMsgId)) {
+                console.log(`🛡️ [Deduplication] Message ID ${incomingMsgId} already processed. Skipping duplicate execution.`);
+                return;
+            }
+            processedUnifiedMessageIds.set(incomingMsgId, Date.now());
+        }
 
         const user = await User.findByPk(userId);
         if (!user) return;
@@ -3396,8 +3589,9 @@ export const checkInactivitySummary = async () => {
                 });
                 console.log(`[InactivitySummary] Sent notification for ${conv.remoteJid} (Owner: ${user.id})`);
                 
-                // Anti-Ban: Force a strict 4-second delay between sending summaries to prevent rate-limit flags
-                await new Promise(resolve => setTimeout(resolve, 4000));
+                // Anti-Ban: Force a randomized 10 to 20-second delay between sending summaries to prevent rate-limit flags
+                const summaryInterval = Math.floor(Math.random() * 10000) + 10000;
+                await new Promise(resolve => setTimeout(resolve, summaryInterval));
             } catch (err) {
                 console.error(`[InactivitySummary] Error for conv ${conv.id}:`, err?.stack || err?.message || err);
             }
@@ -4123,7 +4317,16 @@ export async function sendManualMessage(userId, remoteJid, text, senderName = nu
     let msgResult;
     try {
         console.log(`[sendManualMessage] Sending message from User ${userId} to ${targetJid}...`);
+        if (typeof sock.sendPresenceUpdate === 'function') {
+            await sock.sendPresenceUpdate('composing', targetJid).catch(() => {});
+            const manualDelay = Math.min(3500, Math.max(1200, Math.floor((text || '').length * 15)));
+            await new Promise(r => setTimeout(r, manualDelay));
+            await sock.sendPresenceUpdate('paused', targetJid).catch(() => {});
+        }
         msgResult = await sock.sendMessage(targetJid, { text });
+        setTimeout(() => {
+            if (typeof sock.sendPresenceUpdate === 'function') sock.sendPresenceUpdate('unavailable', targetJid).catch(() => {});
+        }, 2000);
     } catch (err) {
         console.error(`[sendManualMessage] Error sending message for User ${userId}:`, err?.message || err);
         if (err?.message?.includes('Connection Closed') || err?.output?.statusCode === 428) {
@@ -4247,7 +4450,17 @@ export async function sendManualMediaMessage(userId, remoteJid, mediaUrl, mediaT
         msgPayload = { document: { url: localFilePath }, caption, fileName: filename || path.basename(localFilePath) };
     }
 
+    if (typeof sock.sendPresenceUpdate === 'function') {
+        const presence = mediaType === 'audio' ? 'recording' : 'composing';
+        await sock.sendPresenceUpdate(presence, targetJid).catch(() => {});
+        await new Promise(r => setTimeout(r, 1800));
+        await sock.sendPresenceUpdate('paused', targetJid).catch(() => {});
+    }
+
     const msgResult = await sock.sendMessage(targetJid, msgPayload);
+    setTimeout(() => {
+        if (typeof sock.sendPresenceUpdate === 'function') sock.sendPresenceUpdate('unavailable', targetJid).catch(() => {});
+    }, 2000);
     const messageId = msgResult?.key?.id || `baileys_${Date.now()}`;
 
     const savedMsg = await Message.create({
@@ -4606,7 +4819,7 @@ export async function generateCustomerSummary(customerId, userId) {
         const systemInstruction = `أنت مساعد ذكي ومحلل محادثات مبيعات محترف لمنصة Fast Order (منصة إنشاء المتاجر الإلكترونية المتكاملة وإدارتها وحلول خدمة العملاء).
 مهمتك هي صياغة ملخص مبيعات عملي ودقيق ومباشر جداً، ومنسق في 3 أسطر محددة بدون أي مقدمات أو حشو:
 
-📌 الخدمة المطلوبة: [حدد بدقة الخدمة التي يهتم بها العميل: متجر إلكتروني مجاني (7 أيام)، باقة المتجر، خدمة عملاء، ربط بيكسل وإعلانات، أو استفسار محدد]
+📌 الخدمة المطلوبة: [حدد بدقة الخدمة التي يهتم بها العميل: نظام الشراكة بالعمولة (2ج/أوردر)، الباقة الشهرية (500ج)، الباقة السنوية (5000ج)، باقات الإعلانات، أو استفسار محدد]
 💬 حالة العميل: [لخص باختصار شديد ما قاله العميل، طبيعة نشاطه إن وُجدت، أو وضعه الحالي]
 👉 المطلوب: [اكتب الإجراء العملي المحدد والمطلوب تنفيذه من مسؤول المبيعات فوراً لدفع العميل نحو الاشتراك أو إتمام طلبه، مثلاً: التواصل لشرح كيفية ربط المتجر، إرسال فيديو الشرح ورابط المعاينة، الرد على استفسار كذا، أو المتابعة لمعرفة متطلباته]
 

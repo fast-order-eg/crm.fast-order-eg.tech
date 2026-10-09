@@ -258,6 +258,73 @@ export const defaultSettingsMeta = {
         category: 'notifications',
         label: 'إشعار المدير عند إضافة ملاحظة جديدة على العميل',
         defaultValue: true
+    },
+    // إعدادات جروب التذكيرات
+    reminder_system_enabled: {
+        type: 'boolean',
+        category: 'reminders',
+        label: 'تفعيل نظام التذكيرات الذكي في الجروب',
+        defaultValue: true
+    },
+    reminder_group_jid: {
+        type: 'text',
+        category: 'reminders',
+        label: 'معرف جروب التذكيرات المعتمد',
+        defaultValue: ''
+    },
+    reminder_group_name: {
+        type: 'text',
+        category: 'reminders',
+        label: 'اسم جروب التذكيرات المعتمد',
+        defaultValue: 'تذكيرات'
+    },
+    reminder_authorized_phones: {
+        type: 'text',
+        category: 'reminders',
+        label: 'أرقام المشرفين المعتمدين للتذكيرات (مفصولة بفواصل)',
+        defaultValue: '01092308465'
+    },
+    reminder_authorized_admins: {
+        type: 'json',
+        category: 'reminders',
+        label: 'قائمة المشرفين المعتمدين للتذكيرات (بالأسماء والأرقام)',
+        defaultValue: [
+            { name: 'راضي', phone: '01092308465', isPrimary: true }
+        ]
+    },
+
+    // تقارير إعلانات فيسبوك/ميتا
+    ads_report_system_enabled: {
+        type: 'boolean',
+        category: 'ads_reports',
+        label: 'تفعيل نظام تقارير الإعلانات في الجروب',
+        defaultValue: true
+    },
+    ads_report_group_jid: {
+        type: 'text',
+        category: 'ads_reports',
+        label: 'معرف جروب تقارير الإعلانات المعتمد',
+        defaultValue: ''
+    },
+    ads_report_group_name: {
+        type: 'text',
+        category: 'ads_reports',
+        label: 'اسم جروب تقارير الإعلانات المعتمد',
+        defaultValue: 'تقارير الإعلانات'
+    },
+    ads_report_authorized_phones: {
+        type: 'text',
+        category: 'ads_reports',
+        label: 'أرقام المشرفين المعتمدين لتقارير الإعلانات (مفصولة بفواصل)',
+        defaultValue: '01092308465'
+    },
+    ads_report_authorized_admins: {
+        type: 'json',
+        category: 'ads_reports',
+        label: 'قائمة المشرفين المعتمدين لتقارير الإعلانات',
+        defaultValue: [
+            { name: 'راضي', phone: '01092308465', isPrimary: true }
+        ]
     }
 };
 

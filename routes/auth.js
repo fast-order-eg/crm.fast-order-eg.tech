@@ -20,15 +20,10 @@ router.post('/login', (req, res, next) => {
         req.logIn(user, (err) => {
             if (err) return next(err);
 
-            // Handle Remember Me
-            console.log("Remember Me Checkbox:", req.body.remember_me);
-            if (req.body.remember_me) {
-                req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
-                console.log("Session set to persist for 30 days.");
-            } else {
-                req.session.cookie.expires = false;
-                console.log("Session set to expire on browser close.");
-            }
+            // Handle Session Persistence (100 Days in RAM via Redis)
+            const hundredDaysMs = 100 * 24 * 60 * 60 * 1000;
+            req.session.cookie.maxAge = hundredDaysMs;
+            console.log("⚡ Session set to persist in Redis RAM for 100 days.");
             if (user.role === 'sales') {
                 res.redirect('/dashboard/customers');
             } else {
