@@ -83,27 +83,43 @@ export function extractAdIdentifiers(text = '') {
 }
 
 /**
- * تصنيف نوع وهدف الحملة الإعلانية
+ * تصنيف نوع وهدف الحملة الإعلانية وتوضيح نوع الرسائل (واتساب / ماسنجر) بدون إيموجي
  */
-export function classifyObjective(objective = '') {
+export function classifyObjective(objective = '', ctaType = '') {
     const obj = String(objective || '').toUpperCase();
-    if (obj.includes('SALES') || obj.includes('PURCHASE')) {
-        return 'إعلان مبيعات 🛍️';
-    } else if (obj.includes('MESSAGES') || obj.includes('ENGAGEMENT') || obj.includes('CONVERSATION')) {
-        return 'إعلان رسائل 💬';
-    } else if (obj.includes('LEAD')) {
-        return 'إعلان تجميع بيانات 📋';
-    } else if (obj.includes('TRAFFIC')) {
-        return 'إعلان زيارات 🌐';
+    const cta = String(ctaType || '').toUpperCase();
+
+    if (obj.includes('MESSAGES') || obj.includes('ENGAGEMENT') || obj.includes('CONVERSATION')) {
+        if (cta === 'WHATSAPP_MESSAGE') {
+            return 'إعلان رسائل واتساب';
+        } else if (cta === 'MESSAGE_PAGE') {
+            return 'إعلان رسائل ماسنجر';
+        } else if (cta === 'INSTAGRAM_MESSAGE') {
+            return 'إعلان رسائل إنستجرام';
+        }
+        return 'إعلان رسائل';
     }
-    return 'إعلان ممول 📢';
+
+    if (obj.includes('SALES') || obj.includes('PURCHASE')) {
+        return 'إعلان مبيعات';
+    } else if (obj.includes('LEAD')) {
+        return 'إعلان تجميع بيانات';
+    } else if (obj.includes('TRAFFIC')) {
+        return 'إعلان زيارات';
+    }
+    return 'إعلان ممول';
 }
 
 /**
- * تنسيق تاريخ وساعة الانتهاء والوقت المتبقي بتوقيت القاهرة
+ * استخراج تاريخ وساعة الانتهاء وحساب المدة المتبقية بتوقيت القاهرة كلٌ في سطر منفصل
  */
-export function formatStopTime(stopTimeStr) {
-    if (!stopTimeStr) return 'مستمر (بدون تاريخ انتهاء ♾️)';
+export function getStopTimeDetails(stopTimeStr) {
+    if (!stopTimeStr) {
+        return {
+            endDate: 'مستمر (بدون تاريخ انتهاء ♾️)',
+            remainingText: null
+        };
+    }
     const stopDate = new Date(stopTimeStr);
     if (isNaN(stopDate.getTime())) return null;
 
@@ -134,7 +150,10 @@ export function formatStopTime(stopTimeStr) {
     const formattedDate = `${day} ${monthsArabic[monthIdx]} ${year} - الساعة ${hour}:${minute} ${dayPeriod}`;
 
     if (diffMs <= 0) {
-        return `${formattedDate} (منتهي ⏹️)`;
+        return {
+            endDate: `${formattedDate} (منتهي ⏹️)`,
+            remainingText: null
+        };
     }
 
     const totalHours = Math.floor(diffMs / (1000 * 60 * 60));
@@ -153,7 +172,10 @@ export function formatStopTime(stopTimeStr) {
         remainingText = `متبقي ${mins} دقيقة`;
     }
 
-    return `${formattedDate} (${remainingText} ⏳)`;
+    return {
+        endDate: formattedDate,
+        remainingText: remainingText
+    };
 }
 
 /**
@@ -192,7 +214,7 @@ export function getCampaignPostLink(camp) {
 }
 
 /**
- * تنسيق ميزانية الحملة وتحديد هل هي يومية أم إجمالية
+ * تنسيق ميزانية الحملة وتحديد هل هي يومية أم إجمالية بعلامة ج
  */
 export function formatCampaignBudget(camp) {
     if (!camp) return '';
@@ -203,7 +225,7 @@ export function formatCampaignBudget(camp) {
         : (camp.budget_type === 'LIFETIME' || camp.lifetime_budget)
             ? 'إجمالي'
             : '';
-    return `${bAmount.toLocaleString('en-US')}${bType ? ` (${bType})` : ''}`;
+    return `${bAmount.toLocaleString('en-US')}ج${bType ? ` (${bType})` : ''}`;
 }
 
 /**
@@ -237,13 +259,15 @@ export async function fetchCampaignsSummary({ account_id, campaign_ids, date_pre
 /**
  * صياغة رد الواتساب الاحترافي وفق التعليمات:
  * 1. عرض الحملات النشطة والشغالة فقط.
- * 2. الأرقام بالإنجليزية (en-US).
- * 3. المصروف رقم صحيح بدون كسور، وبدون تكرار العملة أو الترجمة الإنجليزية للفترات.
- * 4. تمييز نوع الإعلان (مبيعات / رسائل).
- * 5. إظهار الميزانية ونوعها (يومي / إجمالي).
- * 6. إظهار عدد الوصول وحذف مرات الظهور.
- * 7. تاريخ وساعة الانتهاء والمتبقي بدقة (أيام وساعات).
- * 8. رابط المنشور للتأكد.
+ * 2. الحالة نشطة بدون كلمة ACTIVE.
+ * 3. فواصل قصيرة مناسبة لشاشات الموبايل (══════════════).
+ * 4. نوع الرسائل واضح (رسائل واتساب / ماسنجر) بدون إيموجي.
+ * 5. إظهار معرف الحملة الإعلانية.
+ * 6. إظهار الميزانية ونوعها (يومي / إجمالي) والمصروف والتكلفة بعلامة ج.
+ * 7. حذف كلمة CPA والاكتفاء بـ "تكلفة النتيجة: Xج".
+ * 8. تاريخ الانتهاء على سطر والمدة المتبقية على سطر منفصل.
+ * 9. حذف "مرات الظهور" وحذف ملخص "الحملات النشطة".
+ * 10. عدم وضع روابط تخمينية.
  */
 export function formatAdsReportMessage(data, requestedId = '', datePreset = 'today', isExplicitCampaign = false) {
     const presetLabels = {
@@ -265,7 +289,7 @@ export function formatAdsReportMessage(data, requestedId = '', datePreset = 'tod
     let msg = `📊 *تقرير أداء الإعلانات الممولة*\n`;
     if (requestedId) msg += `🔢 *المعرف:* \`${requestedId}\`\n`;
     msg += `📅 *الفترة:* ${periodLabel}\n`;
-    msg += `════════════════════\n`;
+    msg += `══════════════\n`;
 
     if (campaigns.length === 0) {
         msg += `ℹ️ لا توجد حالياً أي حملات إعلانية نشطة أو شغالة في هذا الحساب (جميع الحملات متوقفة أو انتهت فترتها).\n\n`;
@@ -273,12 +297,10 @@ export function formatAdsReportMessage(data, requestedId = '', datePreset = 'tod
         return msg;
     }
 
-    const titleCount = campaigns.length > 1 ? ` (${campaigns.length})` : '';
-    msg += `🎯 *الحملات النشطة${titleCount}:*\n\n`;
-
     campaigns.forEach((camp, idx) => {
-        const cStatus = camp.status === 'ACTIVE' ? '🟢 نشطة (ACTIVE)' : '⏸️ متوقفة (PAUSED)';
-        const cObj = classifyObjective(camp.objective);
+        const cStatus = camp.status === 'ACTIVE' ? '🟢 نشطة' : '⏸️ متوقفة';
+        const ctaType = camp.ads?.[0]?.creative?.cta_type || '';
+        const cObj = classifyObjective(camp.objective, ctaType);
         const cSpend = Math.round(Number(camp.spend || 0)).toLocaleString('en-US');
         const cResults = Number(camp.results || 0).toLocaleString('en-US');
         const cLabel = camp.result_label || 'نتائج';
@@ -286,20 +308,20 @@ export function formatAdsReportMessage(data, requestedId = '', datePreset = 'tod
         const cRoas = camp.roas ? Number(camp.roas).toFixed(1) : null;
         const cCtr = Number(camp.ctr || 0).toFixed(2);
         const cReach = camp.reach ? Number(camp.reach).toLocaleString('en-US') : null;
-        const endFormatted = formatStopTime(camp.stop_time);
+        const stopInfo = getStopTimeDetails(camp.stop_time);
         const budgetStr = formatCampaignBudget(camp);
-        const postLink = getCampaignPostLink(camp);
 
         const numPrefix = campaigns.length > 1 ? `${idx + 1}️⃣ ` : '📌 ';
         msg += `${numPrefix}*${camp.name || 'حملة بدون اسم'}*\n`;
+        msg += `• معرف الحملة: \`${camp.id}\`\n`;
         msg += `• الحالة: ${cStatus}\n`;
         msg += `• النوع: *${cObj}*\n`;
         if (budgetStr) {
             msg += `• 💵 الميزانية: *${budgetStr}*\n`;
         }
-        msg += `• 💸 المصروف: *${cSpend}*\n`;
+        msg += `• 💸 المصروف: *${cSpend}ج*\n`;
         msg += `• 🎯 النتائج: *${cResults}* ${cLabel}\n`;
-        msg += `• 🏷️ تكلفة النتيجة (CPA): *${cCpa}*\n`;
+        msg += `• 🏷️ تكلفة النتيجة: *${cCpa}ج*\n`;
         if (cRoas && Number(cRoas) > 0) {
             msg += `• 📈 العائد (ROAS): *${cRoas}*\n`;
         }
@@ -307,16 +329,16 @@ export function formatAdsReportMessage(data, requestedId = '', datePreset = 'tod
             msg += `• 👥 عدد الوصول: *${cReach}*\n`;
         }
         msg += `• 👆 معدل النقر (CTR): *${cCtr}%*\n`;
-        if (endFormatted) {
-            msg += `• ⏳ الانتهاء: ${endFormatted}\n`;
+        if (stopInfo?.endDate) {
+            msg += `• ⏳ الانتهاء: ${stopInfo.endDate}\n`;
         }
-        if (postLink) {
-            msg += `• 🔗 رابط المنشور: ${postLink}\n`;
+        if (stopInfo?.remainingText) {
+            msg += `• ⏳ المتبقي: ${stopInfo.remainingText}\n`;
         }
         msg += `\n`;
     });
 
-    msg += `════════════════════\n`;
+    msg += `══════════════\n`;
     msg += `💡 *لتغيير الفترة:* اكتب رقم الحساب مع: "اليوم" أو "امس" أو "اخر 7 ايام" أو "هذا الشهر" أو "الكل".`;
 
     return msg;
