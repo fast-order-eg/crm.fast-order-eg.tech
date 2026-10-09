@@ -425,19 +425,52 @@ export function formatAdsReportMessage(data, requestedId = '', datePreset = 'tod
 }
 
 /**
- * إرسال رسالة في الجروب مع محاكاة كتابة بشرية طبيعية لحماية الحساب من الحظر (Anti-Ban)
+ * إرسال رسالة في الجروب مع محاكاة بشرية دقيقة وشاملة لحماية الحساب من الحظر (Anti-Ban)
  */
 async function sendGroupReply(sock, remoteJid, content) {
+    const rawText = content.text || '';
+    const textLen = rawText.length;
+
+    // 🛡️ معايير الأمان المتقدمة للحماية من الحظر (Anti-Ban Protection):
+    // 1. الإعلان عن التواجد (available) أولاً
+    try {
+        if (typeof sock.sendPresenceUpdate === 'function') {
+            await sock.sendPresenceUpdate('available', remoteJid).catch(() => {});
+        }
+    } catch (_) {}
+
+    // 2. محاكاة كتابة بشرية واقعية تتناسب مع طول محتوى التقرير (بين 3.5 إلى 6.5 ثانية)
+    const typingDuration = Math.min(6500, Math.max(3000, Math.floor(textLen * 8) + Math.floor(Math.random() * 1800)));
+
     try {
         if (typeof sock.sendPresenceUpdate === 'function') {
             await sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
-            const typingDelay = 1200 + Math.random() * 1000;
-            await new Promise(r => setTimeout(r, typingDelay));
+            console.log(`✍️ [Ads Anti-Ban] Simulating human typing for ${(typingDuration / 1000).toFixed(1)}s in group...`);
+            await new Promise(r => setTimeout(r, typingDuration));
             await sock.sendPresenceUpdate('paused', remoteJid).catch(() => {});
         }
     } catch (_) {}
 
-    return await sock.sendMessage(remoteJid, content);
+    // 3. إضافة مسافة فارغة غير مرئية عشوائية (Zero-Width Space) لكسر بصمة الرسالة وتجنب تكرار الـ Hash لدى خوارزميات ميتا
+    const zeroWidthSpaces = ['\u200B', '\u200C', '\u200D', '\uFEFF'];
+    const randomJitter = zeroWidthSpaces[Math.floor(Math.random() * zeroWidthSpaces.length)];
+    if (content.text) {
+        content.text = `${content.text}${randomJitter}`;
+    }
+
+    // 4. إرسال الرسالة
+    const res = await sock.sendMessage(remoteJid, content);
+
+    // 5. ضبط الحالة على غير متواجد (unavailable) بعد مهلة قصيرة لمحاكاة السلوك البشري
+    setTimeout(() => {
+        try {
+            if (typeof sock.sendPresenceUpdate === 'function') {
+                sock.sendPresenceUpdate('unavailable', remoteJid).catch(() => {});
+            }
+        } catch (_) {}
+    }, 2000);
+
+    return res;
 }
 
 /**
