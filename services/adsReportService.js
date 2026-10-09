@@ -198,29 +198,64 @@ export function isCampaignCurrentlyRunning(camp) {
 }
 
 /**
- * استخراج روابط المنشورات الفعلية من الهيكل الهرمي الكامل (campaign -> adsets -> ads -> creative)
+ * استخراج روابط المنشورات الفعلية المباشرة من الهيكل الهرمي الكامل
+ * مع إعطاء الأولوية لمنشور صفحة الفيسبوك الأصلي (effective_object_story_id) لضمان أنه يفتح مع أي شخص بدون تسجيل دخول
  */
 export function extractCampaignPostLinks(camp) {
     if (!camp) return [];
     const links = [];
     const seen = new Set();
 
-    const addLink = (rawUrl) => {
+    const addLink = (rawUrl, preferredPlatform = '') => {
         if (!rawUrl || typeof rawUrl !== 'string') return;
         const url = rawUrl.trim();
         if (seen.has(url)) return;
         seen.add(url);
 
-        let platform = 'منشور';
-        if (url.includes('instagram.com/p/')) {
-            platform = 'إنستجرام';
-        } else if (url.includes('facebook.com/')) {
-            platform = 'فيسبوك';
-        } else if (url.startsWith('http')) {
-            platform = 'رابط خارجي';
+        let platform = preferredPlatform || 'منشور';
+        if (!preferredPlatform) {
+            if (url.includes('facebook.com/')) {
+                platform = 'فيسبوك';
+            } else if (url.includes('instagram.com/')) {
+                platform = 'إنستجرام';
+            } else if (url.startsWith('http')) {
+                platform = 'رابط خارجي';
+            }
         }
 
         links.push({ url, platform });
+    };
+
+    const processCreative = (cr) => {
+        if (!cr) return;
+
+        // 1. الأولوية القصوى: رابط المنشور الحقيقي على صفحة الفيسبوك من effective_object_story_id (شغال ومفتوح للجميع)
+        if (cr.effective_object_story_id && String(cr.effective_object_story_id).includes('_')) {
+            const [pageId, postId] = String(cr.effective_object_story_id).split('_');
+            if (pageId && postId) {
+                addLink(`https://www.facebook.com/${pageId}/posts/${postId}`, 'فيسبوك');
+            }
+        }
+
+        // 2. إذا كان هناك رابط فيسبوك صريح في post_url أو preview_url
+        if (cr.post_url && cr.post_url.includes('facebook.com/')) {
+            addLink(cr.post_url, 'فيسبوك');
+        } else if (cr.preview_url && cr.preview_url.includes('facebook.com/')) {
+            addLink(cr.preview_url, 'فيسبوك');
+        }
+
+        // 3. رابط إنستجرام إذا لم نجد رابط فيسبوك (مثلاً إعلان معمول حصرياً لإنستجرام)
+        if (links.length === 0) {
+            const instaUrl = cr.instagram_permalink_url || (cr.post_url && cr.post_url.includes('instagram.com') ? cr.post_url : null);
+            if (instaUrl) {
+                addLink(instaUrl, 'إنستجرام');
+            }
+        }
+
+        // 4. رابط خارجي إن وجد
+        if (cr.link_url && !cr.link_url.includes('facebook.com') && !cr.link_url.includes('instagram.com')) {
+            addLink(cr.link_url, 'رابط الإعلان');
+        }
     };
 
     // 1. من خلال الهيكل الهرمي: campaign -> adsets -> ads -> creative
@@ -228,8 +263,7 @@ export function extractCampaignPostLinks(camp) {
         for (const adset of camp.adsets) {
             if (Array.isArray(adset.ads) && adset.ads.length > 0) {
                 for (const ad of adset.ads) {
-                    const cr = ad.creative || {};
-                    addLink(cr.post_url || cr.preview_url || cr.instagram_permalink_url || cr.link_url);
+                    processCreative(ad.creative);
                 }
             }
         }
@@ -238,8 +272,7 @@ export function extractCampaignPostLinks(camp) {
     // 2. فحص مصفوفة الإعلانات المباشرة كاحتياط
     if (Array.isArray(camp.ads) && camp.ads.length > 0) {
         for (const ad of camp.ads) {
-            const cr = ad.creative || {};
-            addLink(cr.post_url || cr.preview_url || cr.instagram_permalink_url || cr.link_url);
+            processCreative(ad.creative);
         }
     }
 
