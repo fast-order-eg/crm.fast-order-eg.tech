@@ -357,8 +357,36 @@ export function formatAdsReportMessage(data, requestedId = '', datePreset = 'tod
         ? rawCampaigns
         : rawCampaigns.filter(isCampaignCurrentlyRunning);
 
+    // استخراج اسم الحساب الإعلاني ورصيد الحساب المتاح إن وجد
+    const accountName = data.summary?.account_name || data.account?.name || data.campaigns?.[0]?.account_name || '';
+    const balanceVal = data.summary?.account_balance ?? data.account?.balance ?? data.campaigns?.[0]?.account_balance;
+
+    let balanceStr = '';
+    if (balanceVal !== undefined && balanceVal !== null && balanceVal !== '') {
+        const num = Number(balanceVal);
+        if (!isNaN(num)) {
+            balanceStr = `${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ج.م`;
+        } else {
+            balanceStr = `${balanceVal}`;
+            if (!balanceStr.includes('ج') && !balanceStr.includes('EGP')) {
+                balanceStr += ' ج.م';
+            }
+        }
+    } else if (data.summary?.account_balance_formatted) {
+        balanceStr = data.summary.account_balance_formatted.replace(/EGP/gi, 'ج.م').trim();
+    }
+
     let msg = `📊 *تقرير أداء الإعلانات الممولة*\n`;
-    if (requestedId) msg += `🔢 *المعرف:* \`${requestedId}\`\n`;
+    if (requestedId) {
+        msg += `🔢 *المعرف:* \`${requestedId}\`${accountName ? ` (${accountName})` : ''}\n`;
+    } else if (accountName) {
+        msg += `🏢 *اسم الحساب:* ${accountName}\n`;
+    }
+
+    if (balanceStr) {
+        msg += `💳 *رصيد الحساب المتاح:* ${balanceStr}\n`;
+    }
+
     msg += `📅 *الفترة:* ${periodLabel}\n`;
     msg += `══════════════\n`;
 
