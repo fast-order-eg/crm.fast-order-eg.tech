@@ -267,6 +267,7 @@ export function formatCampaignBudget(camp) {
  * استدعاء API منصة einasouq.bird-ads.com لجلب نتائج وأداء الحملات:
  * 1. إرسال status_filter: "ACTIVE" دائماً لجلب الحملات النشطة والشغالة فقط.
  * 2. إرسال force_refresh: true دائماً لجلب أحدث البيانات اللحظية.
+ * 3. آلية إعادة محاولة تلقائية (Auto-Retry) حتى 3 مرات مع مهلة 15 ثانية لمقاومة انقطاع الشبكة اللحظي.
  */
 export async function fetchCampaignsSummary({
     account_id,
@@ -285,22 +286,46 @@ export async function fetchCampaignsSummary({
         payload.campaign_ids = campaign_ids.map(id => String(id).trim());
     }
 
-    try {
-        const response = await fetch(API_ENDPOINT, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': API_KEY
-            },
-            body: JSON.stringify(payload)
-        });
+    let lastError = null;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 15000);
 
-        const data = await response.json();
-        return data;
-    } catch (err) {
-        console.error('Error fetching campaigns summary from bird-ads API:', err);
-        return { success: false, error: err.message };
+            const response = await fetch(API_ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-api-key': API_KEY
+                },
+                body: JSON.stringify(payload),
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+
+            if (!response.ok) {
+                const text = await response.text();
+                try {
+                    const jsonErr = JSON.parse(text);
+                    return jsonErr;
+                } catch (_) {
+                    throw new Error(`HTTP ${response.status}: ${text.slice(0, 100)}`);
+                }
+            }
+
+            const data = await response.json();
+            return data;
+        } catch (err) {
+            lastError = err;
+            console.warn(`⚠️ [Ads API] Attempt ${attempt} failed for payload:`, payload, err.message);
+            if (attempt < 3) {
+                await new Promise(r => setTimeout(r, 800 * attempt));
+            }
+        }
     }
+
+    console.error('Error fetching campaigns summary from bird-ads API after 3 attempts:', lastError);
+    return { success: false, error: lastError?.message || 'تعذر الاتصال بخادم الإعلانات بعد 3 محاولات.' };
 }
 
 /**
@@ -568,22 +593,24 @@ export async function handleAdsReportGroupMessage({
             force_refresh: true
         });
     } else {
-        // نوع غير محدد: نجرب كحساب إعلاني أولاً، فإن كان الخطأ في الصلاحيات/النوع نجرب كمعرف حملة
+        // نوع غير محدد: نجرب كحساب إعلاني أولاً
         apiResult = await fetchCampaignsSummary({
             account_id: idInfo.id,
             date_preset: datePreset,
             status_filter: statusFilter,
             force_refresh: true
         });
-        if (!apiResult.success && apiResult.error && apiResult.error.includes('#200')) {
-            // تجربة المعرف كمعرف حملة مباشرة
+
+        // إذا لم ينجح كحساب إعلاني، نجرب كمعرف حملة تلقائياً
+        if (!apiResult || !apiResult.success) {
+            console.log(`🔄 [Ads Report] Trying fallback for ID ${idInfo.id} as campaign_id...`);
             const campaignTry = await fetchCampaignsSummary({
                 campaign_ids: [idInfo.id],
                 date_preset: datePreset,
                 status_filter: statusFilter,
                 force_refresh: true
             });
-            if (campaignTry.success) {
+            if (campaignTry && campaignTry.success) {
                 apiResult = campaignTry;
                 isExplicitCampaign = true;
             }
@@ -591,7 +618,8 @@ export async function handleAdsReportGroupMessage({
     }
 
     if (!apiResult || !apiResult.success) {
-        const errMsg = apiResult?.error || 'تعذر الاتصال بخادم الإعلانات.';
+        const errMsg = apiResult?.error || apiResult?.message || 'تعذر الاتصال بخادم الإعلانات.';
+        console.error(`❌ [Ads Report] Failed to fetch report for ID ${idInfo.id}:`, errMsg);
         let userErr = `⚠️ *تعذر جلب تقرير الإعلانات للمعرف (${idInfo.id}):*\n\n`;
         if (errMsg.includes('#200') || errMsg.includes('permission')) {
             userErr += `📌 *السبب:* الحساب غير مربوط بالمنصة أو لم يتم منحه صلاحيات قراءة الإعلانات (ads_read) في فيسبوك.`;
