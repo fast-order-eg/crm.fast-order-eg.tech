@@ -219,53 +219,36 @@ export function isCampaignCurrentlyRunning(camp) {
 }
 
 /**
- * استخراج وصياغة روابط المنشورات وفق قواعد API عين السوق:
- * 1. إذا توفر في الحملة رابط فيسبوك (facebook_url) ورابط إنستغرام (instagram_url) معاً، نعرض الرابطين تحت بعض لراحة العميل:
- *    • 🔗 رابط المنشور (فيسبوك): {facebook_url}
- *    • 📸 رابط المنشور (إنستغرام): {instagram_url}
- * 2. إذا توفر رابط واحد فقط أو الرابط الأساسي (post_url):
- *    - لو المنصة فيسبوك:
- *      • 🔗 رابط المنشور (فيسبوك): {post_url}
- *    - لو المنصة إنستغرام:
- *      • 🔗 رابط المنشور (إنستغرام): {post_url}
- * ⛔ تحذير: ممنوع نهائياً تركيب رابط فيسبوك يدوي من effective_object_story_id
+ * استخراج وصياغة رابط المنشور الأساسي للحملة وفق المنصة الأصلية المعتمدة في API عين السوق:
+ * - إذا كان المنشور الأساسي فيسبوك -> عرض رابط فيسبوك فقط
+ * - إذا كان المنشور الأساسي إنستغرام -> عرض رابط إنستغرام فقط
+ * ⛔ التزاماً بالقاعدة: عدم دمج الرابطين لعدم تشتيت التاجر، والاعتماد التام على المنشور الأساسي post_url
  */
 export function formatCampaignPostLinks(camp) {
     if (!camp) return '';
 
-    const fbUrl = (camp.facebook_url || camp.primary_ad?.facebook_url || '').trim();
-    const instaUrl = (camp.instagram_url || camp.primary_ad?.instagram_url || '').trim();
     const postUrl = (camp.post_url || camp.primary_ad?.post_url || '').trim();
-
     const isHttp = (u) => typeof u === 'string' && u.startsWith('http');
-
-    // 1. (اختياري احترافي): إذا توفر رابط فيسبوك ورابط إنستغرام معاً
-    if (isHttp(fbUrl) && isHttp(instaUrl)) {
-        return `• 🔗 رابط المنشور (فيسبوك): ${fbUrl}\n• 📸 رابط المنشور (إنستغرام): ${instaUrl}\n`;
-    }
-
-    // 2. إذا توفر رابط واحد فقط
-    const targetUrl = postUrl || fbUrl || instaUrl;
-    if (!isHttp(targetUrl)) return '';
+    if (!isHttp(postUrl)) return '';
 
     const pLabel = String(camp.platform_label || camp.primary_ad?.platform_label || camp.platform || camp.primary_ad?.platform || '').toLowerCase();
     const urlLabel = String(camp.post_url_label || camp.primary_ad?.post_url_label || '');
 
     let platform = '';
-    if (targetUrl === fbUrl || pLabel.includes('فيسبوك') || pLabel.includes('facebook') || urlLabel.includes('فيسبوك') || targetUrl.includes('facebook.com')) {
+    if (pLabel.includes('فيسبوك') || pLabel.includes('facebook') || urlLabel.includes('فيسبوك') || postUrl.includes('facebook.com')) {
         platform = 'فيسبوك';
-    } else if (targetUrl === instaUrl || pLabel.includes('إنستغرام') || pLabel.includes('إنستجرام') || pLabel.includes('instagram') || urlLabel.includes('إنستغرام') || urlLabel.includes('إنستجرام') || targetUrl.includes('instagram.com')) {
+    } else if (pLabel.includes('إنستغرام') || pLabel.includes('إنستجرام') || pLabel.includes('instagram') || urlLabel.includes('إنستغرام') || urlLabel.includes('إنستجرام') || postUrl.includes('instagram.com')) {
         platform = 'إنستغرام';
     }
 
     if (platform === 'فيسبوك') {
-        return `• 🔗 رابط المنشور (فيسبوك): ${targetUrl}\n`;
+        return `• 🔗 رابط المنشور (فيسبوك): ${postUrl}\n`;
     } else if (platform === 'إنستغرام') {
-        return `• 🔗 رابط المنشور (إنستغرام): ${targetUrl}\n`;
+        return `• 🔗 رابط المنشور (إنستغرام): ${postUrl}\n`;
     } else if (urlLabel) {
-        return `• 🔗 ${urlLabel}: ${targetUrl}\n`;
+        return `• 🔗 ${urlLabel}: ${postUrl}\n`;
     } else {
-        return `• 🔗 رابط المنشور: ${targetUrl}\n`;
+        return `• 🔗 رابط المنشور: ${postUrl}\n`;
     }
 }
 
