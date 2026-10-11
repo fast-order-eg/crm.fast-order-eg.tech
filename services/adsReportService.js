@@ -31,10 +31,18 @@ export async function isAuthorizedAdsAdmin(senderPhone, userId = 3, participantJ
 }
 
 /**
- * استخراج الفترة الزمنية المطلوبة من رسالة المستخدم
+ * استخراج الفترة الزمنية المطلوبة من رسالة المستخدم وفق قواعد منصة عين السوق:
+ * - الكل / كل الفترات / الإجمالي -> maximum
+ * - اليوم -> today
+ * - امس / أمس / امبارح -> yesterday
+ * - اخر 7 ايام / أسبوع -> last_7d
+ * - هذا الشهر -> this_month
  */
 export function extractDatePreset(text = '') {
     const t = text.toLowerCase();
+    if (t.includes('الكل') || t.includes('كل الفترات') || t.includes('الإجمالي') || t.includes('اجمالي') || t.includes('كل الوقت') || t.includes('maximum') || t.includes('all')) {
+        return 'maximum';
+    }
     if (t.includes('امبارح') || t.includes('امس') || t.includes('أمس') || t.includes('yesterday')) {
         return 'yesterday';
     }
@@ -44,10 +52,23 @@ export function extractDatePreset(text = '') {
     if (t.includes('الشهر') || t.includes('هذا الشهر') || t.includes('الشهر الحالي') || t.includes('this_month')) {
         return 'this_month';
     }
-    if (t.includes('الكل') || t.includes('الإجمالي') || t.includes('اجمالي') || t.includes('كل الوقت') || t.includes('maximum') || t.includes('all')) {
-        return 'maximum';
+    if (t.includes('اليوم') || t.includes('today')) {
+        return 'today';
     }
     return 'today';
+}
+
+/**
+ * استخراج فلتر حالة الحملات:
+ * - استخدام ACTIVE دائماً لجلب الحملات النشطة والشغالة فقط
+ * - إرسال ALL فقط إذا طلب المستخدم صراحة الحملات المتوقفة أو كل الحملات
+ */
+export function extractStatusFilter(text = '') {
+    const t = text.toLowerCase();
+    if (t.includes('المتوقفة') || t.includes('المتوقفه') || t.includes('متوقف') || t.includes('موقوفة') || t.includes('موقوفه') || t.includes('paused') || t.includes('كل الحملات')) {
+        return 'ALL';
+    }
+    return 'ACTIVE';
 }
 
 /**
@@ -198,90 +219,33 @@ export function isCampaignCurrentlyRunning(camp) {
 }
 
 /**
- * استخراج روابط المنشورات الفعلية المباشرة من الهيكل الهرمي الكامل
- * مع إعطاء الأولوية لمنشور صفحة الفيسبوك الأصلي (effective_object_story_id) لضمان أنه يفتح مع أي شخص بدون تسجيل دخول
+ * استخراج رابط المنشور المباشر والمنصة من حقول الـ API المعتمدة:
+ * - قراءة الرابط المباشر من campaign.post_url (أو primary_ad.post_url)
+ * - قراءة نص الرابط من campaign.post_url_label أو المنصة من campaign.platform_label
+ * ⛔ تحذير: ممنوع نهائياً تركيب رابط فيسبوك يدوي من effective_object_story_id
  */
-export function extractCampaignPostLinks(camp) {
-    if (!camp) return [];
-    const links = [];
-    const seen = new Set();
+export function getCampaignPostLink(camp) {
+    if (!camp) return null;
+    const postUrl = camp.post_url || camp.primary_ad?.post_url || '';
+    if (!postUrl || typeof postUrl !== 'string') return null;
 
-    const addLink = (rawUrl, preferredPlatform = '') => {
-        if (!rawUrl || typeof rawUrl !== 'string') return;
-        const url = rawUrl.trim();
-        if (seen.has(url)) return;
-        seen.add(url);
+    const pLabel = String(camp.platform_label || camp.primary_ad?.platform_label || camp.platform || camp.primary_ad?.platform || '').toLowerCase();
+    const urlLabel = String(camp.post_url_label || camp.primary_ad?.post_url_label || '');
 
-        let platform = preferredPlatform || 'منشور';
-        if (!preferredPlatform) {
-            if (url.includes('facebook.com/')) {
-                platform = 'فيسبوك';
-            } else if (url.includes('instagram.com/')) {
-                platform = 'إنستجرام';
-            } else if (url.startsWith('http')) {
-                platform = 'رابط خارجي';
-            }
-        }
+    let platform = '';
+    if (pLabel.includes('إنستغرام') || pLabel.includes('إنستجرام') || pLabel.includes('instagram') || urlLabel.includes('إنستغرام') || urlLabel.includes('إنستجرام') || postUrl.includes('instagram.com')) {
+        platform = 'إنستغرام';
+    } else if (pLabel.includes('فيسبوك') || pLabel.includes('facebook') || urlLabel.includes('فيسبوك') || postUrl.includes('facebook.com')) {
+        platform = 'فيسبوك';
+    } else {
+        platform = camp.platform_label || 'منشور';
+    }
 
-        links.push({ url, platform });
+    return {
+        url: postUrl.trim(),
+        platform: platform,
+        label: urlLabel || `رابط المنشور (${platform})`
     };
-
-    const processCreative = (cr) => {
-        if (!cr) return;
-
-        // 1. الأولوية القصوى: رابط المنشور الحقيقي على صفحة الفيسبوك من effective_object_story_id (شغال ومفتوح للجميع)
-        if (cr.effective_object_story_id && String(cr.effective_object_story_id).includes('_')) {
-            const [pageId, postId] = String(cr.effective_object_story_id).split('_');
-            if (pageId && postId) {
-                addLink(`https://www.facebook.com/${pageId}/posts/${postId}`, 'فيسبوك');
-            }
-        }
-
-        // 2. إذا كان هناك رابط فيسبوك صريح في post_url أو preview_url
-        if (cr.post_url && cr.post_url.includes('facebook.com/')) {
-            addLink(cr.post_url, 'فيسبوك');
-        } else if (cr.preview_url && cr.preview_url.includes('facebook.com/')) {
-            addLink(cr.preview_url, 'فيسبوك');
-        }
-
-        // 3. رابط إنستجرام إذا لم نجد رابط فيسبوك (مثلاً إعلان معمول حصرياً لإنستجرام)
-        if (links.length === 0) {
-            const instaUrl = cr.instagram_permalink_url || (cr.post_url && cr.post_url.includes('instagram.com') ? cr.post_url : null);
-            if (instaUrl) {
-                addLink(instaUrl, 'إنستجرام');
-            }
-        }
-
-        // 4. رابط خارجي إن وجد
-        if (cr.link_url && !cr.link_url.includes('facebook.com') && !cr.link_url.includes('instagram.com')) {
-            addLink(cr.link_url, 'رابط الإعلان');
-        }
-    };
-
-    // 1. من خلال الهيكل الهرمي: campaign -> adsets -> ads -> creative
-    if (Array.isArray(camp.adsets) && camp.adsets.length > 0) {
-        for (const adset of camp.adsets) {
-            if (Array.isArray(adset.ads) && adset.ads.length > 0) {
-                for (const ad of adset.ads) {
-                    processCreative(ad.creative);
-                }
-            }
-        }
-    }
-
-    // 2. فحص مصفوفة الإعلانات المباشرة كاحتياط
-    if (Array.isArray(camp.ads) && camp.ads.length > 0) {
-        for (const ad of camp.ads) {
-            processCreative(ad.creative);
-        }
-    }
-
-    // 3. رابط المنشور المباشر بالحملة إن وجد
-    if (camp.post_url) {
-        addLink(camp.post_url);
-    }
-
-    return links;
 }
 
 /**
@@ -300,10 +264,22 @@ export function formatCampaignBudget(camp) {
 }
 
 /**
- * استدعاء API منصة einasouq.bird-ads.com لجلب نتائج وأداء الحملات
+ * استدعاء API منصة einasouq.bird-ads.com لجلب نتائج وأداء الحملات:
+ * 1. إرسال status_filter: "ACTIVE" دائماً لجلب الحملات النشطة والشغالة فقط.
+ * 2. إرسال force_refresh: true دائماً لجلب أحدث البيانات اللحظية.
  */
-export async function fetchCampaignsSummary({ account_id, campaign_ids, date_preset = 'today' }) {
-    const payload = { date_preset };
+export async function fetchCampaignsSummary({
+    account_id,
+    campaign_ids,
+    date_preset = 'today',
+    status_filter = 'ACTIVE',
+    force_refresh = true
+}) {
+    const payload = {
+        date_preset,
+        status_filter: status_filter || 'ACTIVE',
+        force_refresh: force_refresh !== undefined ? force_refresh : true
+    };
     if (account_id) payload.account_id = String(account_id).trim();
     if (campaign_ids && Array.isArray(campaign_ids) && campaign_ids.length > 0) {
         payload.campaign_ids = campaign_ids.map(id => String(id).trim());
@@ -340,7 +316,7 @@ export async function fetchCampaignsSummary({ account_id, campaign_ids, date_pre
  * 9. حذف "مرات الظهور" وحذف ملخص "الحملات النشطة".
  * 10. عدم وضع روابط تخمينية.
  */
-export function formatAdsReportMessage(data, requestedId = '', datePreset = 'today', isExplicitCampaign = false) {
+export function formatAdsReportMessage(data, requestedId = '', datePreset = 'today', isExplicitCampaign = false, statusFilter = 'ACTIVE') {
     const presetLabels = {
         today: 'اليوم',
         yesterday: 'أمس',
@@ -352,8 +328,10 @@ export function formatAdsReportMessage(data, requestedId = '', datePreset = 'tod
 
     const rawCampaigns = data.campaigns || [];
 
-    // تصفية الحملات: إذا لم يكن الاستعلام عن حملة محددة بعينها، نعرض الحملات النشطة والشغالة فقط
-    const campaigns = isExplicitCampaign
+    // تصفية الحملات:
+    // إذا كان الاستعلام عن حملة محددة أو طلب المستخدم الحملات المتوقفة صراحة (statusFilter === 'ALL') نعرض كل ما رجع
+    // وإلا نعرض الحملات النشطة والشغالة فقط
+    const campaigns = (isExplicitCampaign || statusFilter === 'ALL')
         ? rawCampaigns
         : rawCampaigns.filter(isCampaignCurrentlyRunning);
 
@@ -397,8 +375,9 @@ export function formatAdsReportMessage(data, requestedId = '', datePreset = 'tod
     }
 
     campaigns.forEach((camp, idx) => {
-        const cStatus = camp.status === 'ACTIVE' ? '🟢 نشطة' : '⏸️ متوقفة';
-        const ctaType = camp.ads?.[0]?.creative?.cta_type || '';
+        // 1. قراءة الحالة من campaign.status_label المباشرة من الـ API
+        const cStatus = camp.status_label || (camp.status === 'ACTIVE' ? '🟢 نشطة' : '⏸️ متوقفة');
+        const ctaType = camp.ads?.[0]?.creative?.cta_type || camp.primary_ad?.cta_type || '';
         const cObj = classifyObjective(camp.objective, ctaType);
         const cSpend = Math.round(Number(camp.spend || 0)).toLocaleString('en-US');
         const cResults = Number(camp.results || 0).toLocaleString('en-US');
@@ -434,15 +413,13 @@ export function formatAdsReportMessage(data, requestedId = '', datePreset = 'tod
         if (stopInfo?.remainingText) {
             msg += `• ⏳ المتبقي: ${stopInfo.remainingText}\n`;
         }
-        const postLinks = extractCampaignPostLinks(camp);
-        if (postLinks.length === 1) {
-            msg += `• 🔗 رابط المنشور (${postLinks[0].platform}): ${postLinks[0].url}\n`;
-        } else if (postLinks.length > 1) {
-            msg += `• 🔗 روابط المنشورات (${postLinks.length}):\n`;
-            postLinks.forEach((pl, pIdx) => {
-                msg += `  ${pIdx + 1}. ${pl.url} (${pl.platform})\n`;
-            });
+
+        // 2. قراءة رابط المنشور المباشر من post_url والمنصة وفق القواعد المعتمدة
+        const linkInfo = getCampaignPostLink(camp);
+        if (linkInfo && linkInfo.url) {
+            msg += `• 🔗 رابط المنشور (${linkInfo.platform}): ${linkInfo.url}\n`;
         }
+
         msg += `\n`;
     });
 
@@ -555,8 +532,9 @@ export async function handleAdsReportGroupMessage({
         return true;
     }
 
-    // 3. استخراج المعرف والفترة الزمنية
+    // 3. استخراج المعرف والفترة الزمنية وفلتر الحالة
     const datePreset = extractDatePreset(raw);
+    const statusFilter = extractStatusFilter(raw);
     const idInfo = extractAdIdentifiers(raw);
 
     if (!idInfo) {
@@ -575,16 +553,36 @@ export async function handleAdsReportGroupMessage({
 
     if (idInfo.type === 'campaign') {
         // طلب صريح لحملة
-        apiResult = await fetchCampaignsSummary({ campaign_ids: [idInfo.id], date_preset: datePreset });
+        apiResult = await fetchCampaignsSummary({
+            campaign_ids: [idInfo.id],
+            date_preset: datePreset,
+            status_filter: statusFilter,
+            force_refresh: true
+        });
     } else if (idInfo.type === 'account') {
         // طلب صريح لحساب
-        apiResult = await fetchCampaignsSummary({ account_id: idInfo.id, date_preset: datePreset });
+        apiResult = await fetchCampaignsSummary({
+            account_id: idInfo.id,
+            date_preset: datePreset,
+            status_filter: statusFilter,
+            force_refresh: true
+        });
     } else {
         // نوع غير محدد: نجرب كحساب إعلاني أولاً، فإن كان الخطأ في الصلاحيات/النوع نجرب كمعرف حملة
-        apiResult = await fetchCampaignsSummary({ account_id: idInfo.id, date_preset: datePreset });
+        apiResult = await fetchCampaignsSummary({
+            account_id: idInfo.id,
+            date_preset: datePreset,
+            status_filter: statusFilter,
+            force_refresh: true
+        });
         if (!apiResult.success && apiResult.error && apiResult.error.includes('#200')) {
             // تجربة المعرف كمعرف حملة مباشرة
-            const campaignTry = await fetchCampaignsSummary({ campaign_ids: [idInfo.id], date_preset: datePreset });
+            const campaignTry = await fetchCampaignsSummary({
+                campaign_ids: [idInfo.id],
+                date_preset: datePreset,
+                status_filter: statusFilter,
+                force_refresh: true
+            });
             if (campaignTry.success) {
                 apiResult = campaignTry;
                 isExplicitCampaign = true;
@@ -605,7 +603,7 @@ export async function handleAdsReportGroupMessage({
     }
 
     // 4. صياغة التقرير الاحترافي وإرساله
-    const reportText = formatAdsReportMessage(apiResult, idInfo.id, datePreset, isExplicitCampaign);
+    const reportText = formatAdsReportMessage(apiResult, idInfo.id, datePreset, isExplicitCampaign, statusFilter);
     await sendGroupReply(sock, remoteJid, { text: reportText });
     return true;
 }
