@@ -219,10 +219,58 @@ export function isCampaignCurrentlyRunning(camp) {
 }
 
 /**
- * استخراج رابط المنشور المباشر والمنصة من حقول الـ API المعتمدة:
- * - قراءة الرابط المباشر من campaign.post_url (أو primary_ad.post_url)
- * - قراءة نص الرابط من campaign.post_url_label أو المنصة من campaign.platform_label
+ * استخراج وصياغة روابط المنشورات وفق قواعد API عين السوق:
+ * 1. إذا توفر في الحملة رابط فيسبوك (facebook_url) ورابط إنستغرام (instagram_url) معاً، نعرض الرابطين تحت بعض لراحة العميل:
+ *    • 🔗 رابط المنشور (فيسبوك): {facebook_url}
+ *    • 📸 رابط المنشور (إنستغرام): {instagram_url}
+ * 2. إذا توفر رابط واحد فقط أو الرابط الأساسي (post_url):
+ *    - لو المنصة فيسبوك:
+ *      • 🔗 رابط المنشور (فيسبوك): {post_url}
+ *    - لو المنصة إنستغرام:
+ *      • 🔗 رابط المنشور (إنستغرام): {post_url}
  * ⛔ تحذير: ممنوع نهائياً تركيب رابط فيسبوك يدوي من effective_object_story_id
+ */
+export function formatCampaignPostLinks(camp) {
+    if (!camp) return '';
+
+    const fbUrl = (camp.facebook_url || camp.primary_ad?.facebook_url || '').trim();
+    const instaUrl = (camp.instagram_url || camp.primary_ad?.instagram_url || '').trim();
+    const postUrl = (camp.post_url || camp.primary_ad?.post_url || '').trim();
+
+    const isHttp = (u) => typeof u === 'string' && u.startsWith('http');
+
+    // 1. (اختياري احترافي): إذا توفر رابط فيسبوك ورابط إنستغرام معاً
+    if (isHttp(fbUrl) && isHttp(instaUrl)) {
+        return `• 🔗 رابط المنشور (فيسبوك): ${fbUrl}\n• 📸 رابط المنشور (إنستغرام): ${instaUrl}\n`;
+    }
+
+    // 2. إذا توفر رابط واحد فقط
+    const targetUrl = postUrl || fbUrl || instaUrl;
+    if (!isHttp(targetUrl)) return '';
+
+    const pLabel = String(camp.platform_label || camp.primary_ad?.platform_label || camp.platform || camp.primary_ad?.platform || '').toLowerCase();
+    const urlLabel = String(camp.post_url_label || camp.primary_ad?.post_url_label || '');
+
+    let platform = '';
+    if (targetUrl === fbUrl || pLabel.includes('فيسبوك') || pLabel.includes('facebook') || urlLabel.includes('فيسبوك') || targetUrl.includes('facebook.com')) {
+        platform = 'فيسبوك';
+    } else if (targetUrl === instaUrl || pLabel.includes('إنستغرام') || pLabel.includes('إنستجرام') || pLabel.includes('instagram') || urlLabel.includes('إنستغرام') || urlLabel.includes('إنستجرام') || targetUrl.includes('instagram.com')) {
+        platform = 'إنستغرام';
+    }
+
+    if (platform === 'فيسبوك') {
+        return `• 🔗 رابط المنشور (فيسبوك): ${targetUrl}\n`;
+    } else if (platform === 'إنستغرام') {
+        return `• 🔗 رابط المنشور (إنستغرام): ${targetUrl}\n`;
+    } else if (urlLabel) {
+        return `• 🔗 ${urlLabel}: ${targetUrl}\n`;
+    } else {
+        return `• 🔗 رابط المنشور: ${targetUrl}\n`;
+    }
+}
+
+/**
+ * دالة مساعدة للحصول على رابط المنشور الفردي
  */
 export function getCampaignPostLink(camp) {
     if (!camp) return null;
@@ -439,10 +487,10 @@ export function formatAdsReportMessage(data, requestedId = '', datePreset = 'tod
             msg += `• ⏳ المتبقي: ${stopInfo.remainingText}\n`;
         }
 
-        // 2. قراءة رابط المنشور المباشر من post_url والمنصة وفق القواعد المعتمدة
-        const linkInfo = getCampaignPostLink(camp);
-        if (linkInfo && linkInfo.url) {
-            msg += `• 🔗 رابط المنشور (${linkInfo.platform}): ${linkInfo.url}\n`;
+        // 2. قراءة وصياغة روابط المنشورات (فيسبوك وإنستغرام) وفق القواعد المعتمدة
+        const linksText = formatCampaignPostLinks(camp);
+        if (linksText) {
+            msg += linksText;
         }
 
         msg += `\n`;
