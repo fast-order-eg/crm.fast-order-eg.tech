@@ -25,7 +25,7 @@ import { getSetting, setSetting, defaultSettingsMeta } from '../services/setting
 import FinancialTransaction from '../models/FinancialTransaction.js';
 import Commission from '../models/Commission.js';
 import { getAuthorizedAdmins, addAuthorizedAdmin, removeAuthorizedAdmin } from '../services/reminderService.js';
-import { getFastOrderAuthorizedStaff } from '../services/whatsappProductCreatorService.js';
+import { getFastOrderAuthorizedStaff, addFastOrderStaff, removeFastOrderStaff } from '../services/whatsappProductCreatorService.js';
 
 const router = express.Router();
 
@@ -2683,6 +2683,43 @@ router.post('/settings/reminder-admins/delete', async (req, res) => {
     } catch (err) {
         console.error('Error deleting reminder admin:', err);
         res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// إدارة الأرقام والموظفين المصرح لهم بفاست اوردر (AJAX)
+router.post('/settings/fastorder-staff/add', async (req, res) => {
+    try {
+        const { name, phone, role } = req.body;
+        if (!phone) {
+            return res.status(400).json({ success: false, error: 'يرجى إدخال رقم الهاتف' });
+        }
+        const result = await addFastOrderStaff(phone, name, role, req.user.id);
+        if (!result.success) {
+            return res.status(400).json({ success: false, error: result.message });
+        }
+        const updatedStaff = await getFastOrderAuthorizedStaff(req.user.id);
+        res.json({ success: true, message: result.message, staff: updatedStaff });
+    } catch (err) {
+        console.error('Error adding fast order staff:', err);
+        res.status(500).json({ success: false, error: 'حدث خطأ أثناء إضافة الرقم' });
+    }
+});
+
+router.post('/settings/fastorder-staff/delete', async (req, res) => {
+    try {
+        const { phone } = req.body;
+        if (!phone) {
+            return res.status(400).json({ success: false, error: 'يرجى تحديد رقم الهاتف المراد حذفه' });
+        }
+        const result = await removeFastOrderStaff(phone, req.user.id);
+        if (!result.success) {
+            return res.status(400).json({ success: false, error: result.message });
+        }
+        const updatedStaff = await getFastOrderAuthorizedStaff(req.user.id);
+        res.json({ success: true, message: result.message, staff: updatedStaff });
+    } catch (err) {
+        console.error('Error removing fast order staff:', err);
+        res.status(500).json({ success: false, error: 'حدث خطأ أثناء حذف الرقم' });
     }
 });
 

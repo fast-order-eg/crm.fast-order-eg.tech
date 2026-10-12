@@ -3,6 +3,7 @@ import { GoogleAuth } from 'google-auth-library';
 import User from '../models/User.js';
 import Message from '../models/Message.js';
 import path from 'path';
+import { getSetting, setSetting } from './settingsService.js';
 
 // Active in-memory sessions for staff members
 // Key: clean staff phone (e.g. '01092308465') or LID
@@ -48,22 +49,67 @@ async function replyToStaff(sock, remoteJid, text, userId, io) {
 }
 
 /**
- * Normalize phone number to standard Egyptian digits
+ * Normalize phone number to standard Egyptian digits (e.g. '01092308465')
  */
 export function normalizePhone(phone) {
     if (!phone) return '';
     let p = String(phone).replace(/[^0-9]/g, '');
     if (p.startsWith('20') && p.length === 12) {
         p = '0' + p.substring(2);
+    } else if (p.length === 10 && (p.startsWith('10') || p.startsWith('11') || p.startsWith('12') || p.startsWith('15'))) {
+        p = '0' + p;
     }
     return p;
 }
 
 /**
- * Check if the sender is an authorized staff member.
- * Explicitly allows Rady (01092308465) and any active User with admin/super_admin/sales role.
+ * Get internal sets of excluded phones and custom staff for Fast Order
  */
-export async function isStaffAuthorized(phoneNumber) {
+async function getFastOrderConfigSettings(userId = 3) {
+    const excludedSet = new Set();
+    let customList = [];
+
+    try {
+        let excluded = await getSetting('fastorder_excluded_phones', userId);
+        if (!excluded && userId !== 1) {
+            excluded = await getSetting('fastorder_excluded_phones', 1);
+        }
+        if (typeof excluded === 'string') {
+            try {
+                const parsed = JSON.parse(excluded);
+                if (Array.isArray(parsed)) parsed.forEach(p => excludedSet.add(normalizePhone(p)));
+                else excluded.split(',').forEach(p => excludedSet.add(normalizePhone(p)));
+            } catch (_) {
+                excluded.split(',').forEach(p => excludedSet.add(normalizePhone(p)));
+            }
+        } else if (Array.isArray(excluded)) {
+            excluded.forEach(p => excludedSet.add(normalizePhone(p)));
+        }
+
+        let custom = await getSetting('fastorder_custom_staff', userId);
+        if (!custom && userId !== 1) {
+            custom = await getSetting('fastorder_custom_staff', 1);
+        }
+        if (typeof custom === 'string') {
+            try {
+                customList = JSON.parse(custom);
+            } catch (_) {}
+        } else if (Array.isArray(custom)) {
+            customList = custom;
+        }
+    } catch (err) {
+        console.error('Error fetching fastorder settings:', err.message);
+    }
+
+    if (!Array.isArray(customList)) customList = [];
+    return { excludedSet, customList };
+}
+
+/**
+ * Check if the sender is an authorized staff member.
+ * Explicitly allows Rady (01092308465), custom added numbers, and active users unless excluded.
+ */
+export async function isStaffAuthorized(phoneNumber, userId = 3) {
     const cleanPhone = normalizePhone(phoneNumber);
     if (!cleanPhone) return false;
 
@@ -72,7 +118,24 @@ export async function isStaffAuthorized(phoneNumber) {
         return { isAuthorized: true, name: 'أ. راضي', role: 'admin' };
     }
 
-    // 2. Check Database for staff/admin user
+    // 2. Check Excluded Phones
+    const { excludedSet, customList } = await getFastOrderConfigSettings(userId);
+    if (excludedSet.has(cleanPhone)) {
+        return false;
+    }
+
+    // 3. Check Custom Added Staff
+    const customMatch = customList.find(c => normalizePhone(c.phone) === cleanPhone);
+    if (customMatch) {
+        return {
+            isAuthorized: true,
+            name: customMatch.name || 'موظف مخصص',
+            role: customMatch.role || 'sales',
+            roleLabel: customMatch.roleLabel || 'مسؤول مبيعات'
+        };
+    }
+
+    // 4. Check Database for staff/admin user
     try {
         const { Op } = await import('sequelize');
         const cleanNoZero = cleanPhone.startsWith('0') ? cleanPhone.substring(1) : cleanPhone;
@@ -107,7 +170,9 @@ export async function isStaffAuthorized(phoneNumber) {
 /**
  * Get full list of authorized staff members for Fast Order Product Creator
  */
-export async function getFastOrderAuthorizedStaff() {
+export async function getFastOrderAuthorizedStaff(userId = 3) {
+    const { excludedSet, customList } = await getFastOrderConfigSettings(userId);
+
     let users = [];
     try {
         users = await User.findAll({
@@ -132,14 +197,15 @@ export async function getFastOrderAuthorizedStaff() {
         role: 'admin',
         roleLabel: 'مدير النظام (Admin)',
         phone: '01092308465',
-        isPrimary: true
+        isPrimary: true,
+        isCustom: false
     });
     seenPhones.add('01092308465');
 
     // 2. Database Staff Users
     for (const u of users) {
         const cleanP = normalizePhone(u.phone);
-        if (cleanP && !seenPhones.has(cleanP)) {
+        if (cleanP && !seenPhones.has(cleanP) && !excludedSet.has(cleanP)) {
             seenPhones.add(cleanP);
             const roleLabel = u.role === 'super_admin' ? 'مدير عام (Super Admin)' :
                               u.role === 'admin' ? 'مدير (Admin)' : 'مسؤول مبيعات (Sales)';
@@ -150,12 +216,119 @@ export async function getFastOrderAuthorizedStaff() {
                 role: u.role,
                 roleLabel,
                 phone: cleanP,
-                isPrimary: false
+                isPrimary: false,
+                isCustom: false
+            });
+        }
+    }
+
+    // 3. Custom Added Staff
+    for (const c of customList) {
+        const cleanP = normalizePhone(c.phone);
+        if (cleanP && !seenPhones.has(cleanP) && !excludedSet.has(cleanP)) {
+            seenPhones.add(cleanP);
+            list.push({
+                id: c.id || `custom_${cleanP}`,
+                name: c.name || 'موظف مخصص',
+                username: c.username || cleanP,
+                role: c.role || 'sales',
+                roleLabel: c.roleLabel || 'مسؤول مبيعات (مخصص)',
+                phone: cleanP,
+                isPrimary: false,
+                isCustom: true
             });
         }
     }
 
     return list;
+}
+
+/**
+ * Add a new authorized phone number for Fast Order
+ */
+export async function addFastOrderStaff(rawPhone, name = '', roleLabel = 'مسؤول مبيعات (Sales)', userId = 3) {
+    const clean = normalizePhone(rawPhone);
+    if (!clean || clean.length < 10) {
+        return { success: false, message: '⚠️ رقم الهاتف غير صحيح. يرجى إدخال رقم هاتف مصري صالح (مثال: 01012345678).' };
+    }
+
+    if (clean === '01092308465') {
+        return { success: false, message: 'ℹ️ هذا الرقم هو رقم الأدمن الأساسي ومسجل بالفعل.' };
+    }
+
+    const { excludedSet, customList } = await getFastOrderConfigSettings(userId);
+
+    // If it was previously excluded, unexclude it
+    if (excludedSet.has(clean)) {
+        excludedSet.delete(clean);
+        const updatedExcluded = Array.from(excludedSet);
+        await setSetting('fastorder_excluded_phones', JSON.stringify(updatedExcluded), userId);
+        if (userId !== 1) await setSetting('fastorder_excluded_phones', JSON.stringify(updatedExcluded), 1);
+    }
+
+    const existingIdx = customList.findIndex(c => normalizePhone(c.phone) === clean);
+    const finalName = (name || '').trim() || `موظف ${clean.slice(-4)}`;
+
+    if (existingIdx >= 0) {
+        customList[existingIdx].name = finalName;
+        customList[existingIdx].roleLabel = roleLabel;
+    } else {
+        customList.push({
+            id: `custom_${Date.now()}`,
+            name: finalName,
+            username: clean,
+            phone: clean,
+            role: 'sales',
+            roleLabel: roleLabel || 'مسؤول مبيعات (Sales)',
+            createdAt: new Date().toISOString()
+        });
+    }
+
+    await setSetting('fastorder_custom_staff', JSON.stringify(customList), userId);
+    if (userId !== 1) await setSetting('fastorder_custom_staff', JSON.stringify(customList), 1);
+
+    const updatedList = await getFastOrderAuthorizedStaff(userId);
+    return {
+        success: true,
+        message: `✅ تم إضافة الرقم ${clean} (${finalName}) إلى قائمة المصرح لهم بنجاح.`,
+        staffList: updatedList
+    };
+}
+
+/**
+ * Remove / Revoke an authorized phone number for Fast Order
+ */
+export async function removeFastOrderStaff(rawPhone, userId = 3) {
+    const clean = normalizePhone(rawPhone);
+    if (!clean) {
+        return { success: false, message: '⚠️ يرجى تحديد رقم الهاتف المراد حذفه.' };
+    }
+
+    if (clean === '01092308465') {
+        return { success: false, message: '⚠️ لا يمكن حذف رقم الأدمن الرئيسي للنظام (أ. راضي).' };
+    }
+
+    const { excludedSet, customList } = await getFastOrderConfigSettings(userId);
+
+    // 1. Remove from customList if present
+    const updatedCustom = customList.filter(c => normalizePhone(c.phone) !== clean);
+    if (updatedCustom.length !== customList.length) {
+        await setSetting('fastorder_custom_staff', JSON.stringify(updatedCustom), userId);
+        if (userId !== 1) await setSetting('fastorder_custom_staff', JSON.stringify(updatedCustom), 1);
+    }
+
+    // 2. Add to excludedSet so even if it exists in User table, it will be excluded
+    excludedSet.add(clean);
+    const updatedExcluded = Array.from(excludedSet);
+    await setSetting('fastorder_excluded_phones', JSON.stringify(updatedExcluded), userId);
+    if (userId !== 1) await setSetting('fastorder_excluded_phones', JSON.stringify(updatedExcluded), 1);
+
+    const updatedList = await getFastOrderAuthorizedStaff(userId);
+    return {
+        success: true,
+        message: `🗑️ تم إزالة صلاحية الرقم ${clean} من إضافة منتجات فاست اوردر بنجاح.`,
+        staffList: updatedList
+    };
 }
 
 /**

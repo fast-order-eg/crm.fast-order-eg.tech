@@ -131,7 +131,7 @@
                 <li class="nav-item" role="presentation">
                     <button class="nav-link" id="fastorder-tab" data-bs-toggle="pill" data-bs-target="#fastorder-pane" type="button" role="tab" aria-controls="fastorder-pane" aria-selected="false">
                         <i class="bi bi-bag-plus-fill text-success"></i>
-                        إضافة منتجات فاست اوردر
+                        فاست اوردر
                     </button>
                 </li>
             </ul>
@@ -760,75 +760,110 @@
 
                     <!-- 5. Fast Order Product Creator Tab -->
                     <div class="tab-pane fade" id="fastorder-pane" role="tabpanel" aria-labelledby="fastorder-tab">
-                        <div class="d-flex align-items-center justify-content-between mb-4 pb-2 border-bottom">
+                        <div class="d-flex align-items-center justify-content-between mb-4 pb-2 border-bottom flex-wrap gap-2">
                             <div>
                                 <h5 class="fw-bold mb-1 text-dark d-flex align-items-center">
                                     <i class="bi bi-bag-plus-fill text-success me-2"></i>
-                                    نظام إضافة وتعديل منتجات فاست اوردر عبر واتساب (Fast Order AI)
+                                    نظام إدارة وتكامل فاست اوردر (Fast Order AI Hub)
                                 </h5>
-                                <p class="text-muted small mb-0">إضافة المنتجات لحظياً من صور وبوستات الفيسبوك/الموردين عبر البوت مباشرة لمتجر التاجر، مع دعم التسعير، المقاسات، الألوان، وخيارات الشحن.</p>
+                                <p class="text-muted small mb-0">إدارة الأرقام المصرح لها ودليل التشغيل اللحظي لبوت إضافة وتعديل المنتجات وخيارات الشحن عبر الواتساب.</p>
                             </div>
                             <div>
                                 <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-3 py-2 rounded-pill fw-medium">
                                     <i class="bi bi-check-circle-fill me-1"></i>
-                                    مفعل تلقائياً للموظفين
+                                    متصل بالـ API ونشط 🟢
                                 </span>
                             </div>
                         </div>
 
                         <div class="row g-4">
-                            <!-- Left Column: Authorized Staff Table -->
+                            <!-- Left Column: Authorized Staff Management & Numbers -->
                             <div class="col-lg-7">
                                 <div class="card border-0 shadow-sm rounded-4 p-4 mb-4">
-                                    <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom">
+                                    <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom flex-wrap gap-2">
                                         <div class="d-flex align-items-center">
                                             <div class="bg-success bg-opacity-10 text-success p-2 rounded-3 me-3">
                                                 <i class="bi bi-people-fill fs-5"></i>
                                             </div>
                                             <div>
-                                                <h6 class="fw-bold mb-0 text-dark">الموظفون والأرقام المصرح لهم بإضافة وتعديل المنتجات</h6>
-                                                <small class="text-muted">الأرقام المسجلة لجميع موظفي المبيعات والإدارة التي يحق لها التفاعل مع البوت لإضافة المنتجات</small>
+                                                <h6 class="fw-bold mb-0 text-dark">الأرقام والموظفون المصرح لهم</h6>
+                                                <small class="text-muted">الأرقام التي يحق لها فتح جلسات المتاجر وإضافة المنتجات عبر الواتساب</small>
                                             </div>
                                         </div>
-                                        <span class="badge bg-primary rounded-pill px-3 py-1.5 fs-7">
-                                            <%= (typeof fastOrderStaff !== 'undefined' && fastOrderStaff ? fastOrderStaff.length : 0) %> موظفين
+                                        <span id="fastOrderStaffCountBadge" class="badge bg-primary rounded-pill px-3 py-1.5 fs-7">
+                                            <%= (typeof fastOrderStaff !== 'undefined' && fastOrderStaff ? fastOrderStaff.length : 0) %> أرقام مصرحة
                                         </span>
                                     </div>
 
+                                    <!-- Quick Add Number Box -->
+                                    <div class="bg-light p-3 rounded-3 mb-4 border">
+                                        <div class="d-flex align-items-center mb-2">
+                                            <i class="bi bi-person-plus-fill text-success me-2"></i>
+                                            <strong class="text-dark small">إضافة رقم مصرح له جديد:</strong>
+                                        </div>
+                                        <div class="row g-2 align-items-end">
+                                            <div class="col-md-4">
+                                                <label class="form-label small text-muted mb-1">الاسم أو الصفة</label>
+                                                <input type="text" id="newFastOrderName" class="form-control form-control-sm rounded-3" placeholder="مثال: أحمد سيلز">
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label small text-muted mb-1">رقم الواتساب <span class="text-danger">*</span></label>
+                                                <input type="text" id="newFastOrderPhone" class="form-control form-control-sm rounded-3 font-monospace" placeholder="01012345678" dir="ltr">
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label small text-muted mb-1">الصلاحية</label>
+                                                <select id="newFastOrderRole" class="form-select form-select-sm rounded-3">
+                                                    <option value="مسؤول مبيعات (Sales)">مسؤول مبيعات (Sales)</option>
+                                                    <option value="مدير (Admin)">مدير (Admin)</option>
+                                                    <option value="مدخل بيانات (Data Entry)">مدخل بيانات (Data Entry)</option>
+                                                    <option value="مسؤول متجر (Merchant)">مسؤول متجر (Merchant)</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-12 mt-2 d-flex justify-content-end">
+                                                <button type="button" id="addNewFastOrderStaffBtn" class="btn btn-success btn-sm px-3 rounded-pill fw-bold shadow-sm">
+                                                    <i class="bi bi-plus-lg me-1"></i> إضافة الرقم للقائمة
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div id="fastOrderStaffAlert" class="mt-2 small" style="display: none;"></div>
+                                    </div>
+
+                                    <!-- Authorized Staff Table -->
                                     <div class="table-responsive">
                                         <table class="table table-hover align-middle mb-0">
                                             <thead class="table-light">
                                                 <tr class="small text-muted">
                                                     <th class="border-0 rounded-start">#</th>
-                                                    <th class="border-0">الموظف</th>
+                                                    <th class="border-0">الموظف / الاسم</th>
                                                     <th class="border-0">الصلاحية</th>
-                                                    <th class="border-0">رقم الهاتف بالواتساب</th>
-                                                    <th class="border-0 text-center rounded-end">الحالة</th>
+                                                    <th class="border-0">رقم الواتساب</th>
+                                                    <th class="border-0 text-center">الحالة</th>
+                                                    <th class="border-0 text-center rounded-end">إجراء</th>
                                                 </tr>
                                             </thead>
-                                            <tbody>
+                                            <tbody id="fastOrderStaffTableBody">
                                                 <% if (typeof fastOrderStaff !== 'undefined' && fastOrderStaff && fastOrderStaff.length > 0) { %>
                                                     <% fastOrderStaff.forEach((staff, index) => { %>
-                                                        <tr>
+                                                        <tr id="fastorder-row-<%= staff.phone %>">
                                                             <td class="text-muted small"><%= index + 1 %></td>
                                                             <td>
                                                                 <div class="d-flex align-items-center">
-                                                                    <div class="avatar-sm rounded-circle <%= staff.isPrimary ? 'bg-warning text-dark' : 'bg-light text-primary' %> d-flex align-items-center justify-content-center me-2 fw-bold" style="width: 34px; height: 34px; font-size: 13px;">
+                                                                    <div class="avatar-sm rounded-circle <%= staff.isPrimary ? 'bg-warning text-dark' : (staff.isCustom ? 'bg-success bg-opacity-15 text-success' : 'bg-light text-primary') %> d-flex align-items-center justify-content-center me-2 fw-bold" style="width: 32px; height: 32px; font-size: 13px;">
                                                                         <%= (staff.name || staff.username || 'م').charAt(0) %>
                                                                     </div>
                                                                     <div>
                                                                         <div class="fw-bold text-dark fs-7"><%= staff.name %></div>
-                                                                        <small class="text-muted font-monospace fs-8">@<%= staff.username %></small>
+                                                                        <small class="text-muted font-monospace fs-8">@<%= staff.username || staff.phone %></small>
                                                                     </div>
                                                                 </div>
                                                             </td>
                                                             <td>
-                                                                <% if (staff.role === 'super_admin' || staff.role === 'admin') { %>
-                                                                    <span class="badge bg-warning bg-opacity-15 text-dark border border-warning border-opacity-25 rounded-pill px-2.5 py-1 fs-8">
+                                                                <% if (staff.role === 'super_admin' || staff.role === 'admin' || (staff.roleLabel && staff.roleLabel.includes('Admin'))) { %>
+                                                                    <span class="badge bg-warning bg-opacity-15 text-dark border border-warning border-opacity-25 rounded-pill px-2 py-1 fs-8">
                                                                         <i class="bi bi-shield-check me-1"></i><%= staff.roleLabel %>
                                                                     </span>
                                                                 <% } else { %>
-                                                                    <span class="badge bg-info bg-opacity-10 text-primary border border-info border-opacity-25 rounded-pill px-2.5 py-1 fs-8">
+                                                                    <span class="badge bg-info bg-opacity-10 text-primary border border-info border-opacity-25 rounded-pill px-2 py-1 fs-8">
                                                                         <i class="bi bi-person-badge me-1"></i><%= staff.roleLabel %>
                                                                     </span>
                                                                 <% } %>
@@ -844,11 +879,22 @@
                                                                     <i class="bi bi-check2-circle me-1"></i>مصرح 🟢
                                                                 </span>
                                                             </td>
+                                                            <td class="text-center">
+                                                                <% if (staff.isPrimary) { %>
+                                                                    <span class="badge bg-secondary bg-opacity-15 text-muted px-2 py-1 fs-8" title="الأدمن الأساسي للنظام">
+                                                                        <i class="bi bi-lock-fill me-1"></i>أساسي
+                                                                    </span>
+                                                                <% } else { %>
+                                                                    <button type="button" class="btn btn-sm btn-outline-danger px-2.5 py-1 rounded-pill fs-8" onclick="deleteFastOrderStaff('<%= staff.phone %>', '<%= staff.name %>')" title="إزالة هذا الرقم من قائمة المصرح لهم">
+                                                                        <i class="bi bi-trash3-fill me-1"></i>حذف
+                                                                    </button>
+                                                                <% } %>
+                                                            </td>
                                                         </tr>
                                                     <% }); %>
                                                 <% } else { %>
                                                     <tr>
-                                                        <td colspan="5" class="text-center py-4 text-muted">
+                                                        <td colspan="6" class="text-center py-4 text-muted">
                                                             <i class="bi bi-info-circle me-1"></i> لا يوجد موظفين مسجلين حالياً.
                                                         </td>
                                                     </tr>
@@ -859,67 +905,136 @@
 
                                     <div class="mt-3 p-3 bg-light rounded-3 border small text-muted">
                                         <i class="bi bi-info-circle-fill text-primary me-1"></i>
-                                        <strong>ملاحظة هامة:</strong> أي موظف مبيعات أو مدير جديد يتم إضافته في صفحة الموظفين مع رقم هاتفه يحصل تلقائياً على صلاحية إضافة وتعديل المنتجات عبر الواتساب فوراً.
+                                        <strong>ملاحظة:</strong> يمكنك إضافة أي رقم هاتف ليعمل فوراً مع بوت إضافة المنتجات، أو حذف أي رقم لتعطيل صلاحيته في أي وقت.
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- Right Column: Guide & Workflow -->
+                            <!-- Right Column: Enhanced & Future-Proof Guide -->
                             <div class="col-lg-5">
                                 <div class="card border-0 shadow-sm rounded-4 p-4 h-100">
-                                    <div class="d-flex align-items-center mb-3 pb-2 border-bottom">
-                                        <div class="bg-primary bg-opacity-10 text-primary p-2 rounded-3 me-3">
-                                            <i class="bi bi-journal-code fs-5"></i>
+                                    <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom flex-wrap gap-2">
+                                        <div class="d-flex align-items-center">
+                                            <div class="bg-primary bg-opacity-10 text-primary p-2 rounded-3 me-3">
+                                                <i class="bi bi-journal-code fs-5"></i>
+                                            </div>
+                                            <div>
+                                                <h6 class="fw-bold mb-0 text-dark">دليل تشغيل بوت فاست اوردر</h6>
+                                                <small class="text-muted">خطوات العمل التفاعلية والأوامر الذكية</small>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <h6 class="fw-bold mb-0 text-dark">دليل خطوات إضافة المنتجات بالواتساب</h6>
-                                            <small class="text-muted">كيفية استخدام الأوامر وتدفق العمل خطوة بخطوة</small>
-                                        </div>
+                                        <span class="badge bg-success bg-opacity-15 text-success rounded-pill px-2.5 py-1 fs-8">
+                                            <i class="bi bi-magic me-1"></i>ذكاء اصطناعي
+                                        </span>
                                     </div>
 
-                                    <div class="list-group list-group-flush small">
-                                        <div class="list-group-item px-0 py-2.5 bg-transparent border-0">
-                                            <strong class="text-primary d-block mb-1">1️⃣ فتح أو تبديل جلسة متجر التاجر:</strong>
-                                            <span class="text-muted">أرسل كود المتجر أو رقم هاتف التاجر:</span>
-                                            <div class="bg-light p-2 rounded-2 mt-1 font-monospace text-dark">/store modastore</div>
-                                            <small class="text-muted mt-1 d-block">سيقوم البوت بالاتصال بفاست اوردر، والتحقق من المتجر، وجلب أقسامه وتصنيفاته فوراً.</small>
-                                        </div>
-
-                                        <div class="list-group-item px-0 py-2.5 bg-transparent border-0">
-                                            <strong class="text-primary d-block mb-1">2️⃣ إرسال الصور وبوست المنتج:</strong>
-                                            <span class="text-muted">أرسل صور الموديل (صورة أو عدة صور) مع نص البوست ووصفه وأسعاره.</span>
-                                            <small class="text-muted mt-1 d-block">يقوم الذكاء الاصطناعي (Gemini Flash) بتجميع الصور واستخراج الاسم، السعر، المقاسات، والألوان تلقائياً.</small>
-                                        </div>
-
-                                        <div class="list-group-item px-0 py-2.5 bg-transparent border-0">
-                                            <strong class="text-success d-block mb-1">3️⃣ اختيار نوع الشحن (جديد ✨):</strong>
-                                            <span class="text-muted">يسأل البوت تلقائياً عن نوع الشحن:</span>
-                                            <div class="bg-light p-2 rounded-2 mt-1 font-monospace text-dark">
-                                                1️⃣ شحن مجاني 🎁<br>
-                                                2️⃣ شحن حسب المحافظة 📍
+                                    <!-- Stepper Container -->
+                                    <div class="d-flex flex-column gap-3">
+                                        
+                                        <!-- Step 1 -->
+                                        <div class="p-3 rounded-3 border bg-white shadow-sm position-relative">
+                                            <div class="d-flex align-items-center mb-1">
+                                                <span class="badge bg-primary rounded-circle p-2 me-2 d-inline-flex align-items-center justify-content-center" style="width: 24px; height: 24px; font-size: 11px;">1</span>
+                                                <strong class="text-dark fs-7">فتح أو تبديل جلسة متجر التاجر:</strong>
                                             </div>
-                                            <small class="text-muted mt-1 d-block">يرد الموظف برقم 1 أو 2، والقيمة الافتراضية تكون دائماً <strong>شحن مجاني</strong>.</small>
+                                            <p class="text-muted small mb-2 ps-4">أرسل كود المتجر (Slug) أو رقم هاتف التاجر المسجل بفاست اوردر للاتصال بالمتجر وجلب أقسامه وتصنيفاته:</p>
+                                            <div class="ps-4">
+                                                <div class="d-flex align-items-center justify-content-between bg-dark text-white p-2 rounded-3 font-monospace fs-8" dir="ltr">
+                                                    <span>/store modastore</span>
+                                                    <button type="button" class="btn btn-outline-light btn-sm py-0 px-2 rounded-pill fs-8" onclick="copyFastOrderCmd('/store modastore', this)">
+                                                        <i class="bi bi-clipboard me-1"></i>نسخ
+                                                    </button>
+                                                </div>
+                                            </div>
                                         </div>
 
-                                        <div class="list-group-item px-0 py-2.5 bg-transparent border-0">
-                                            <strong class="text-primary d-block mb-1">4️⃣ معاينة المسودة والرابط السري:</strong>
-                                            <span class="text-muted">يرسل البوت ملخصاً كاملاً مع رابط معاينة مخفي عن الزوار لمشاهدة شكل صفحة المنتج على المتجر قبل النشر.</span>
+                                        <!-- Step 2 -->
+                                        <div class="p-3 rounded-3 border bg-white shadow-sm">
+                                            <div class="d-flex align-items-center mb-1">
+                                                <span class="badge bg-info text-white rounded-circle p-2 me-2 d-inline-flex align-items-center justify-content-center" style="width: 24px; height: 24px; font-size: 11px;">2</span>
+                                                <strong class="text-dark fs-7">إرسال صور وبوست المنتج:</strong>
+                                            </div>
+                                            <p class="text-muted small mb-0 ps-4">أرسل صور الموديل مع نص البوست والأسعار. يقوم محرك <strong>Gemini 2.5 Flash</strong> بتجميع الصور واستخراج الاسم، السعر، المقاسات، الألوان، الوصف، وعروض الكميات تلقائياً.</p>
                                         </div>
 
-                                        <div class="list-group-item px-0 py-2.5 bg-transparent border-0">
-                                            <strong class="text-primary d-block mb-1">5️⃣ التعديل أو النشر المباشر:</strong>
-                                            <ul class="mb-0 ps-3 text-muted">
-                                                <li><strong>أرسل 1:</strong> لنشر وتفعيل المنتج فوراً لايف على المتجر مع إرسال الرابط المباشر.</li>
-                                                <li><strong>أرسل أي تعديل بالعامية:</strong> مثل "خلي السعر 300" أو "نوع الشحن حسب المحافظة" أو "القطعتين بـ 50".</li>
-                                                <li><strong>أرسل 3:</strong> لإلغاء وحذف المسودة.</li>
-                                            </ul>
+                                        <!-- Step 3 -->
+                                        <div class="p-3 rounded-3 border bg-success bg-opacity-10 border-success border-opacity-25 shadow-sm">
+                                            <div class="d-flex align-items-center mb-1">
+                                                <span class="badge bg-success rounded-circle p-2 me-2 d-inline-flex align-items-center justify-content-center" style="width: 24px; height: 24px; font-size: 11px;">3</span>
+                                                <strong class="text-success fs-7">تحديد خيار الشحن (جديد ✨):</strong>
+                                            </div>
+                                            <p class="text-dark small mb-2 ps-4">يسألك البوت تلقائياً عن خيار الشحن للمنتج:</p>
+                                            <div class="ps-4 row g-2">
+                                                <div class="col-6">
+                                                    <div class="bg-white p-2 rounded-3 border text-center small">
+                                                        <strong class="text-success d-block">1️⃣ شحن مجاني 🎁</strong>
+                                                        <span class="text-muted fs-8">(الافتراضي)</span>
+                                                    </div>
+                                                </div>
+                                                <div class="col-6">
+                                                    <div class="bg-white p-2 rounded-3 border text-center small">
+                                                        <strong class="text-primary d-block">2️⃣ حسب المحافظة 📍</strong>
+                                                        <span class="text-muted fs-8">(تسعير المحافظات)</span>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </div>
 
-                                        <div class="list-group-item px-0 py-2.5 bg-transparent border-0">
-                                            <strong class="text-danger d-block mb-1">6️⃣ إغلاق الجلسة:</strong>
-                                            <span class="text-muted">عند الانتهاء من رفع المنتجات اكتب:</span>
-                                            <div class="bg-light p-2 rounded-2 mt-1 font-monospace text-dark">/close</div>
+                                        <!-- Step 4 -->
+                                        <div class="p-3 rounded-3 border bg-white shadow-sm">
+                                            <div class="d-flex align-items-center mb-1">
+                                                <span class="badge bg-warning text-dark rounded-circle p-2 me-2 d-inline-flex align-items-center justify-content-center" style="width: 24px; height: 24px; font-size: 11px;">4</span>
+                                                <strong class="text-dark fs-7">معاينة المسودة برابط سري والتعديل:</strong>
+                                            </div>
+                                            <p class="text-muted small mb-2 ps-4">يرسل البوت رابط معاينة مخفي عن زوار المتجر لمراجعة صفحة المنتج، مع دعم التعديل الفوري بالعامية المصرية:</p>
+                                            <div class="ps-4">
+                                                <div class="bg-light p-2 rounded-3 small text-muted font-monospace">
+                                                    💬 أمثلة تعديل: "خلي السعر 350" | "نوع الشحن حسب المحافظة" | "القطعتين بـ 50"
+                                                </div>
+                                            </div>
                                         </div>
+
+                                        <!-- Step 5 -->
+                                        <div class="p-3 rounded-3 border bg-white shadow-sm">
+                                            <div class="d-flex align-items-center mb-1">
+                                                <span class="badge bg-primary rounded-circle p-2 me-2 d-inline-flex align-items-center justify-content-center" style="width: 24px; height: 24px; font-size: 11px;">5</span>
+                                                <strong class="text-dark fs-7">النشر المباشر أو الإلغاء:</strong>
+                                            </div>
+                                            <div class="ps-4">
+                                                <ul class="mb-0 ps-3 small text-muted">
+                                                    <li><strong>أرسل ( 1 ) أو "نشر":</strong> لنشر المنتج لايف فوراً على المتجر وإرسال الرابط المباشر.</li>
+                                                    <li><strong>أرسل ( 3 ) أو "حذف":</strong> لإلغاء المسودة نهائياً.</li>
+                                                </ul>
+                                            </div>
+                                        </div>
+
+                                        <!-- Step 6 -->
+                                        <div class="p-3 rounded-3 border bg-white shadow-sm">
+                                            <div class="d-flex align-items-center mb-1">
+                                                <span class="badge bg-secondary rounded-circle p-2 me-2 d-inline-flex align-items-center justify-content-center" style="width: 24px; height: 24px; font-size: 11px;">6</span>
+                                                <strong class="text-dark fs-7">إغلاق الجلسة عند الانتهاء:</strong>
+                                            </div>
+                                            <div class="ps-4">
+                                                <div class="d-flex align-items-center justify-content-between bg-dark text-white p-2 rounded-3 font-monospace fs-8" dir="ltr">
+                                                    <span>/close</span>
+                                                    <button type="button" class="btn btn-outline-light btn-sm py-0 px-2 rounded-pill fs-8" onclick="copyFastOrderCmd('/close', this)">
+                                                        <i class="bi bi-clipboard me-1"></i>نسخ
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Future Expansion Roadmap Banner -->
+                                        <div class="p-3 rounded-3 bg-gradient bg-light border border-info border-opacity-25 mt-1">
+                                            <div class="d-flex align-items-center mb-1 text-primary">
+                                                <i class="bi bi-stars me-1.5 fs-6"></i>
+                                                <strong class="small">خطة التطوير والتوسعات القادمة:</strong>
+                                            </div>
+                                            <p class="text-muted small mb-0 fs-8">
+                                                🚀 جاهز للتوسع المستقبلي: إدارة المخزون المتقدم، ربط أكواد الخصومات الموسمية، ومتابعة إحصائيات مبيعات الموديلات لحظياً.
+                                            </p>
+                                        </div>
+
                                     </div>
                                 </div>
                             </div>
@@ -1444,6 +1559,165 @@
                 } catch (e) {
                     alert('حدث خطأ أثناء الحذف: ' + e.message);
                 }
+            };
+
+            // ============================================================
+            // Fast Order Staff Management & Guide Helpers (AJAX)
+            // ============================================================
+            function updateFastOrderStaffUI(staffList) {
+                const tbody = document.getElementById('fastOrderStaffTableBody');
+                const badge = document.getElementById('fastOrderStaffCountBadge');
+                if (!tbody) return;
+
+                if (badge && Array.isArray(staffList)) {
+                    badge.textContent = `${staffList.length} أرقام مصرحة`;
+                }
+
+                if (!staffList || staffList.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="6" class="text-center py-4 text-muted">
+                                <i class="bi bi-info-circle me-1"></i> لا يوجد موظفين مسجلين حالياً.
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                tbody.innerHTML = staffList.map((staff, index) => {
+                    const avatarBg = staff.isPrimary ? 'bg-warning text-dark' : (staff.isCustom ? 'bg-success bg-opacity-15 text-success' : 'bg-light text-primary');
+                    const firstChar = (staff.name || staff.username || 'م').charAt(0);
+                    const isAdmin = staff.role === 'super_admin' || staff.role === 'admin' || (staff.roleLabel && staff.roleLabel.includes('Admin'));
+                    const roleBadge = isAdmin
+                        ? `<span class="badge bg-warning bg-opacity-15 text-dark border border-warning border-opacity-25 rounded-pill px-2 py-1 fs-8"><i class="bi bi-shield-check me-1"></i>${staff.roleLabel}</span>`
+                        : `<span class="badge bg-info bg-opacity-10 text-primary border border-info border-opacity-25 rounded-pill px-2 py-1 fs-8"><i class="bi bi-person-badge me-1"></i>${staff.roleLabel}</span>`;
+                    
+                    const actionBtn = staff.isPrimary
+                        ? `<span class="badge bg-secondary bg-opacity-15 text-muted px-2 py-1 fs-8"><i class="bi bi-lock-fill me-1"></i>أساسي</span>`
+                        : `<button type="button" class="btn btn-sm btn-outline-danger px-2.5 py-1 rounded-pill fs-8" onclick="deleteFastOrderStaff('${staff.phone}', '${staff.name}')"><i class="bi bi-trash3-fill me-1"></i>حذف</button>`;
+
+                    return `
+                        <tr id="fastorder-row-${staff.phone}">
+                            <td class="text-muted small">${index + 1}</td>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <div class="avatar-sm rounded-circle ${avatarBg} d-flex align-items-center justify-content-center me-2 fw-bold" style="width: 32px; height: 32px; font-size: 13px;">
+                                        ${firstChar}
+                                    </div>
+                                    <div>
+                                        <div class="fw-bold text-dark fs-7">${staff.name}</div>
+                                        <small class="text-muted font-monospace fs-8">@${staff.username || staff.phone}</small>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>${roleBadge}</td>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <i class="bi bi-whatsapp text-success me-1.5 fs-6"></i>
+                                    <span class="font-monospace fw-bold text-dark fs-7">${staff.phone}</span>
+                                </div>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-success bg-opacity-10 text-success rounded-pill px-2 py-1 fs-8">
+                                    <i class="bi bi-check2-circle me-1"></i>مصرح 🟢
+                                </span>
+                            </td>
+                            <td class="text-center">${actionBtn}</td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+
+            const addNewFastOrderStaffBtn = document.getElementById('addNewFastOrderStaffBtn');
+            const newFastOrderNameInput = document.getElementById('newFastOrderName');
+            const newFastOrderPhoneInput = document.getElementById('newFastOrderPhone');
+            const newFastOrderRoleSelect = document.getElementById('newFastOrderRole');
+            const fastOrderStaffAlert = document.getElementById('fastOrderStaffAlert');
+
+            if (addNewFastOrderStaffBtn) {
+                addNewFastOrderStaffBtn.addEventListener('click', async () => {
+                    const name = (newFastOrderNameInput?.value || '').trim();
+                    const phone = (newFastOrderPhoneInput?.value || '').trim();
+                    const role = (newFastOrderRoleSelect?.value || 'مسؤول مبيعات (Sales)').trim();
+
+                    if (!phone) {
+                        fastOrderStaffAlert.style.display = 'block';
+                        fastOrderStaffAlert.className = 'mt-2 small text-danger fw-bold';
+                        fastOrderStaffAlert.innerHTML = '<i class="bi bi-exclamation-circle me-1"></i> يرجى إدخال رقم الهاتف أولاً.';
+                        return;
+                    }
+
+                    addNewFastOrderStaffBtn.disabled = true;
+                    addNewFastOrderStaffBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> جاري الإضافة...';
+                    fastOrderStaffAlert.style.display = 'none';
+
+                    try {
+                        const res = await fetch('/dashboard/settings/fastorder-staff/add', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ name, phone, role })
+                        });
+                        const data = await res.json();
+
+                        if (data.success) {
+                            fastOrderStaffAlert.style.display = 'block';
+                            fastOrderStaffAlert.className = 'mt-2 small text-success fw-bold';
+                            fastOrderStaffAlert.innerHTML = `<i class="bi bi-check-circle me-1"></i> ${data.message}`;
+                            newFastOrderNameInput.value = '';
+                            newFastOrderPhoneInput.value = '';
+                            if (data.staff) updateFastOrderStaffUI(data.staff);
+                            setTimeout(() => { fastOrderStaffAlert.style.display = 'none'; }, 4000);
+                        } else {
+                            fastOrderStaffAlert.style.display = 'block';
+                            fastOrderStaffAlert.className = 'mt-2 small text-danger fw-bold';
+                            fastOrderStaffAlert.innerHTML = `<i class="bi bi-exclamation-circle me-1"></i> ${data.error || 'تعذر إضافة الرقم'}`;
+                        }
+                    } catch (e) {
+                        fastOrderStaffAlert.style.display = 'block';
+                        fastOrderStaffAlert.className = 'mt-2 small text-danger fw-bold';
+                        fastOrderStaffAlert.innerHTML = 'حدث خطأ: ' + e.message;
+                    } finally {
+                        addNewFastOrderStaffBtn.disabled = false;
+                        addNewFastOrderStaffBtn.innerHTML = '<i class="bi bi-plus-lg me-1"></i> إضافة الرقم للقائمة';
+                    }
+                });
+            }
+
+            window.deleteFastOrderStaff = async function(phone, name) {
+                if (!confirm(`هل أنت متأكد من إزالة صلاحية "${name}" (${phone}) من إضافة منتجات فاست اوردر؟`)) {
+                    return;
+                }
+
+                try {
+                    const res = await fetch('/dashboard/settings/fastorder-staff/delete', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ phone })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        if (data.staff) {
+                            updateFastOrderStaffUI(data.staff);
+                        } else {
+                            const row = document.getElementById(`fastorder-row-${phone}`);
+                            if (row) row.remove();
+                        }
+                    } else {
+                        alert(data.error || 'تعذر حذف الرقم');
+                    }
+                } catch (e) {
+                    alert('حدث خطأ أثناء الحذف: ' + e.message);
+                }
+            };
+
+            window.copyFastOrderCmd = function(cmd, btn) {
+                navigator.clipboard.writeText(cmd).then(() => {
+                    const origHtml = btn.innerHTML;
+                    btn.innerHTML = '<i class="bi bi-check2 text-success me-1"></i>تم النسخ';
+                    setTimeout(() => { btn.innerHTML = origHtml; }, 2000);
+                }).catch(() => {
+                    prompt('انسخ الأمر التالي:', cmd);
+                });
             };
         });
     </script>
