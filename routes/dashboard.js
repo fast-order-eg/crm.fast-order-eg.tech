@@ -25,6 +25,7 @@ import { getSetting, setSetting, defaultSettingsMeta } from '../services/setting
 import FinancialTransaction from '../models/FinancialTransaction.js';
 import Commission from '../models/Commission.js';
 import { getAuthorizedAdmins, addAuthorizedAdmin, removeAuthorizedAdmin } from '../services/reminderService.js';
+import { getAdsAuthorizedAdmins, addAdsAuthorizedAdmin, removeAdsAuthorizedAdmin } from '../services/adsReportService.js';
 import { getFastOrderAuthorizedStaff, addFastOrderStaff, removeFastOrderStaff } from '../services/whatsappProductCreatorService.js';
 
 const router = express.Router();
@@ -2426,6 +2427,7 @@ router.get('/settings', async (req, res) => {
         
         const handoffCount = await Conversation.count({ where: { UserId: userId, is_handoff: true } });
         const reminderAdmins = await getAuthorizedAdmins(userId);
+        const adsReportAdmins = await getAdsAuthorizedAdmins(userId);
         const fastOrderStaff = await getFastOrderAuthorizedStaff();
 
         res.render('settings', {
@@ -2437,7 +2439,7 @@ router.get('/settings', async (req, res) => {
             phone,
             handoffCount,
             reminderAdmins,
-            adsReportAdmins: reminderAdmins,
+            adsReportAdmins,
             fastOrderStaff,
             success_msg: req.flash('success_msg'),
             error_msg: req.flash('error_msg')
@@ -2683,6 +2685,41 @@ router.post('/settings/reminder-admins/delete', async (req, res) => {
     } catch (err) {
         console.error('Error deleting reminder admin:', err);
         res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// إدارة الأرقام المصرح لها بتقارير الإعلانات (AJAX)
+router.post('/settings/ads-admins/add', async (req, res) => {
+    try {
+        const { name, phone } = req.body;
+        if (!phone) {
+            return res.status(400).json({ success: false, error: 'يرجى إدخال رقم الهاتف' });
+        }
+        const result = await addAdsAuthorizedAdmin(phone, name, req.user.id);
+        if (!result.success) {
+            return res.status(400).json({ success: false, error: result.message });
+        }
+        res.json({ success: true, message: result.message, admins: result.admins });
+    } catch (err) {
+        console.error('Error adding ads report admin:', err);
+        res.status(500).json({ success: false, error: 'حدث خطأ أثناء إضافة الرقم' });
+    }
+});
+
+router.post('/settings/ads-admins/delete', async (req, res) => {
+    try {
+        const { phone } = req.body;
+        if (!phone) {
+            return res.status(400).json({ success: false, error: 'يرجى تحديد رقم الهاتف المراد حذفه' });
+        }
+        const result = await removeAdsAuthorizedAdmin(phone, req.user.id);
+        if (!result.success) {
+            return res.status(400).json({ success: false, error: result.message });
+        }
+        res.json({ success: true, message: result.message, admins: result.admins });
+    } catch (err) {
+        console.error('Error removing ads report admin:', err);
+        res.status(500).json({ success: false, error: 'حدث خطأ أثناء حذف الرقم' });
     }
 });
 

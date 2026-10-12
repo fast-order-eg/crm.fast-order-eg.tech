@@ -1,8 +1,144 @@
-import { getSetting } from './settingsService.js';
+import { getSetting, setSetting } from './settingsService.js';
 import { getAuthorizedAdmins, normalizePhoneDigits, PRIMARY_ADMIN } from './reminderService.js';
 
 const API_ENDPOINT = 'https://einasouq.bird-ads.com/api/v1/merchant/campaigns-summary';
 const API_KEY = 'fastorder_merchant_secure_api_key_2026';
+
+/**
+ * جلب قائمة الأرقام المصرح لها بطلب تقارير الإعلانات
+ */
+export async function getAdsAuthorizedAdmins(userId = 3) {
+    const list = [{
+        name: 'أ. راضي',
+        phone: PRIMARY_ADMIN.phone,
+        roleLabel: 'مدير النظام',
+        isPrimary: true
+    }];
+    const seenDigits = new Set([normalizePhoneDigits(PRIMARY_ADMIN.phone)]);
+
+    try {
+        let saved = await getSetting('ads_report_authorized_admins', userId);
+        if ((saved === null || saved === undefined) && userId !== 3) {
+            saved = await getSetting('ads_report_authorized_admins', 3);
+        }
+        if ((saved === null || saved === undefined) && userId !== 1) {
+            saved = await getSetting('ads_report_authorized_admins', 1);
+        }
+
+        let customList = null;
+        if (typeof saved === 'string' && saved.trim() !== '') {
+            try {
+                customList = JSON.parse(saved);
+            } catch (_) {}
+        } else if (Array.isArray(saved)) {
+            customList = saved;
+        }
+
+        // إذا لم يتم تخصيص قائمة مستقلة لتقارير الإعلانات بعد، نستورد المشرفين الحاليين من التذكيرات تلقائياً
+        if (!Array.isArray(customList)) {
+            const fallbackAdmins = await getAuthorizedAdmins(userId);
+            customList = fallbackAdmins.filter(a => !a.isPrimary);
+        }
+
+        for (const item of customList) {
+            if (item && item.phone) {
+                const norm = normalizePhoneDigits(item.phone);
+                if (norm && !seenDigits.has(norm)) {
+                    seenDigits.add(norm);
+                    list.push({
+                        name: (item.name || '').trim() || 'مسؤول إعلانات',
+                        phone: String(item.phone).trim(),
+                        roleLabel: item.roleLabel || 'مسؤول إعلانات',
+                        isPrimary: false
+                    });
+                }
+            }
+        }
+    } catch (err) {
+        console.error('Error fetching ads authorized admins:', err.message);
+    }
+
+    return list;
+}
+
+/**
+ * إضافة رقم جديد مصرح له بطلب تقارير الإعلانات
+ */
+export async function addAdsAuthorizedAdmin(rawPhone, adminName = '', userId = 3) {
+    let clean = String(rawPhone || '').replace(/[^0-9]/g, '');
+    if (clean.startsWith('20') && clean.length === 12) {
+        clean = '0' + clean.substring(2);
+    } else if (clean.length === 10 && /^(10|11|12|15)/.test(clean)) {
+        clean = '0' + clean;
+    }
+
+    if (clean.length < 10) {
+        return { success: false, message: '⚠️ رقم الهاتف غير صحيح. يرجى إدخال رقم هاتف مصري صالح (مثال: 01012345678).' };
+    }
+
+    const cleanNorm = normalizePhoneDigits(clean);
+    const currentAdmins = await getAdsAuthorizedAdmins(userId);
+
+    if (currentAdmins.some(a => normalizePhoneDigits(a.phone) === cleanNorm)) {
+        const found = currentAdmins.find(a => normalizePhoneDigits(a.phone) === cleanNorm);
+        return { success: false, message: `ℹ️ الرقم ${clean} مسجل بالفعل باسم (${found.name}).` };
+    }
+
+    const finalName = (adminName || '').trim() || `مسؤول ${clean.slice(-4)}`;
+    const customOnly = currentAdmins
+        .filter(a => !a.isPrimary && normalizePhoneDigits(a.phone) !== normalizePhoneDigits(PRIMARY_ADMIN.phone))
+        .map(a => ({ name: a.name, phone: a.phone, roleLabel: a.roleLabel || 'مسؤول إعلانات', isPrimary: false }));
+
+    customOnly.push({
+        name: finalName,
+        phone: clean,
+        roleLabel: 'مسؤول إعلانات',
+        isPrimary: false
+    });
+
+    const jsonStr = JSON.stringify(customOnly);
+    await setSetting('ads_report_authorized_admins', jsonStr, userId);
+    if (userId !== 3) await setSetting('ads_report_authorized_admins', jsonStr, 3);
+    if (userId !== 1) await setSetting('ads_report_authorized_admins', jsonStr, 1);
+
+    const updatedList = await getAdsAuthorizedAdmins(userId);
+    return {
+        success: true,
+        message: `✅ تم إضافة الرقم ${clean} (${finalName}) إلى قائمة المصرح لهم بتقارير الإعلانات.`,
+        admins: updatedList
+    };
+}
+
+/**
+ * حذف رقم من قائمة المصرح لهم بطلب تقارير الإعلانات
+ */
+export async function removeAdsAuthorizedAdmin(rawPhone, userId = 3) {
+    const cleanNorm = normalizePhoneDigits(rawPhone);
+    if (!cleanNorm) {
+        return { success: false, message: '⚠️ يرجى تحديد رقم الهاتف المراد حذفه.' };
+    }
+
+    if (cleanNorm === normalizePhoneDigits(PRIMARY_ADMIN.phone)) {
+        return { success: false, message: '⚠️ لا يمكن حذف رقم الأدمن الأساسي للنظام (أ. راضي).' };
+    }
+
+    const currentAdmins = await getAdsAuthorizedAdmins(userId);
+    const customOnly = currentAdmins
+        .filter(a => !a.isPrimary && normalizePhoneDigits(a.phone) !== cleanNorm)
+        .map(a => ({ name: a.name, phone: a.phone, roleLabel: a.roleLabel || 'مسؤول إعلانات', isPrimary: false }));
+
+    const jsonStr = JSON.stringify(customOnly);
+    await setSetting('ads_report_authorized_admins', jsonStr, userId);
+    if (userId !== 3) await setSetting('ads_report_authorized_admins', jsonStr, 3);
+    if (userId !== 1) await setSetting('ads_report_authorized_admins', jsonStr, 1);
+
+    const updatedList = await getAdsAuthorizedAdmins(userId);
+    return {
+        success: true,
+        message: `🗑️ تم إزالة صلاحية الرقم من تقارير الإعلانات بنجاح.`,
+        admins: updatedList
+    };
+}
 
 /**
  * التحقق هل المرسل مشرف مصرح له بإدارة واستعراض تقارير الإعلانات
@@ -22,8 +158,8 @@ export async function isAuthorizedAdsAdmin(senderPhone, userId = 3, participantJ
     const cleanSender = normalizePhoneDigits(senderPhone);
     const cleanPart = normalizePhoneDigits(participantJid);
 
-    // فحص المشرفين المعتمدين في النظام
-    const admins = await getAuthorizedAdmins(userId);
+    // فحص المشرفين المعتمدين في قائمة تقارير الإعلانات
+    const admins = await getAdsAuthorizedAdmins(userId);
     return admins.some(a => {
         const adminNorm = normalizePhoneDigits(a.phone);
         return (cleanSender && adminNorm === cleanSender) || (cleanPart && adminNorm === cleanPart);

@@ -19,19 +19,20 @@
             border: 1px solid rgba(0, 0, 0, 0.05);
             display: flex;
             flex-wrap: wrap;
-            gap: 4px;
+            gap: 6px;
         }
 
         #settingsTabs .nav-link {
             color: var(--text-secondary);
             font-weight: 600;
             border-radius: 12px;
-            padding: 12px 20px;
-            transition: all 0.3s ease;
+            padding: 11px 18px;
+            transition: all 0.25s ease;
             border: 1px solid transparent;
             display: flex;
             align-items: center;
             gap: 8px;
+            white-space: nowrap;
         }
 
         #settingsTabs .nav-link.active {
@@ -71,6 +72,53 @@
             margin-bottom: 20px;
             display: inline-block;
         }
+
+        .icon-circle-fixed {
+            width: 42px;
+            height: 42px;
+            min-width: 42px;
+            flex-shrink: 0;
+        }
+
+        /* Mobile Responsive Adjustments */
+        @media (max-width: 767.98px) {
+            .main-content {
+                padding-left: 10px !important;
+                padding-right: 10px !important;
+            }
+            .glass-card {
+                padding: 16px 12px !important;
+                border-radius: 16px !important;
+            }
+            .page-main-title {
+                font-size: 1.2rem !important;
+            }
+            #settingsTabs {
+                padding: 6px;
+                border-radius: 14px;
+                gap: 5px;
+            }
+            #settingsTabs .nav-item {
+                flex: 1 1 calc(50% - 5px);
+            }
+            #settingsTabs .nav-link {
+                width: 100%;
+                justify-content: center;
+                padding: 10px 8px;
+                font-size: 0.84rem;
+                gap: 6px;
+            }
+            .tab-content {
+                margin-top: 16px;
+            }
+            .card.p-4 {
+                padding: 14px !important;
+            }
+            .table th, .table td {
+                padding: 0.55rem 0.45rem;
+                font-size: 0.82rem;
+            }
+        }
     </style>
 </head>
 
@@ -78,9 +126,9 @@
     <%- include('partials/navbar') %>
     <%- include('partials/sidebar') %>
 
-    <div class="container-fluid main-content px-4 px-lg-5">
-        <div class="glass-card p-4 p-md-5 animate-fade-in">
-            <h2 class="mb-4 fw-bold d-flex align-items-center gap-2 text-dark">
+    <div class="container-fluid main-content px-2 px-sm-4 px-lg-5">
+        <div class="glass-card p-3 p-md-5 animate-fade-in">
+            <h2 class="mb-3 mb-md-4 fw-bold d-flex align-items-center gap-2 text-dark page-main-title">
                 <i class="bi bi-gear-wide-connected text-warning"></i>
                 إعدادات المتابعة والتوقيتات
             </h2>
@@ -418,14 +466,14 @@
 
                                     <div class="mb-3">
                                         <label class="form-label fw-bold text-secondary small">اختر الجروب من قائمة جروبات البوت:</label>
-                                        <div class="input-group shadow-sm rounded-3 overflow-hidden">
-                                            <select name="reminder_group_jid" id="reminderGroupSelect" class="form-select border-0 py-2.5 fw-medium">
+                                        <div class="d-flex flex-column flex-sm-row gap-2">
+                                            <select name="reminder_group_jid" id="reminderGroupSelect" class="form-select border shadow-xs py-2.5 rounded-3 fw-medium flex-grow-1">
                                                 <option value="" <%= !settings.reminder_group_jid ? 'selected' : '' %>>⚡ التعرف التلقائي على أي جروب اسمه (تذكيرات)</option>
                                                 <% if (settings.reminder_group_jid) { %>
                                                     <option value="<%= settings.reminder_group_jid %>" selected>📌 الجروب الحالي المحفوظ (<%= settings.reminder_group_name || 'تذكيرات' %>)</option>
                                                 <% } %>
                                             </select>
-                                            <button type="button" id="refreshGroupsBtn" class="btn btn-outline-secondary bg-white px-3 fw-bold" title="تحديث قائمة الجروبات من الواتساب">
+                                            <button type="button" id="refreshGroupsBtn" class="btn btn-outline-secondary bg-white py-2 px-3 rounded-3 fw-bold text-nowrap" title="تحديث قائمة الجروبات من الواتساب">
                                                 <i class="bi bi-arrow-clockwise me-1"></i> جلب الجروبات
                                             </button>
                                         </div>
@@ -527,13 +575,13 @@
                                             <i class="bi bi-person-plus-fill text-primary me-1"></i> إضافة مشرف جديد:
                                         </label>
                                         <div class="row g-2">
-                                            <div class="col-md-5">
+                                            <div class="col-12 col-sm-5">
                                                 <input type="text" id="newAdminNameInput" class="form-control form-control-sm py-2 rounded-2" placeholder="الاسم (مثال: خدمة العملاء)">
                                             </div>
-                                            <div class="col-md-5">
+                                            <div class="col-12 col-sm-5">
                                                 <input type="text" id="newAdminPhoneInput" class="form-control form-control-sm py-2 rounded-2 font-monospace" placeholder="رقم الهاتف (مثال: 01012027705)">
                                             </div>
-                                            <div class="col-md-2">
+                                            <div class="col-12 col-sm-2 d-grid">
                                                 <button type="button" id="addNewAdminBtn" class="btn btn-sm btn-primary w-100 py-2 rounded-2 fw-bold">
                                                     <i class="bi bi-plus-lg me-1"></i> إضافة
                                                 </button>
@@ -585,46 +633,52 @@
 
                     <!-- 4. Ads Reports Tab -->
                     <div class="tab-pane fade" id="ads-reports-pane" role="tabpanel" aria-labelledby="ads-reports-tab">
-                        <div class="d-flex align-items-center justify-content-between mb-4 pb-2 border-bottom">
+                        <div class="d-flex align-items-center justify-content-between mb-4 pb-2 border-bottom flex-wrap gap-2">
                             <div>
                                 <h5 class="fw-bold mb-1 text-dark d-flex align-items-center">
                                     <i class="bi bi-graph-up-arrow text-primary me-2"></i>
                                     نظام تقارير إعلانات فيسبوك / ميتا في جروب الواتساب
                                 </h5>
-                                <p class="text-muted small mb-0">تحكم في الجروب المخصص لتقارير أداء الحملات الممولة، استعلام فوري عن أداء الحساب الإعلاني برقم البليز.</p>
+                                <p class="text-muted small mb-0">تحكم في الجروب المخصص لتقارير أداء الحملات الممولة، وإدارة الأرقام المصرح لها بطلب تقارير الحسابات.</p>
+                            </div>
+                            <div>
+                                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-3 py-2 rounded-pill fw-medium">
+                                    <i class="bi bi-lightning-charge-fill me-1"></i>
+                                    استعلام لحظي 🟢
+                                </span>
                             </div>
                         </div>
 
-                        <div class="row g-4">
+                        <div class="row g-3 g-lg-4">
                             <!-- Left Column: Group Selection & Authorized Numbers -->
                             <div class="col-lg-7">
                                 <!-- Card: Group Selection -->
-                                <div class="card border-0 shadow-sm p-4 rounded-4 bg-light mb-4">
-                                    <div class="d-flex align-items-center justify-content-between mb-3">
+                                <div class="card border-0 shadow-sm p-3 p-md-4 rounded-4 bg-light mb-3 mb-md-4">
+                                    <div class="d-flex align-items-center justify-content-between mb-3 gap-2">
                                         <div class="d-flex align-items-center">
-                                            <div class="bg-primary bg-opacity-10 p-2.5 rounded-circle me-3 d-flex align-items-center justify-content-center" style="width: 44px; height: 44px;">
-                                                <i class="bi bi-whatsapp text-success fs-4"></i>
+                                            <div class="bg-primary bg-opacity-10 rounded-circle me-2.5 me-md-3 d-flex align-items-center justify-content-center icon-circle-fixed">
+                                                <i class="bi bi-whatsapp text-success fs-5"></i>
                                             </div>
                                             <div>
                                                 <h6 class="fw-bold mb-0 text-dark">جروب واتساب المعتمد لتقارير الإعلانات</h6>
                                                 <small class="text-muted">الجروب الذي يراقب فيه البوت أرقام الحسابات الإعلانية ويرسل فيه التقارير</small>
                                             </div>
                                         </div>
-                                        <div class="form-check form-switch mb-0">
+                                        <div class="form-check form-switch mb-0 flex-shrink-0">
                                             <input class="form-check-input" type="checkbox" name="ads_report_system_enabled" id="ads_report_system_enabled" value="true" <%= settings.ads_report_system_enabled !== false ? 'checked' : '' %> style="width: 2.8rem; height: 1.4rem;">
                                         </div>
                                     </div>
 
                                     <div class="mb-3">
                                         <label class="form-label fw-bold text-secondary small">اختر الجروب من قائمة جروبات البوت:</label>
-                                        <div class="input-group shadow-sm rounded-3 overflow-hidden">
-                                            <select name="ads_report_group_jid" id="adsReportGroupSelect" class="form-select border-0 py-2.5 fw-medium">
+                                        <div class="d-flex flex-column flex-sm-row gap-2">
+                                            <select name="ads_report_group_jid" id="adsReportGroupSelect" class="form-select border shadow-xs py-2.5 rounded-3 fw-medium flex-grow-1">
                                                 <option value="" <%= !settings.ads_report_group_jid ? 'selected' : '' %>>⚡ التعرف التلقائي على أي جروب اسمه (إعلانات / تقارير الإعلانات)</option>
                                                 <% if (settings.ads_report_group_jid) { %>
                                                     <option value="<%= settings.ads_report_group_jid %>" selected>📌 الجروب الحالي المحفوظ (<%= settings.ads_report_group_name || 'تقارير الإعلانات' %>)</option>
                                                 <% } %>
                                             </select>
-                                            <button type="button" id="refreshAdsReportGroupsBtn" class="btn btn-outline-secondary bg-white px-3 fw-bold" title="تحديث قائمة الجروبات من الواتساب">
+                                            <button type="button" id="refreshAdsReportGroupsBtn" class="btn btn-outline-secondary bg-white py-2 px-3 rounded-3 fw-bold text-nowrap" title="تحديث قائمة الجروبات من الواتساب">
                                                 <i class="bi bi-arrow-clockwise me-1"></i> جلب الجروبات
                                             </button>
                                         </div>
@@ -641,62 +695,91 @@
                                     <div id="checkAdsReportGroupResult" class="mt-3 small rounded-3" style="display: none;"></div>
                                 </div>
 
-                                <!-- Card: Authorized Admins -->
-                                <div class="card border-0 shadow-sm p-4 rounded-4 bg-light">
-                                    <div class="d-flex align-items-center justify-content-between mb-3">
+                                <!-- Card: Authorized Admins for Ads Reports -->
+                                <div class="card border-0 shadow-sm p-3 p-md-4 rounded-4 bg-white">
+                                    <% const adsAdminList = (typeof adsReportAdmins !== 'undefined' && adsReportAdmins && adsReportAdmins.length) ? adsReportAdmins : ((typeof reminderAdmins !== 'undefined' && reminderAdmins && reminderAdmins.length) ? reminderAdmins : [{ name: 'أ. راضي', phone: '01092308465', roleLabel: 'مدير النظام', isPrimary: true }]); %>
+                                    <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom flex-wrap gap-2">
                                         <div class="d-flex align-items-center">
-                                            <div class="bg-primary bg-opacity-10 p-2.5 rounded-circle me-3 d-flex align-items-center justify-content-center" style="width: 44px; height: 44px;">
-                                                <i class="bi bi-shield-lock-fill text-primary fs-4"></i>
+                                            <div class="bg-primary bg-opacity-10 text-primary p-2 rounded-3 me-2.5 me-md-3 icon-circle-fixed d-flex align-items-center justify-content-center">
+                                                <i class="bi bi-people-fill fs-5"></i>
                                             </div>
                                             <div>
-                                                <h6 class="fw-bold mb-0 text-dark">المشرفون المصرح لهم بطلب التقارير</h6>
-                                                <small class="text-muted">الأشخاص والأرقام المصرح لها بطلب فحص الحسابات الإعلانية من البوت</small>
+                                                <h6 class="fw-bold mb-0 text-dark">الأرقام المصرح لها بطلب التقارير</h6>
+                                                <small class="text-muted">الأشخاص المسموح لهم بإرسال أرقام الحسابات واستلام تقارير الإعلانات</small>
                                             </div>
                                         </div>
-                                        <span class="badge bg-primary bg-opacity-10 text-primary px-3 py-2 rounded-pill fw-bold">
-                                            <%= (typeof reminderAdmins !== 'undefined' && reminderAdmins && reminderAdmins.length) || 1 %> مشرفين
+                                        <span id="adsAdminsCountBadge" class="badge bg-primary rounded-pill px-3 py-1.5 fs-7">
+                                            <%= adsAdminList.length %> أرقام مصرحة
                                         </span>
                                     </div>
 
+                                    <!-- Quick Add Number Box -->
+                                    <div class="bg-light p-3 rounded-3 mb-3 border">
+                                        <div class="d-flex align-items-center mb-2">
+                                            <i class="bi bi-person-plus-fill text-primary me-2"></i>
+                                            <strong class="text-dark small">إضافة رقم مصرح له جديد:</strong>
+                                        </div>
+                                        <div class="row g-2 align-items-end">
+                                            <div class="col-12 col-sm-5">
+                                                <label class="form-label small text-muted mb-1">الاسم</label>
+                                                <input type="text" id="newAdsAdminName" class="form-control form-control-sm rounded-3 py-2" placeholder="مثال: أحمد">
+                                            </div>
+                                            <div class="col-12 col-sm-5">
+                                                <label class="form-label small text-muted mb-1">رقم الواتساب <span class="text-danger">*</span></label>
+                                                <input type="text" id="newAdsAdminPhone" class="form-control form-control-sm rounded-3 py-2 font-monospace" placeholder="01012345678" dir="ltr">
+                                            </div>
+                                            <div class="col-12 col-sm-2 d-grid">
+                                                <button type="button" id="addNewAdsAdminBtn" class="btn btn-primary btn-sm rounded-3 py-2 fw-bold shadow-sm">
+                                                    <i class="bi bi-plus-lg me-1"></i> إضافة
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div id="adsAdminAlert" class="mt-2 small" style="display: none;"></div>
+                                    </div>
+
                                     <!-- Admin List Table -->
-                                    <div class="table-responsive bg-white rounded-3 shadow-sm border mb-3 overflow-hidden">
-                                        <table class="table table-hover align-middle mb-0 text-nowrap">
+                                    <div class="table-responsive">
+                                        <table class="table table-hover align-middle mb-0">
                                             <thead class="table-light">
-                                                <tr class="small text-secondary">
-                                                    <th class="ps-3 py-2.5">الاسم</th>
-                                                    <th class="py-2.5">رقم الهاتف</th>
-                                                    <th class="py-2.5">الصلاحية</th>
+                                                <tr class="small text-muted">
+                                                    <th class="border-0 rounded-start">الاسم</th>
+                                                    <th class="border-0">الصلاحية</th>
+                                                    <th class="border-0">رقم الواتساب</th>
+                                                    <th class="border-0 text-center rounded-end">إجراء</th>
                                                 </tr>
                                             </thead>
-                                            <tbody>
-                                                <% const adsAdminList = (typeof reminderAdmins !== 'undefined' && reminderAdmins && reminderAdmins.length) ? reminderAdmins : [{ name: 'راضي', phone: '01092308465', isPrimary: true }]; %>
+                                            <tbody id="adsAdminsTableBody">
                                                 <% adsAdminList.forEach(function(admin) { %>
-                                                    <tr>
-                                                        <td class="ps-3 fw-bold">
+                                                    <tr id="ads-admin-row-<%= admin.phone %>">
+                                                        <td>
+                                                            <span class="fw-bold text-dark fs-7"><%= admin.name %></span>
+                                                        </td>
+                                                        <td>
                                                             <% if (admin.isPrimary) { %>
-                                                                <span class="d-inline-flex align-items-center text-primary">
-                                                                    <i class="bi bi-star-fill text-warning me-1"></i>
-                                                                    <%= admin.name %>
+                                                                <span class="badge bg-warning bg-opacity-15 text-dark border border-warning border-opacity-25 rounded-pill px-2.5 py-1 fs-8">
+                                                                    <i class="bi bi-shield-check me-1"></i>مدير النظام
                                                                 </span>
                                                             <% } else { %>
-                                                                <span class="d-inline-flex align-items-center text-dark">
-                                                                    <i class="bi bi-person-fill text-secondary me-1"></i>
-                                                                    <%= admin.name %>
+                                                                <span class="badge bg-info bg-opacity-10 text-primary border border-info border-opacity-25 rounded-pill px-2.5 py-1 fs-8">
+                                                                    <i class="bi bi-person-badge me-1"></i><%= admin.roleLabel || 'مسؤول إعلانات' %>
                                                                 </span>
                                                             <% } %>
                                                         </td>
                                                         <td>
-                                                            <code class="fw-bold text-dark px-2 py-1 bg-light rounded font-monospace"><%= admin.phone %></code>
+                                                            <div class="d-flex align-items-center">
+                                                                <i class="bi bi-whatsapp text-success me-1.5 fs-6"></i>
+                                                                <span class="font-monospace fw-bold text-dark fs-7"><%= admin.phone %></span>
+                                                            </div>
                                                         </td>
-                                                        <td>
+                                                        <td class="text-center">
                                                             <% if (admin.isPrimary) { %>
-                                                                <span class="badge bg-warning bg-opacity-25 text-dark border border-warning px-2.5 py-1">
-                                                                    👑 الأدمن الرئيسي
+                                                                <span class="badge bg-secondary bg-opacity-15 text-muted px-2 py-1 fs-8" title="الأدمن الأساسي للنظام">
+                                                                    <i class="bi bi-lock-fill"></i>
                                                                 </span>
                                                             <% } else { %>
-                                                                <span class="badge bg-info bg-opacity-10 text-info border border-info px-2.5 py-1">
-                                                                    مشرف معتمد
-                                                                </span>
+                                                                <button type="button" class="btn btn-sm btn-outline-danger p-1 px-2 rounded-2 fs-7" onclick="deleteAdsAdmin('<%= admin.phone %>', '<%= admin.name %>')" title="حذف الرقم">
+                                                                    <i class="bi bi-trash3-fill"></i>
+                                                                </button>
                                                             <% } %>
                                                         </td>
                                                     </tr>
@@ -705,51 +788,52 @@
                                         </table>
                                     </div>
 
-                                    <div class="form-text text-muted small">
-                                        <i class="bi bi-info-circle me-1"></i>
-                                        قائمة المشرفين موحدة ومطابقة لقائمة المشرفين المعتمدين في تبويب التذكيرات، بحيث يستطيع نفس المشرفين طلب تقارير الإعلانات مباشرة.
+                                    <div class="mt-3 p-2.5 bg-light rounded-3 border small text-muted">
+                                        <i class="bi bi-info-circle-fill text-primary me-1"></i>
+                                        <strong>ملاحظة:</strong> يمكنك إضافة أي رقم ليصبح مصرحاً له فوراً بطلب تقارير الإعلانات داخل الجروب، أو حذفه في أي وقت.
                                     </div>
                                 </div>
                             </div>
 
                             <!-- Right Column: Quick Instructions & Command Guide -->
                             <div class="col-lg-5">
-                                <div class="card border-0 shadow-sm p-4 rounded-4 bg-white border-top border-4 border-primary h-100">
+                                <div class="card border-0 shadow-sm p-3 p-md-4 rounded-4 bg-white border-top border-4 border-primary h-100">
                                     <h6 class="fw-bold text-dark mb-3">
                                         <i class="bi bi-lightbulb-fill text-primary me-2"></i>
                                         طريقة الاستخدام وسحب نتائج الإعلانات:
                                     </h6>
                                     
-                                    <div class="list-group list-group-flush small">
-                                        <div class="list-group-item px-0 py-2.5 bg-transparent border-0">
+                                    <div class="d-flex flex-column gap-3 small">
+                                        <div class="p-3 rounded-3 border bg-white shadow-xs">
                                             <strong class="text-primary d-block mb-1">1️⃣ استعلام مباشر برقم الحساب الإعلاني:</strong>
-                                            <span class="text-muted">أرسل رقم الحساب مباشرة في الجروب:</span>
-                                            <div class="bg-light p-2 rounded-2 mt-1 font-monospace">1234567890</div>
-                                            <small class="text-muted mt-1 d-block">سيقوم البوت تلقائياً بجلب ملخص حملات اليوم لحساب التاجر عبر منصة الإعلانات.</small>
+                                            <span class="text-muted d-block mb-1">أرسل رقم الحساب مباشرة في الجروب:</span>
+                                            <div class="p-2 px-3 rounded-3 font-monospace border text-primary fw-bold" dir="ltr" style="background-color: #f8fafc; border-color: #cbd5e1 !important;">1234567890</div>
+                                            <small class="text-muted mt-1.5 d-block">يجلب البوت تلقائياً ملخص الحملات النشطة ورصيد الحساب المتاح.</small>
                                         </div>
 
-                                        <div class="list-group-item px-0 py-2.5 bg-transparent border-0">
+                                        <div class="p-3 rounded-3 border bg-white shadow-xs">
                                             <strong class="text-primary d-block mb-1">2️⃣ تحديد الفترة الزمنية المطلوبة:</strong>
-                                            <span class="text-muted">اكتب اسم الفترة مع الرقم:</span>
-                                            <div class="bg-light p-2 rounded-2 mt-1 font-monospace mb-1">"تقرير 1234567890 امبارح"</div>
-                                            <div class="bg-light p-2 rounded-2 mt-1 font-monospace mb-1">"1234567890 اخر 7 ايام"</div>
-                                            <div class="bg-light p-2 rounded-2 mt-1 font-monospace mb-1">"1234567890 هذا الشهر"</div>
-                                            <div class="bg-light p-2 rounded-2 mt-1 font-monospace">"1234567890 الكل"</div>
+                                            <span class="text-muted d-block mb-1">اكتب اسم الفترة مع الرقم:</span>
+                                            <div class="d-flex flex-column gap-1.5">
+                                                <div class="p-2 rounded-2 font-monospace border text-dark" style="background-color: #f8fafc; border-color: #cbd5e1 !important;">"1234567890 اليوم" أو "امس"</div>
+                                                <div class="p-2 rounded-2 font-monospace border text-dark" style="background-color: #f8fafc; border-color: #cbd5e1 !important;">"1234567890 اخر 7 ايام"</div>
+                                                <div class="p-2 rounded-2 font-monospace border text-dark" style="background-color: #f8fafc; border-color: #cbd5e1 !important;">"1234567890 هذا الشهر" أو "الكل"</div>
+                                            </div>
                                         </div>
 
-                                        <div class="list-group-item px-0 py-2.5 bg-transparent border-0">
+                                        <div class="p-3 rounded-3 border bg-white shadow-xs">
                                             <strong class="text-primary d-block mb-1">3️⃣ استعلام بحملة إعلانية محددة:</strong>
-                                            <span class="text-muted">أرسل رقم الحملة:</span>
-                                            <div class="bg-light p-2 rounded-2 mt-1 font-monospace">"حملة 120252812532900334"</div>
+                                            <span class="text-muted d-block mb-1">أرسل رقم الحملة مباشرة أو مسبوقاً بكلمة حملة:</span>
+                                            <div class="p-2 rounded-2 font-monospace border text-dark" style="background-color: #f8fafc; border-color: #cbd5e1 !important;">"حملة 120252812532900334"</div>
                                         </div>
 
-                                        <div class="list-group-item px-0 py-2.5 bg-transparent border-0">
+                                        <div class="p-3 rounded-3 border bg-light">
                                             <strong class="text-primary d-block mb-1">✨ محتويات التقرير المنسق:</strong>
                                             <ul class="mb-0 ps-3 text-muted">
-                                                <li>إجمالي المصروف كمبلغ صحيح بدون كسور بالعملة (EGP).</li>
-                                                <li>النتائج وتكلفة النتيجة (CPA) ومعدل العائد (ROAS).</li>
-                                                <li>تمييز نوع الإعلان: 🛍️ إعلان مبيعات أو 💬 إعلان رسائل.</li>
-                                                <li>تاريخ وساعة الانتهاء والوقت المتبقي بدقة.</li>
+                                                <li>رصيد الحساب المتاح واسم الحساب الإعلاني.</li>
+                                                <li>الميزانية والمصروف والنتائج وتكلفة النتيجة.</li>
+                                                <li>نوع الإعلان (واتساب / ماسنجر / مبيعات) ورابط المنشور الأساسي.</li>
+                                                <li>تاريخ وساعة الانتهاء والمدة المتبقية بدقة.</li>
                                             </ul>
                                         </div>
                                     </div>
@@ -802,16 +886,16 @@
                                             <strong class="text-dark small">إضافة رقم مصرح له جديد:</strong>
                                         </div>
                                         <div class="row g-2 align-items-end">
-                                            <div class="col-md-5">
+                                            <div class="col-12 col-sm-5">
                                                 <label class="form-label small text-muted mb-1">الاسم</label>
-                                                <input type="text" id="newFastOrderName" class="form-control form-control-sm rounded-3" placeholder="مثال: أحمد">
+                                                <input type="text" id="newFastOrderName" class="form-control form-control-sm rounded-3 py-2" placeholder="مثال: أحمد">
                                             </div>
-                                            <div class="col-md-5">
+                                            <div class="col-12 col-sm-5">
                                                 <label class="form-label small text-muted mb-1">رقم الواتساب <span class="text-danger">*</span></label>
-                                                <input type="text" id="newFastOrderPhone" class="form-control form-control-sm rounded-3 font-monospace" placeholder="01012345678" dir="ltr">
+                                                <input type="text" id="newFastOrderPhone" class="form-control form-control-sm rounded-3 py-2 font-monospace" placeholder="01012345678" dir="ltr">
                                             </div>
-                                            <div class="col-md-2 d-grid">
-                                                <button type="button" id="addNewFastOrderStaffBtn" class="btn btn-success btn-sm rounded-3 fw-bold shadow-sm">
+                                            <div class="col-12 col-sm-2 d-grid">
+                                                <button type="button" id="addNewFastOrderStaffBtn" class="btn btn-success btn-sm rounded-3 py-2 fw-bold shadow-sm">
                                                     <i class="bi bi-plus-lg me-1"></i> إضافة
                                                 </button>
                                             </div>
@@ -1533,6 +1617,137 @@
                         }
                     } else {
                         alert(data.error || 'تعذر حذف المشرف');
+                    }
+                } catch (e) {
+                    alert('حدث خطأ أثناء الحذف: ' + e.message);
+                }
+            };
+
+            // ============================================================
+            // ============================================================
+            // Ads Report Authorized Admins Management (AJAX)
+            // ============================================================
+            function updateAdsAdminListUI(admins) {
+                const tbody = document.getElementById('adsAdminsTableBody');
+                const badge = document.getElementById('adsAdminsCountBadge');
+                if (!tbody) return;
+
+                if (badge && Array.isArray(admins)) {
+                    badge.textContent = `${admins.length} أرقام مصرحة`;
+                }
+
+                if (!admins || admins.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="4" class="text-center py-4 text-muted">
+                                <i class="bi bi-info-circle me-1"></i> لا توجد أرقام مسجلة حالياً.
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                tbody.innerHTML = admins.map(admin => {
+                    const roleBadge = admin.isPrimary
+                        ? `<span class="badge bg-warning bg-opacity-15 text-dark border border-warning border-opacity-25 rounded-pill px-2.5 py-1 fs-8"><i class="bi bi-shield-check me-1"></i>مدير النظام</span>`
+                        : `<span class="badge bg-info bg-opacity-10 text-primary border border-info border-opacity-25 rounded-pill px-2.5 py-1 fs-8"><i class="bi bi-person-badge me-1"></i>${admin.roleLabel || 'مسؤول إعلانات'}</span>`;
+
+                    const actionBtn = admin.isPrimary
+                        ? `<span class="badge bg-secondary bg-opacity-15 text-muted px-2 py-1 fs-8" title="الأدمن الأساسي للنظام"><i class="bi bi-lock-fill"></i></span>`
+                        : `<button type="button" class="btn btn-sm btn-outline-danger p-1 px-2 rounded-2 fs-7" onclick="deleteAdsAdmin('${admin.phone}', '${admin.name}')" title="حذف الرقم"><i class="bi bi-trash3-fill"></i></button>`;
+
+                    return `
+                        <tr id="ads-admin-row-${admin.phone}">
+                            <td>
+                                <span class="fw-bold text-dark fs-7">${admin.name}</span>
+                            </td>
+                            <td>${roleBadge}</td>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <i class="bi bi-whatsapp text-success me-1.5 fs-6"></i>
+                                    <span class="font-monospace fw-bold text-dark fs-7">${admin.phone}</span>
+                                </div>
+                            </td>
+                            <td class="text-center">${actionBtn}</td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+
+            const addNewAdsAdminBtn = document.getElementById('addNewAdsAdminBtn');
+            const newAdsAdminNameInput = document.getElementById('newAdsAdminName');
+            const newAdsAdminPhoneInput = document.getElementById('newAdsAdminPhone');
+            const adsAdminAlert = document.getElementById('adsAdminAlert');
+
+            if (addNewAdsAdminBtn) {
+                addNewAdsAdminBtn.addEventListener('click', async () => {
+                    const name = (newAdsAdminNameInput?.value || '').trim();
+                    const phone = (newAdsAdminPhoneInput?.value || '').trim();
+
+                    if (!phone) {
+                        adsAdminAlert.style.display = 'block';
+                        adsAdminAlert.className = 'mt-2 small text-danger fw-bold';
+                        adsAdminAlert.innerHTML = '<i class="bi bi-exclamation-circle me-1"></i> يرجى إدخال رقم الهاتف أولاً.';
+                        return;
+                    }
+
+                    addNewAdsAdminBtn.disabled = true;
+                    addNewAdsAdminBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> جاري الإضافة...';
+                    adsAdminAlert.style.display = 'none';
+
+                    try {
+                        const res = await fetch('/dashboard/settings/ads-admins/add', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ name, phone })
+                        });
+                        const data = await res.json();
+
+                        if (data.success) {
+                            adsAdminAlert.style.display = 'block';
+                            adsAdminAlert.className = 'mt-2 small text-success fw-bold';
+                            adsAdminAlert.innerHTML = `<i class="bi bi-check-circle me-1"></i> ${data.message}`;
+                            newAdsAdminNameInput.value = '';
+                            newAdsAdminPhoneInput.value = '';
+                            if (data.admins) updateAdsAdminListUI(data.admins);
+                            setTimeout(() => { adsAdminAlert.style.display = 'none'; }, 4000);
+                        } else {
+                            adsAdminAlert.style.display = 'block';
+                            adsAdminAlert.className = 'mt-2 small text-danger fw-bold';
+                            adsAdminAlert.innerHTML = `<i class="bi bi-exclamation-circle me-1"></i> ${data.error || 'تعذر إضافة الرقم'}`;
+                        }
+                    } catch (e) {
+                        adsAdminAlert.style.display = 'block';
+                        adsAdminAlert.className = 'mt-2 small text-danger fw-bold';
+                        adsAdminAlert.innerHTML = 'حدث خطأ: ' + e.message;
+                    } finally {
+                        addNewAdsAdminBtn.disabled = false;
+                        addNewAdsAdminBtn.innerHTML = '<i class="bi bi-plus-lg me-1"></i> إضافة';
+                    }
+                });
+            }
+
+            window.deleteAdsAdmin = async function(phone, name) {
+                if (!confirm(`هل أنت متأكد من إزالة صلاحية "${name}" (${phone}) من طلب تقارير الإعلانات؟`)) {
+                    return;
+                }
+
+                try {
+                    const res = await fetch('/dashboard/settings/ads-admins/delete', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ phone })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        if (data.admins) {
+                            updateAdsAdminListUI(data.admins);
+                        } else {
+                            const row = document.getElementById(`ads-admin-row-${phone}`);
+                            if (row) row.remove();
+                        }
+                    } else {
+                        alert(data.error || 'تعذر حذف الرقم');
                     }
                 } catch (e) {
                     alert('حدث خطأ أثناء الحذف: ' + e.message);
