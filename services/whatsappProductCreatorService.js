@@ -74,11 +74,22 @@ export async function isStaffAuthorized(phoneNumber) {
 
     // 2. Check Database for staff/admin user
     try {
+        const { Op } = await import('sequelize');
+        const cleanNoZero = cleanPhone.startsWith('0') ? cleanPhone.substring(1) : cleanPhone;
         const user = await User.findOne({
-            where: { phone: cleanPhone }
+            where: {
+                role: ['super_admin', 'admin', 'sales'],
+                [Op.or]: [
+                    { phone: cleanPhone },
+                    { phone: '2' + cleanPhone },
+                    { phone: '20' + cleanNoZero },
+                    { phone: cleanNoZero },
+                    { phone: '0' + cleanNoZero }
+                ]
+            }
         });
 
-        if (user && ['super_admin', 'admin', 'sales'].includes(user.role)) {
+        if (user) {
             return {
                 isAuthorized: true,
                 name: user.fullName || user.username,
@@ -94,13 +105,69 @@ export async function isStaffAuthorized(phoneNumber) {
 }
 
 /**
+ * Get full list of authorized staff members for Fast Order Product Creator
+ */
+export async function getFastOrderAuthorizedStaff() {
+    let users = [];
+    try {
+        users = await User.findAll({
+            where: {
+                role: ['super_admin', 'admin', 'sales']
+            },
+            attributes: ['id', 'username', 'fullName', 'role', 'phone'],
+            order: [['id', 'ASC']]
+        });
+    } catch (e) {
+        console.error('Error fetching staff users:', e.message);
+    }
+
+    const list = [];
+    const seenPhones = new Set();
+
+    // 1. Explicit Whitelist: أ. راضي
+    list.push({
+        id: 3,
+        name: 'أ. راضي',
+        username: 'rady',
+        role: 'admin',
+        roleLabel: 'مدير النظام (Admin)',
+        phone: '01092308465',
+        isPrimary: true
+    });
+    seenPhones.add('01092308465');
+
+    // 2. Database Staff Users
+    for (const u of users) {
+        const cleanP = normalizePhone(u.phone);
+        if (cleanP && !seenPhones.has(cleanP)) {
+            seenPhones.add(cleanP);
+            const roleLabel = u.role === 'super_admin' ? 'مدير عام (Super Admin)' :
+                              u.role === 'admin' ? 'مدير (Admin)' : 'مسؤول مبيعات (Sales)';
+            list.push({
+                id: u.id,
+                name: u.fullName || u.username,
+                username: u.username,
+                role: u.role,
+                roleLabel,
+                phone: cleanP,
+                isPrimary: false
+            });
+        }
+    }
+
+    return list;
+}
+
+/**
  * Get or create an active session for a staff member
  */
 export function getStaffSession(sessionKey) {
     if (!staffSessions.has(sessionKey)) {
         staffSessions.set(sessionKey, {
             activeStore: null,       // { id, name, slug, store_url, categories, main_categories }
-            currentDraft: null,      // { id, name, price_after, preview_url, ... }
+            currentDraft: null,      // { id, name, price_after, preview_url, shipping_type, ... }
+            pendingProductDraft: null,// payload waiting for shipping choice or price
+            waitingFor: null,        // 'shipping' | 'price'
             pendingMedia: [],        // [{ buffer, mimetype, filename }]
             pendingText: '',
             debounceTimer: null,
@@ -241,6 +308,7 @@ export async function extractProductWithGemini(text, mediaList = [], webSearchCo
   "category_name": "التصنيف الفرعي المناسب (مثال: كريمات ترطيب، سويت شيرت، تي شيرت، سيروم، قمصان)",
   "price_after": 0, // سعر البيع الأساسي بالجنيه (رقم صحيح بدون كسور أو كلمات)
   "price_before": 0, // السعر قبل الخصم إن وجد وإلا 0
+  "shipping_type": "free", // "free" للشحن المجاني، أو "governorate" للشحن حسب المحافظة، أو null إذا لم يذكر صراحة في البوست
   "sizes": ["M", "L"], // مصفوفة المقاسات للملابس والأحذية فقط، وإلا تترك فارغة []
   "colors": ["أسود", "أبيض"], // مصفوفة الألوان المتاحة للملابس، وإلا تترك فارغة []
   "custom_variants": [ // مصفوفة المتغيرات المخصصة للمنتجات التي لا تتبع مقاسات وألوان الملابس (مثل مستحضرات التجميل، العطور، العناية، الأغذية: مثل الحجم، الوزن، السعة)
@@ -274,6 +342,11 @@ export async function extractProductWithGemini(text, mediaList = [], webSearchCo
 
 4. 📁 الأقسام الرئيسية والتصنيفات:
 حدد القسم الرئيسي بدقة (main_category) والتصنيف الفرعي (category_name).
+
+5. 🚚 نوع الشحن (shipping_type):
+- إذا ذكر البوست صراحة أن الشحن مجاني أو شامل الشحن أو الشحن فري أو هدية: اجعل "shipping_type": "free".
+- إذا ذكر البوست صراحة أن الشحن بمصاريف أو حسب المحافظة أو لكل محافظة سعر: اجعل "shipping_type": "governorate".
+- إذا لم يذكر البوست أي شيء صريح عن الشحن: اجعل "shipping_type": null.
 `;
 
     const parts = [];
@@ -318,6 +391,7 @@ ${webSearchContext ? `معلومات إضافية تم العثور عليها �
 - "name": الاسم الجديد.
 - "price_after": السعر الجديد بعد الخصم (رقم صحيح).
 - "price_before": السعر قبل الخصم.
+- "shipping_type": نوع الشحن الجديد: إما "free" (شحن مجاني) أو "governorate" (شحن حسب المحافظة).
 - "description": الوصف الجديد (يجب أن يكون مقسماً على أسطر متعددة مرتبة بنقاط).
 - "main_category": اسم القسم الرئيسي الجديد (مثال: مستحضرات تجميل).
 - "category_name": اسم التصنيف الجديد (مثال: كريمات ترطيب).
@@ -331,7 +405,18 @@ ${webSearchContext ? `معلومات إضافية تم العثور عليها �
 `;
 
     const contents = [{ role: 'user', parts: [{ text: userMessage }] }];
-    return await callGemini(contents, systemPrompt, 0.1);
+    const parsed = await callGemini(contents, systemPrompt, 0.1) || {};
+
+    // Regex check to ensure shipping type modifications are detected reliably
+    if (!parsed.shipping_type) {
+        if (/شحن.*(محافظ|بفلوس|تكلفة|مدن)/i.test(userMessage) || /حسب المحافظة/i.test(userMessage)) {
+            parsed.shipping_type = 'governorate';
+        } else if (/شحن.*(مجان|فري|free|هدية)/i.test(userMessage) || /شحن مجاني/i.test(userMessage)) {
+            parsed.shipping_type = 'free';
+        }
+    }
+
+    return parsed;
 }
 
 /**
@@ -363,6 +448,8 @@ function buildDraftSummaryText(draft, storeName) {
         }
     }
 
+    const shippingStr = draft.shipping_type === 'governorate' ? 'شحن حسب المحافظة 📍' : 'شحن مجاني 🎁';
+
     let msg = `🤖 *تم تجهيز مسودة المنتج لمتجر: [${storeName}]*\n` +
               `──────────────────\n` +
               `🏷️ *الاسم:* ${draft.name}\n` +
@@ -375,6 +462,7 @@ function buildDraftSummaryText(draft, storeName) {
 
     msg += `📁 *القسم الرئيسي:* ${draft.main_category || 'عام'}\n` +
            `📂 *التصنيف:* ${draft.category_name || 'عام'}\n` +
+           `🚚 *نوع الشحن:* ${shippingStr}\n` +
            `📦 *المخزون:* ${draft.stock || 100} قطعة\n`;
 
     if (draft.images_count > 0) {
@@ -390,8 +478,8 @@ function buildDraftSummaryText(draft, storeName) {
            `🔍 *رابط المعاينة السري (مسودة مخفية عن الزوار):*\n` +
            `${draft.preview_url}\n` +
            `──────────────────\n` +
-           `👈 *اكتب ( 1 )* لنشر المنتج فوراً لايف على المتجر.\n` +
-           `👈 *أرسل أي تعديل* بالعامية (مثال: "القطعتين بـ 40" أو "غير الحجم" أو "ابحث في النت عن الوصف").\n` +
+           `👈 *اكتب ( 1 )* لنشر وتفعيل المنتج فوراً لايف على المتجر.\n` +
+           `👈 *أرسل أي تعديل* بالعامية (مثال: "خلي الشحن مجاني" أو "القطعتين بـ 40").\n` +
            `👈 *اكتب ( 3 )* لإلغاء وحذف المسودة نهائياً.`;
 
     return msg;
@@ -505,6 +593,27 @@ export async function handleStaffMessage({ sock, msg, remoteJid, phoneNumber, te
             return { handled: true };
         }
         return { handled: false };
+    }
+
+    // ================================================================
+    // Flow: Shipping Type Selection (1: Free Shipping, 2: By Governorate)
+    // ================================================================
+    if (session.waitingFor === 'shipping' && session.pendingProductDraft) {
+        let chosenShipping = 'free';
+        if (trimmedText === '2' || /محافظ/i.test(trimmedText) || /governorate/i.test(trimmedText)) {
+            chosenShipping = 'governorate';
+        } else if (trimmedText === '1' || /مجان/i.test(trimmedText) || /free/i.test(trimmedText)) {
+            chosenShipping = 'free';
+        } else {
+            // Default to 'free' if user sent something else or skipped
+            chosenShipping = 'free';
+        }
+
+        session.pendingProductDraft.shipping_type = chosenShipping;
+        const shippingLabel = chosenShipping === 'governorate' ? 'شحن حسب المحافظة 📍' : 'شحن مجاني 🎁';
+        await replyToStaff(sock, remoteJid, `⏳ تم اختيار (${shippingLabel}). جاري تجهيز مسودة المنتج ورابط المعاينة...`, userId, io);
+        await createAndSendDraft(sock, remoteJid, session, session.pendingProductDraft, userId, io);
+        return { handled: true };
     }
 
     // ================================================================
@@ -683,6 +792,7 @@ async function processCollectedProduct(sock, remoteJid, session, userId, io) {
         description: extracted.description || '',
         price_after: Number(extracted.price_after) || 0,
         price_before: Number(extracted.price_before) || 0,
+        shipping_type: extracted.shipping_type || null,
         sizes: extracted.sizes || [],
         colors: extracted.colors || [],
         custom_variants: extracted.custom_variants || [],
@@ -693,17 +803,56 @@ async function processCollectedProduct(sock, remoteJid, session, userId, io) {
         images_base64: base64Images
     };
 
-    // 4. Create Draft in Fast Order
-    const createRes = await callFastOrderApi('/products/draft', 'POST', draftPayload);
-
-    if (createRes.success && createRes.data) {
-        session.currentDraft = createRes.data;
+    // 4. Prompt for shipping type if not explicitly extracted
+    if (!draftPayload.shipping_type) {
+        session.pendingProductDraft = draftPayload;
+        session.waitingFor = 'shipping';
         session.pendingMedia = [];
         session.pendingText = '';
 
-        const summary = buildDraftSummaryText(createRes.data, session.activeStore.name);
-        await replyToStaff(sock, remoteJid, summary, userId, io);
-    } else {
-        await replyToStaff(sock, remoteJid, `❌ فشل حفظ المسودة: ${createRes.message || 'خطأ غير معروف'}`, userId, io);
+        await replyToStaff(sock, remoteJid, 
+            `🚚 *هل الشحن للمنتج ده:*\n` +
+            `1️⃣ شحن مجاني\n` +
+            `2️⃣ شحن حسب المحافظة\n\n` +
+            `*(اكتب 1 أو 2)*`,
+            userId, io
+        );
+        return;
+    }
+
+    // 5. If shipping type was explicitly extracted, create draft immediately
+    await createAndSendDraft(sock, remoteJid, session, draftPayload, userId, io);
+}
+
+/**
+ * Create Draft in Fast Order API and send summary to staff
+ */
+async function createAndSendDraft(sock, remoteJid, session, draftPayload, userId, io) {
+    // Ensure default shipping_type is 'free'
+    if (!draftPayload.shipping_type || (draftPayload.shipping_type !== 'free' && draftPayload.shipping_type !== 'governorate')) {
+        draftPayload.shipping_type = 'free';
+    }
+
+    try {
+        const createRes = await callFastOrderApi('/products/draft', 'POST', draftPayload);
+
+        if (createRes.success && createRes.data) {
+            session.currentDraft = createRes.data;
+            session.pendingProductDraft = null;
+            session.waitingFor = null;
+            session.pendingMedia = [];
+            session.pendingText = '';
+
+            const summary = buildDraftSummaryText(createRes.data, session.activeStore.name);
+            await replyToStaff(sock, remoteJid, summary, userId, io);
+        } else {
+            session.pendingProductDraft = null;
+            session.waitingFor = null;
+            await replyToStaff(sock, remoteJid, `❌ فشل حفظ المسودة: ${createRes.message || 'خطأ غير معروف'}`, userId, io);
+        }
+    } catch (err) {
+        session.pendingProductDraft = null;
+        session.waitingFor = null;
+        await replyToStaff(sock, remoteJid, `❌ خطأ أثناء حفظ المسودة: ${err.message}`, userId, io);
     }
 }

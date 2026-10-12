@@ -25,6 +25,7 @@ import { getSetting, setSetting, defaultSettingsMeta } from '../services/setting
 import FinancialTransaction from '../models/FinancialTransaction.js';
 import Commission from '../models/Commission.js';
 import { getAuthorizedAdmins, addAuthorizedAdmin, removeAuthorizedAdmin } from '../services/reminderService.js';
+import { getFastOrderAuthorizedStaff } from '../services/whatsappProductCreatorService.js';
 
 const router = express.Router();
 
@@ -2425,6 +2426,7 @@ router.get('/settings', async (req, res) => {
         
         const handoffCount = await Conversation.count({ where: { UserId: userId, is_handoff: true } });
         const reminderAdmins = await getAuthorizedAdmins(userId);
+        const fastOrderStaff = await getFastOrderAuthorizedStaff();
 
         res.render('settings', {
             user: req.user,
@@ -2436,6 +2438,7 @@ router.get('/settings', async (req, res) => {
             handoffCount,
             reminderAdmins,
             adsReportAdmins: reminderAdmins,
+            fastOrderStaff,
             success_msg: req.flash('success_msg'),
             error_msg: req.flash('error_msg')
         });
