@@ -1438,6 +1438,7 @@ router.post(['/livechat/send-media', '/livechat/:remoteJid/send-media'], uploadL
         const owner = await getOwnerUser(req.user);
         const targetUserId = owner.id;
         const decodedJid = decodeURIComponent(rawJid);
+        const remoteJid = decodedJid;
         const isBsuid = decodedJid.includes('.');
         const phone = isBsuid ? decodedJid.split('@')[0] : decodedJid.split('@')[0].replace(/[^0-9]/g, '');
         const phoneJid = isBsuid ? decodedJid : `${phone}@s.whatsapp.net`;
