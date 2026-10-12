@@ -12,24 +12,12 @@
     <link href="/style.css" rel="stylesheet">
 
     <style>
-        .badge-handoff {
-            background-color: rgba(245, 158, 11, 0.15);
-            color: #d97706;
-            border: 1px solid rgba(245, 158, 11, 0.3);
-            font-size: 0.75rem;
-            padding: 4px 10px;
-            border-radius: 20px;
-        }
-        .badge-bot {
-            background-color: rgba(99, 102, 241, 0.15);
-            color: #4f46e5;
-            border: 1px solid rgba(99, 102, 241, 0.3);
-            font-size: 0.75rem;
-            padding: 4px 10px;
-            border-radius: 20px;
+        .main-content {
+            padding-top: 80px !important;
+            padding-bottom: 12px !important;
         }
         .lc-wrapper {
-            height: calc(100vh - 170px);
+            height: calc(100vh - 95px);
             min-height: 520px;
             display: flex;
             flex-direction: column;
@@ -423,7 +411,13 @@
         }
 
         @media (max-width: 768px) {
-            .lc-wrapper { height: calc(100vh - 140px); }
+            .main-content {
+                padding-top: 70px !important;
+                padding-bottom: 6px !important;
+                padding-left: 6px !important;
+                padding-right: 6px !important;
+            }
+            .lc-wrapper { height: calc(100vh - 80px); }
             .lc-contacts { width: 100% !important; border-left: none !important; }
             .lc-outer:not(.lc-show-chat) .lc-chat { display: none !important; }
             .lc-outer.lc-show-chat .lc-contacts { display: none !important; }
@@ -435,14 +429,6 @@
     <%- include('partials/sidebar') %>
 
     <div class="main-content px-3 pb-3">
-        <div class="d-flex align-items-center justify-content-between mb-3">
-            <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-whatsapp me-2 text-success"></i>اللايف شات</h5>
-            <div class="d-flex gap-2">
-                <span class="badge-handoff" id="badgeHandoffCount"><i class="bi bi-person-fill me-1"></i><%= handoffCount %> تحويل نشط</span>
-                <span class="badge-bot" id="badgeTotalCount"><i class="bi bi-chat-fill me-1"></i><%= totalConversationsCount %> محادثة</span>
-            </div>
-        </div>
-
         <div class="lc-wrapper">
             <div class="lc-outer">
                 <!-- contacts sidebar -->
