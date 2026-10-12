@@ -802,26 +802,17 @@
                                             <strong class="text-dark small">إضافة رقم مصرح له جديد:</strong>
                                         </div>
                                         <div class="row g-2 align-items-end">
-                                            <div class="col-md-4">
-                                                <label class="form-label small text-muted mb-1">الاسم أو الصفة</label>
-                                                <input type="text" id="newFastOrderName" class="form-control form-control-sm rounded-3" placeholder="مثال: أحمد سيلز">
+                                            <div class="col-md-5">
+                                                <label class="form-label small text-muted mb-1">الاسم</label>
+                                                <input type="text" id="newFastOrderName" class="form-control form-control-sm rounded-3" placeholder="مثال: أحمد">
                                             </div>
-                                            <div class="col-md-4">
+                                            <div class="col-md-5">
                                                 <label class="form-label small text-muted mb-1">رقم الواتساب <span class="text-danger">*</span></label>
                                                 <input type="text" id="newFastOrderPhone" class="form-control form-control-sm rounded-3 font-monospace" placeholder="01012345678" dir="ltr">
                                             </div>
-                                            <div class="col-md-4">
-                                                <label class="form-label small text-muted mb-1">الصلاحية</label>
-                                                <select id="newFastOrderRole" class="form-select form-select-sm rounded-3">
-                                                    <option value="مسؤول مبيعات (Sales)">مسؤول مبيعات (Sales)</option>
-                                                    <option value="مدير (Admin)">مدير (Admin)</option>
-                                                    <option value="مدخل بيانات (Data Entry)">مدخل بيانات (Data Entry)</option>
-                                                    <option value="مسؤول متجر (Merchant)">مسؤول متجر (Merchant)</option>
-                                                </select>
-                                            </div>
-                                            <div class="col-12 mt-2 d-flex justify-content-end">
-                                                <button type="button" id="addNewFastOrderStaffBtn" class="btn btn-success btn-sm px-3 rounded-pill fw-bold shadow-sm">
-                                                    <i class="bi bi-plus-lg me-1"></i> إضافة الرقم للقائمة
+                                            <div class="col-md-2 d-grid">
+                                                <button type="button" id="addNewFastOrderStaffBtn" class="btn btn-success btn-sm rounded-3 fw-bold shadow-sm">
+                                                    <i class="bi bi-plus-lg me-1"></i> إضافة
                                                 </button>
                                             </div>
                                         </div>
@@ -833,38 +824,30 @@
                                         <table class="table table-hover align-middle mb-0">
                                             <thead class="table-light">
                                                 <tr class="small text-muted">
-                                                    <th class="border-0 rounded-start">#</th>
-                                                    <th class="border-0">الموظف / الاسم</th>
+                                                    <th class="border-0 rounded-start">الاسم</th>
                                                     <th class="border-0">الصلاحية</th>
                                                     <th class="border-0">رقم الواتساب</th>
-                                                    <th class="border-0 text-center">الحالة</th>
                                                     <th class="border-0 text-center rounded-end">إجراء</th>
                                                 </tr>
                                             </thead>
                                             <tbody id="fastOrderStaffTableBody">
                                                 <% if (typeof fastOrderStaff !== 'undefined' && fastOrderStaff && fastOrderStaff.length > 0) { %>
-                                                    <% fastOrderStaff.forEach((staff, index) => { %>
+                                                    <% fastOrderStaff.forEach((staff) => { 
+                                                        const cleanRoleLabel = (staff.roleLabel || 'مسؤول مبيعات').replace(/\s*\(.*?\)/g, '').trim() || 'مسؤول مبيعات';
+                                                        const isAdmin = staff.role === 'super_admin' || staff.role === 'admin' || cleanRoleLabel.includes('مدير');
+                                                    %>
                                                         <tr id="fastorder-row-<%= staff.phone %>">
-                                                            <td class="text-muted small"><%= index + 1 %></td>
                                                             <td>
-                                                                <div class="d-flex align-items-center">
-                                                                    <div class="avatar-sm rounded-circle <%= staff.isPrimary ? 'bg-warning text-dark' : (staff.isCustom ? 'bg-success bg-opacity-15 text-success' : 'bg-light text-primary') %> d-flex align-items-center justify-content-center me-2 fw-bold" style="width: 32px; height: 32px; font-size: 13px;">
-                                                                        <%= (staff.name || staff.username || 'م').charAt(0) %>
-                                                                    </div>
-                                                                    <div>
-                                                                        <div class="fw-bold text-dark fs-7"><%= staff.name %></div>
-                                                                        <small class="text-muted font-monospace fs-8">@<%= staff.username || staff.phone %></small>
-                                                                    </div>
-                                                                </div>
+                                                                <span class="fw-bold text-dark fs-7"><%= staff.name %></span>
                                                             </td>
                                                             <td>
-                                                                <% if (staff.role === 'super_admin' || staff.role === 'admin' || (staff.roleLabel && staff.roleLabel.includes('Admin'))) { %>
-                                                                    <span class="badge bg-warning bg-opacity-15 text-dark border border-warning border-opacity-25 rounded-pill px-2 py-1 fs-8">
-                                                                        <i class="bi bi-shield-check me-1"></i><%= staff.roleLabel %>
+                                                                <% if (isAdmin) { %>
+                                                                    <span class="badge bg-warning bg-opacity-15 text-dark border border-warning border-opacity-25 rounded-pill px-2.5 py-1 fs-8">
+                                                                        <i class="bi bi-shield-check me-1"></i><%= cleanRoleLabel %>
                                                                     </span>
                                                                 <% } else { %>
-                                                                    <span class="badge bg-info bg-opacity-10 text-primary border border-info border-opacity-25 rounded-pill px-2 py-1 fs-8">
-                                                                        <i class="bi bi-person-badge me-1"></i><%= staff.roleLabel %>
+                                                                    <span class="badge bg-info bg-opacity-10 text-primary border border-info border-opacity-25 rounded-pill px-2.5 py-1 fs-8">
+                                                                        <i class="bi bi-person-badge me-1"></i><%= cleanRoleLabel %>
                                                                     </span>
                                                                 <% } %>
                                                             </td>
@@ -875,18 +858,13 @@
                                                                 </div>
                                                             </td>
                                                             <td class="text-center">
-                                                                <span class="badge bg-success bg-opacity-10 text-success rounded-pill px-2 py-1 fs-8">
-                                                                    <i class="bi bi-check2-circle me-1"></i>مصرح 🟢
-                                                                </span>
-                                                            </td>
-                                                            <td class="text-center">
                                                                 <% if (staff.isPrimary) { %>
                                                                     <span class="badge bg-secondary bg-opacity-15 text-muted px-2 py-1 fs-8" title="الأدمن الأساسي للنظام">
-                                                                        <i class="bi bi-lock-fill me-1"></i>أساسي
+                                                                        <i class="bi bi-lock-fill"></i>
                                                                     </span>
                                                                 <% } else { %>
-                                                                    <button type="button" class="btn btn-sm btn-outline-danger px-2.5 py-1 rounded-pill fs-8" onclick="deleteFastOrderStaff('<%= staff.phone %>', '<%= staff.name %>')" title="إزالة هذا الرقم من قائمة المصرح لهم">
-                                                                        <i class="bi bi-trash3-fill me-1"></i>حذف
+                                                                    <button type="button" class="btn btn-sm btn-outline-danger p-1 px-2 rounded-2 fs-7" onclick="deleteFastOrderStaff('<%= staff.phone %>', '<%= staff.name %>')" title="حذف الرقم">
+                                                                        <i class="bi bi-trash3-fill"></i>
                                                                     </button>
                                                                 <% } %>
                                                             </td>
@@ -894,7 +872,7 @@
                                                     <% }); %>
                                                 <% } else { %>
                                                     <tr>
-                                                        <td colspan="6" class="text-center py-4 text-muted">
+                                                        <td colspan="4" class="text-center py-4 text-muted">
                                                             <i class="bi bi-info-circle me-1"></i> لا يوجد موظفين مسجلين حالياً.
                                                         </td>
                                                     </tr>
@@ -939,9 +917,9 @@
                                             </div>
                                             <p class="text-muted small mb-2 ps-4">أرسل كود المتجر (Slug) أو رقم هاتف التاجر المسجل بفاست اوردر للاتصال بالمتجر وجلب أقسامه وتصنيفاته:</p>
                                             <div class="ps-4">
-                                                <div class="d-flex align-items-center justify-content-between bg-dark text-white p-2 rounded-3 font-monospace fs-8" dir="ltr">
-                                                    <span>/store modastore</span>
-                                                    <button type="button" class="btn btn-outline-light btn-sm py-0 px-2 rounded-pill fs-8" onclick="copyFastOrderCmd('/store modastore', this)">
+                                                <div class="d-flex align-items-center justify-content-between p-2 px-3 rounded-3 font-monospace fs-7 border" dir="ltr" style="background-color: #f8fafc; border-color: #cbd5e1 !important;">
+                                                    <span class="text-primary fw-bold">/store modastore</span>
+                                                    <button type="button" class="btn btn-outline-primary btn-sm py-0.5 px-2.5 rounded-pill fs-8 fw-semibold" onclick="copyFastOrderCmd('/store modastore', this)">
                                                         <i class="bi bi-clipboard me-1"></i>نسخ
                                                     </button>
                                                 </div>
@@ -988,8 +966,8 @@
                                             </div>
                                             <p class="text-muted small mb-2 ps-4">يرسل البوت رابط معاينة مخفي عن زوار المتجر لمراجعة صفحة المنتج، مع دعم التعديل الفوري بالعامية المصرية:</p>
                                             <div class="ps-4">
-                                                <div class="bg-light p-2 rounded-3 small text-muted font-monospace">
-                                                    💬 أمثلة تعديل: "خلي السعر 350" | "نوع الشحن حسب المحافظة" | "القطعتين بـ 50"
+                                                <div class="p-2.5 rounded-3 small font-monospace border text-dark" style="background-color: #f8fafc; border-color: #cbd5e1 !important;">
+                                                    <strong class="text-primary">💬 أمثلة تعديل:</strong> "خلي السعر 350" | "نوع الشحن حسب المحافظة" | "القطعتين بـ 50"
                                                 </div>
                                             </div>
                                         </div>
@@ -1015,9 +993,9 @@
                                                 <strong class="text-dark fs-7">إغلاق الجلسة عند الانتهاء:</strong>
                                             </div>
                                             <div class="ps-4">
-                                                <div class="d-flex align-items-center justify-content-between bg-dark text-white p-2 rounded-3 font-monospace fs-8" dir="ltr">
-                                                    <span>/close</span>
-                                                    <button type="button" class="btn btn-outline-light btn-sm py-0 px-2 rounded-pill fs-8" onclick="copyFastOrderCmd('/close', this)">
+                                                <div class="d-flex align-items-center justify-content-between p-2 px-3 rounded-3 font-monospace fs-7 border" dir="ltr" style="background-color: #f8fafc; border-color: #cbd5e1 !important;">
+                                                    <span class="text-danger fw-bold">/close</span>
+                                                    <button type="button" class="btn btn-outline-danger btn-sm py-0.5 px-2.5 rounded-pill fs-8 fw-semibold" onclick="copyFastOrderCmd('/close', this)">
                                                         <i class="bi bi-clipboard me-1"></i>نسخ
                                                     </button>
                                                 </div>
@@ -1576,7 +1554,7 @@
                 if (!staffList || staffList.length === 0) {
                     tbody.innerHTML = `
                         <tr>
-                            <td colspan="6" class="text-center py-4 text-muted">
+                            <td colspan="4" class="text-center py-4 text-muted">
                                 <i class="bi bi-info-circle me-1"></i> لا يوجد موظفين مسجلين حالياً.
                             </td>
                         </tr>
@@ -1584,31 +1562,21 @@
                     return;
                 }
 
-                tbody.innerHTML = staffList.map((staff, index) => {
-                    const avatarBg = staff.isPrimary ? 'bg-warning text-dark' : (staff.isCustom ? 'bg-success bg-opacity-15 text-success' : 'bg-light text-primary');
-                    const firstChar = (staff.name || staff.username || 'م').charAt(0);
-                    const isAdmin = staff.role === 'super_admin' || staff.role === 'admin' || (staff.roleLabel && staff.roleLabel.includes('Admin'));
+                tbody.innerHTML = staffList.map((staff) => {
+                    const cleanRole = (staff.roleLabel || 'مسؤول مبيعات').replace(/\s*\(.*?\)/g, '').trim() || 'مسؤول مبيعات';
+                    const isAdmin = staff.role === 'super_admin' || staff.role === 'admin' || cleanRole.includes('مدير');
                     const roleBadge = isAdmin
-                        ? `<span class="badge bg-warning bg-opacity-15 text-dark border border-warning border-opacity-25 rounded-pill px-2 py-1 fs-8"><i class="bi bi-shield-check me-1"></i>${staff.roleLabel}</span>`
-                        : `<span class="badge bg-info bg-opacity-10 text-primary border border-info border-opacity-25 rounded-pill px-2 py-1 fs-8"><i class="bi bi-person-badge me-1"></i>${staff.roleLabel}</span>`;
+                        ? `<span class="badge bg-warning bg-opacity-15 text-dark border border-warning border-opacity-25 rounded-pill px-2.5 py-1 fs-8"><i class="bi bi-shield-check me-1"></i>${cleanRole}</span>`
+                        : `<span class="badge bg-info bg-opacity-10 text-primary border border-info border-opacity-25 rounded-pill px-2.5 py-1 fs-8"><i class="bi bi-person-badge me-1"></i>${cleanRole}</span>`;
                     
                     const actionBtn = staff.isPrimary
-                        ? `<span class="badge bg-secondary bg-opacity-15 text-muted px-2 py-1 fs-8"><i class="bi bi-lock-fill me-1"></i>أساسي</span>`
-                        : `<button type="button" class="btn btn-sm btn-outline-danger px-2.5 py-1 rounded-pill fs-8" onclick="deleteFastOrderStaff('${staff.phone}', '${staff.name}')"><i class="bi bi-trash3-fill me-1"></i>حذف</button>`;
+                        ? `<span class="badge bg-secondary bg-opacity-15 text-muted px-2 py-1 fs-8" title="الأدمن الأساسي للنظام"><i class="bi bi-lock-fill"></i></span>`
+                        : `<button type="button" class="btn btn-sm btn-outline-danger p-1 px-2 rounded-2 fs-7" onclick="deleteFastOrderStaff('${staff.phone}', '${staff.name}')" title="حذف الرقم"><i class="bi bi-trash3-fill"></i></button>`;
 
                     return `
                         <tr id="fastorder-row-${staff.phone}">
-                            <td class="text-muted small">${index + 1}</td>
                             <td>
-                                <div class="d-flex align-items-center">
-                                    <div class="avatar-sm rounded-circle ${avatarBg} d-flex align-items-center justify-content-center me-2 fw-bold" style="width: 32px; height: 32px; font-size: 13px;">
-                                        ${firstChar}
-                                    </div>
-                                    <div>
-                                        <div class="fw-bold text-dark fs-7">${staff.name}</div>
-                                        <small class="text-muted font-monospace fs-8">@${staff.username || staff.phone}</small>
-                                    </div>
-                                </div>
+                                <span class="fw-bold text-dark fs-7">${staff.name}</span>
                             </td>
                             <td>${roleBadge}</td>
                             <td>
@@ -1616,11 +1584,6 @@
                                     <i class="bi bi-whatsapp text-success me-1.5 fs-6"></i>
                                     <span class="font-monospace fw-bold text-dark fs-7">${staff.phone}</span>
                                 </div>
-                            </td>
-                            <td class="text-center">
-                                <span class="badge bg-success bg-opacity-10 text-success rounded-pill px-2 py-1 fs-8">
-                                    <i class="bi bi-check2-circle me-1"></i>مصرح 🟢
-                                </span>
                             </td>
                             <td class="text-center">${actionBtn}</td>
                         </tr>
@@ -1631,14 +1594,13 @@
             const addNewFastOrderStaffBtn = document.getElementById('addNewFastOrderStaffBtn');
             const newFastOrderNameInput = document.getElementById('newFastOrderName');
             const newFastOrderPhoneInput = document.getElementById('newFastOrderPhone');
-            const newFastOrderRoleSelect = document.getElementById('newFastOrderRole');
             const fastOrderStaffAlert = document.getElementById('fastOrderStaffAlert');
 
             if (addNewFastOrderStaffBtn) {
                 addNewFastOrderStaffBtn.addEventListener('click', async () => {
                     const name = (newFastOrderNameInput?.value || '').trim();
                     const phone = (newFastOrderPhoneInput?.value || '').trim();
-                    const role = (newFastOrderRoleSelect?.value || 'مسؤول مبيعات (Sales)').trim();
+                    const role = 'مسؤول مبيعات';
 
                     if (!phone) {
                         fastOrderStaffAlert.style.display = 'block';
@@ -1678,7 +1640,7 @@
                         fastOrderStaffAlert.innerHTML = 'حدث خطأ: ' + e.message;
                     } finally {
                         addNewFastOrderStaffBtn.disabled = false;
-                        addNewFastOrderStaffBtn.innerHTML = '<i class="bi bi-plus-lg me-1"></i> إضافة الرقم للقائمة';
+                        addNewFastOrderStaffBtn.innerHTML = '<i class="bi bi-plus-lg me-1"></i> إضافة';
                     }
                 });
             }

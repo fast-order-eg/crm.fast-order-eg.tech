@@ -195,7 +195,7 @@ export async function getFastOrderAuthorizedStaff(userId = 3) {
         name: 'أ. راضي',
         username: 'rady',
         role: 'admin',
-        roleLabel: 'مدير النظام (Admin)',
+        roleLabel: 'مدير النظام',
         phone: '01092308465',
         isPrimary: true,
         isCustom: false
@@ -207,8 +207,8 @@ export async function getFastOrderAuthorizedStaff(userId = 3) {
         const cleanP = normalizePhone(u.phone);
         if (cleanP && !seenPhones.has(cleanP) && !excludedSet.has(cleanP)) {
             seenPhones.add(cleanP);
-            const roleLabel = u.role === 'super_admin' ? 'مدير عام (Super Admin)' :
-                              u.role === 'admin' ? 'مدير (Admin)' : 'مسؤول مبيعات (Sales)';
+            const roleLabel = u.role === 'super_admin' ? 'مدير عام' :
+                              u.role === 'admin' ? 'مدير' : 'مسؤول مبيعات';
             list.push({
                 id: u.id,
                 name: u.fullName || u.username,
@@ -227,12 +227,14 @@ export async function getFastOrderAuthorizedStaff(userId = 3) {
         const cleanP = normalizePhone(c.phone);
         if (cleanP && !seenPhones.has(cleanP) && !excludedSet.has(cleanP)) {
             seenPhones.add(cleanP);
+            let cleanRoleLabel = (c.roleLabel || 'مسؤول مبيعات').replace(/\s*\(.*?\)/g, '').trim();
+            if (!cleanRoleLabel) cleanRoleLabel = 'مسؤول مبيعات';
             list.push({
                 id: c.id || `custom_${cleanP}`,
                 name: c.name || 'موظف مخصص',
                 username: c.username || cleanP,
                 role: c.role || 'sales',
-                roleLabel: c.roleLabel || 'مسؤول مبيعات (مخصص)',
+                roleLabel: cleanRoleLabel,
                 phone: cleanP,
                 isPrimary: false,
                 isCustom: true
@@ -246,7 +248,7 @@ export async function getFastOrderAuthorizedStaff(userId = 3) {
 /**
  * Add a new authorized phone number for Fast Order
  */
-export async function addFastOrderStaff(rawPhone, name = '', roleLabel = 'مسؤول مبيعات (Sales)', userId = 3) {
+export async function addFastOrderStaff(rawPhone, name = '', roleLabel = 'مسؤول مبيعات', userId = 3) {
     const clean = normalizePhone(rawPhone);
     if (!clean || clean.length < 10) {
         return { success: false, message: '⚠️ رقم الهاتف غير صحيح. يرجى إدخال رقم هاتف مصري صالح (مثال: 01012345678).' };
@@ -268,10 +270,11 @@ export async function addFastOrderStaff(rawPhone, name = '', roleLabel = 'مسؤ
 
     const existingIdx = customList.findIndex(c => normalizePhone(c.phone) === clean);
     const finalName = (name || '').trim() || `موظف ${clean.slice(-4)}`;
+    const finalRoleLabel = (roleLabel || 'مسؤول مبيعات').replace(/\s*\(.*?\)/g, '').trim() || 'مسؤول مبيعات';
 
     if (existingIdx >= 0) {
         customList[existingIdx].name = finalName;
-        customList[existingIdx].roleLabel = roleLabel;
+        customList[existingIdx].roleLabel = finalRoleLabel;
     } else {
         customList.push({
             id: `custom_${Date.now()}`,
@@ -279,7 +282,7 @@ export async function addFastOrderStaff(rawPhone, name = '', roleLabel = 'مسؤ
             username: clean,
             phone: clean,
             role: 'sales',
-            roleLabel: roleLabel || 'مسؤول مبيعات (Sales)',
+            roleLabel: finalRoleLabel,
             createdAt: new Date().toISOString()
         });
     }
