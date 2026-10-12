@@ -884,7 +884,25 @@
             if (tEl) tEl.textContent = formatWhatsAppConvDate(msg.createdAt || new Date());
             if (el.parentElement) el.parentElement.prepend(el);
         }
-        if(msg.remoteJid===curJid) addBbl(content, msg.role==='user', new Date(msg.createdAt), msg.media_url || msg.mediaUrl, msg.messageId, msg.status, menuId);
+        if(msg.remoteJid===curJid) {
+            const msgsEl = document.getElementById('lcMsgs');
+            if (msgsEl && msg.role !== 'user') {
+                const pendingTemp = msgsEl.querySelector('.bbl[data-msg-id^="temp-"]');
+                if (pendingTemp) {
+                    const tempText = pendingTemp.querySelector('.msg-text')?.textContent?.trim();
+                    if (tempText === content) {
+                        pendingTemp.dataset.msgId = msg.messageId;
+                        const statusEl = pendingTemp.querySelector('[id^="status-"]');
+                        if (statusEl) {
+                            statusEl.id = `status-${msg.messageId}`;
+                            statusEl.innerHTML = getStatusIcon(msg.status || 'sent');
+                        }
+                        return;
+                    }
+                }
+            }
+            addBbl(content, msg.role==='user', new Date(msg.createdAt), msg.media_url || msg.mediaUrl, msg.messageId, msg.status, menuId);
+        }
     });
     
     io_.on('message_status', (data) => {
@@ -1352,6 +1370,34 @@
     function addBbl(text, isUser, date, mediaUrl, messageId, status, menuId = null){
         if (!text && !mediaUrl) return;
         const msgsEl = document.getElementById('lcMsgs');
+        if (!msgsEl) return;
+
+        // منع تكرار نفس الرسالة بصرياً إذا كانت موجودة بالفعل في الشاشة (منع تعارض السوكيت مع رد الـ HTTP)
+        if (messageId) {
+            const existingBbl = msgsEl.querySelector(`.bbl[data-msg-id="${messageId}"]`) || document.getElementById(`status-${messageId}`);
+            if (existingBbl) {
+                const statusEl = document.getElementById(`status-${messageId}`);
+                if (statusEl && status) {
+                    statusEl.innerHTML = getStatusIcon(status);
+                }
+                return;
+            }
+        }
+        if (mediaUrl) {
+            const cleanUrl = mediaUrl.trim();
+            const existingMediaBbl = msgsEl.querySelector(`.bbl[data-media-url="${cleanUrl}"]`);
+            if (existingMediaBbl) {
+                if (messageId) {
+                    existingMediaBbl.dataset.msgId = messageId;
+                    const statusEl = existingMediaBbl.querySelector('[id^="status-"]');
+                    if (statusEl) {
+                        statusEl.id = `status-${messageId}`;
+                        if (status) statusEl.innerHTML = getStatusIcon(status);
+                    }
+                }
+                return;
+            }
+        }
 
         const emptyNotice = msgsEl.querySelector('.text-muted');
         if (emptyNotice && !msgsEl.querySelector('.bbl')) {
@@ -1364,6 +1410,8 @@
 
         const div = document.createElement('div');
         div.className = 'bbl ' + (isUser ? 'usr' : 'bot');
+        if (messageId) div.dataset.msgId = messageId;
+        if (mediaUrl) div.dataset.mediaUrl = mediaUrl.trim();
 
         const ts = date ? date.toLocaleTimeString('en-US',{timeZone: 'Africa/Cairo', hour:'2-digit',minute:'2-digit',hour12:true}) : '';
         const fullTooltip = date ? (formatWhatsAppDividerText(date) + ' ' + ts) : '';
@@ -1508,6 +1556,8 @@
                 if (tempEl) {
                     if (data.message.messageId) {
                         tempEl.id = `status-${data.message.messageId}`;
+                        const bbl = tempEl.closest('.bbl');
+                        if (bbl) bbl.dataset.msgId = data.message.messageId;
                     }
                     tempEl.innerHTML = getStatusIcon(data.message.status || 'sent');
                 }
