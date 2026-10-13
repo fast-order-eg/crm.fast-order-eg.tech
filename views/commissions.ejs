@@ -388,7 +388,7 @@
                     </tbody>
                     <tfoot class="table-totals-row" id="tableFooter">
                         <tr>
-                            <td colspan="<%= (!isAdmin && userCommissionSystem === 'system2') ? '3' : (isAdmin ? '5' : '4') %>" class="text-center" id="footerTitleCell">
+                            <td colspan="<%= isAdmin ? '5' : '4' %>" class="text-center" id="footerTitleCell">
                                 <span class="fw-bold text-dark fs-6">الإجمالي</span>
                             </td>
                             <td class="text-center">
@@ -883,18 +883,18 @@
             const profitFooters = document.querySelectorAll('.col-profit-footer');
             const footerTitle = document.getElementById('footerTitleCell');
 
+            if (footerTitle) footerTitle.setAttribute('colspan', isAdmin ? '5' : '4');
+
             if (isSys2) {
                 costHeaders.forEach(el => el.classList.add('d-none'));
                 profitHeaders.forEach(el => el.classList.add('d-none'));
                 costFooters.forEach(el => el.classList.add('d-none'));
                 profitFooters.forEach(el => el.classList.add('d-none'));
-                if (footerTitle) footerTitle.setAttribute('colspan', isAdmin ? '4' : '3');
             } else {
                 costHeaders.forEach(el => el.classList.remove('d-none'));
                 profitHeaders.forEach(el => el.classList.remove('d-none'));
                 costFooters.forEach(el => el.classList.remove('d-none'));
                 profitFooters.forEach(el => el.classList.remove('d-none'));
-                if (footerTitle) footerTitle.setAttribute('colspan', isAdmin ? '5' : '4');
             }
 
             // 2. Summary Cards
