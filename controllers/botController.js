@@ -94,9 +94,11 @@ export const sessions = new Map();
 // In-memory LID → phone number cache (populated from senderPn and phoneNumberShare events)
 const lidPhoneMap = new Map();
 
-// Rate limiting and debounce maps
+// Rate limiting, anti-spam, and debounce maps
 const userHourlyMessageCount = new Map();
 const contactDebounceMap = new Map();
+const recentOutgoingMessages = new Map(); // `${remoteJid}:${contentHash}` -> timestamp
+const activeMenuDispatches = new Map();   // remoteJid -> timestamp
 
 // Helper: Calculate random delay based on text length to simulate human behavior
 function calculateHumanDelay(textLength, minSec = 3, maxSec = 7) {
@@ -111,6 +113,25 @@ async function sendHumanMessage(sock, remoteJid, content, options = {}) {
     const userId = options.userId;
     const io = options.io;
     const { userId: optUserId, io: optIo, ...msgOptions } = options;
+
+    // 🛡️ Outgoing Anti-Duplicate Guard: Prevent sending identical content to the same chat within 45 seconds
+    const rawOutText = (content?.text || content?.caption || '').trim();
+    if (rawOutText && rawOutText.length > 15) {
+        const normKey = `${remoteJid}:${rawOutText.replace(/\s+/g, ' ').slice(0, 100)}`;
+        const lastSent = recentOutgoingMessages.get(normKey);
+        if (lastSent && (Date.now() - lastSent < 45000)) {
+            console.warn(`🛑 [Anti-Duplicate Guard] Blocked identical message to ${remoteJid} sent ${Math.round((Date.now() - lastSent) / 1000)}s ago. Text: "${rawOutText.substring(0, 40)}..."`);
+            return null;
+        }
+        recentOutgoingMessages.set(normKey, Date.now());
+
+        if (recentOutgoingMessages.size > 2000) {
+            const threshold = Date.now() - 60000;
+            for (const [k, ts] of recentOutgoingMessages.entries()) {
+                if (ts < threshold) recentOutgoingMessages.delete(k);
+            }
+        }
+    }
 
     if (userId) {
         const now = Date.now();
@@ -757,7 +778,7 @@ async function handleOrderCompletion(sock, customerJid, lastMessage, aiResponse,
 // ======================================================
 // 🔘 Interactive Buttons — إرسال الأزرار التفاعلية للعميل
 // ======================================================
-export async function sendInteractiveButtons(sock, remoteJid, userId, io, menuId = null, customerName = null) {
+export async function sendInteractiveButtons(sock, remoteJid, userId, io, menuId = null, customerName = null, options = {}) {
     try {
         const user = await User.findByPk(userId);
         if (user && user.buttons_disabled) {
@@ -765,23 +786,35 @@ export async function sendInteractiveButtons(sock, remoteJid, userId, io, menuId
             return false;
         }
 
-        // Anti-Duplicate Rate-Limit: Don't send duplicate menu if a menu was already sent to this customer in the last 15 seconds
-        try {
-            const recentMenuMsg = await Message.findOne({
-                where: {
-                    UserId: userId,
-                    remoteJid,
-                    role: 'model',
-                    createdAt: { [Op.gt]: new Date(Date.now() - 15000) }
-                }
-            });
-            if (recentMenuMsg && (recentMenuMsg.content?.includes('[M:') || recentMenuMsg.content?.includes('اختر الخدمة'))) {
-                console.log(`🔘 [RateLimit] Skipped duplicate menu for ${remoteJid} (sent < 15s ago).`);
+        const { force = false } = options || {};
+
+        // 🛡️ Anti-Duplicate / Cooldown: Avoid resending interactive menu to this customer within 45 seconds unless forced by button click
+        if (!force) {
+            const lastDispatched = activeMenuDispatches.get(remoteJid);
+            const now = Date.now();
+            if (lastDispatched && (now - lastDispatched < 45000)) {
+                console.log(`🛡️ [Menu Cooldown] Interactive menu was already sent to ${remoteJid} ${Math.round((now - lastDispatched) / 1000)}s ago. Skipping duplicate send.`);
                 return true;
             }
-        } catch (rateErr) {
-            console.error('Error checking recent menu rate limit:', rateErr);
+
+            try {
+                const recentMenuMsg = await Message.findOne({
+                    where: {
+                        UserId: userId,
+                        remoteJid,
+                        role: 'model',
+                        createdAt: { [Op.gt]: new Date(now - 45000) }
+                    }
+                });
+                if (recentMenuMsg && (recentMenuMsg.content?.includes('[M:') || recentMenuMsg.content?.includes('اختر الخدمة') || recentMenuMsg.content?.includes('بخصوص استفسارك عن المتجر'))) {
+                    console.log(`🔘 [RateLimit] Skipped duplicate menu for ${remoteJid} (sent < 45s ago in DB).`);
+                    return true;
+                }
+            } catch (rateErr) {
+                console.error('Error checking recent menu rate limit:', rateErr);
+            }
         }
+        activeMenuDispatches.set(remoteJid, Date.now());
 
         let menu = null;
 
@@ -817,22 +850,6 @@ export async function sendInteractiveButtons(sock, remoteJid, userId, io, menuId
         });
 
         if (buttons.length === 0) return false; // No buttons configured for this menu
-
-        // 🛡️ Anti-Spam / Cooldown: Avoid resending the exact same menu to this remoteJid within 30 seconds
-        const recentMenuMsg = await Message.findOne({
-            where: {
-                UserId: userId,
-                remoteJid,
-                role: 'model',
-                content: { [Op.like]: `%\n\n[M:${menu.id}]%` },
-                createdAt: { [Op.gte]: new Date(Date.now() - 30 * 1000) }
-            },
-            order: [['createdAt', 'DESC']]
-        });
-        if (recentMenuMsg) {
-            console.log(`⏳ [Text Menu Cooldown] Menu ${menu.id} was already sent to ${remoteJid} within the last 30s. Skipping duplicate send.`);
-            return false;
-        }
 
         // Use custom welcome message from menu
         const baseWelcome = menu.welcomeMessage || 'أهلاً بيك! 👋 اختار من القائمة:';
@@ -1198,12 +1215,12 @@ export async function handleButtonResponse(sock, remoteJid, buttonId, userId, io
         // If button has NextMenuId, show the next menu
         if (button.NextMenuId) {
             await new Promise(resolve => setTimeout(resolve, 2000));
-            await sendInteractiveButtons(sock, remoteJid, userId, io, button.NextMenuId, customer?.customerName);
+            await sendInteractiveButtons(sock, remoteJid, userId, io, button.NextMenuId, customer?.customerName, { force: true });
         }
         // Else if continueToAI is false, show same menu again
         else if (!button.continueToAI) {
             await new Promise(resolve => setTimeout(resolve, 2000));
-            await sendInteractiveButtons(sock, remoteJid, userId, io, button.MenuId, customer?.customerName);
+            await sendInteractiveButtons(sock, remoteJid, userId, io, button.MenuId, customer?.customerName, { force: true });
         }
         // Else (continueToAI is true), do nothing, let AI handle next message
 
@@ -2494,11 +2511,43 @@ setInterval(() => {
     }
 }, 60000);
 
+// 🛡️ Per-JID Sequential Processing Queue (Async Mutex)
+// Ensures that multiple messages from the same chat arriving in rapid succession are processed sequentially,
+// completely eliminating race conditions that cause duplicate greetings or double bot responses.
+const jidProcessingQueues = new Map();
+
 /**
  * 🤖 Unified Bot Handler: Processes incoming messages across Baileys and Meta WhatsApp Cloud API
  * Supports Hybrid Mode (Menus + Vertex AI Gemini), Menu-Only Mode, AI-Only Mode, and Sales Handoff
  */
-export async function handleIncomingUnifiedMessage({
+export async function handleIncomingUnifiedMessage(params) {
+    const { remoteJid } = params || {};
+    if (!remoteJid || remoteJid.endsWith('@g.us')) return;
+
+    // Chain execution to ensure sequential processing per chat
+    const previousPromise = jidProcessingQueues.get(remoteJid) || Promise.resolve();
+
+    const currentPromise = (async () => {
+        try {
+            await previousPromise.catch(() => {});
+            return await _handleIncomingUnifiedMessageCore(params);
+        } catch (err) {
+            console.error(`❌ [Sequential Message Queue Error for ${remoteJid}]:`, err);
+        }
+    })();
+
+    jidProcessingQueues.set(remoteJid, currentPromise);
+
+    currentPromise.finally(() => {
+        if (jidProcessingQueues.get(remoteJid) === currentPromise) {
+            jidProcessingQueues.delete(remoteJid);
+        }
+    });
+
+    return currentPromise;
+}
+
+async function _handleIncomingUnifiedMessageCore({
     sock,
     remoteJid,
     phoneNumber,
@@ -2771,7 +2820,25 @@ export async function handleIncomingUnifiedMessage({
                 conversation.lastMessageText = text || 'قائمة البداية';
                 conversation.lastMessageAt = new Date();
                 await conversation.save();
-                return;
+                return { success: true, action: 'welcome_menu_sent' };
+            }
+        }
+
+        // 8.5 Generic Follow-up Suppression right after Welcome Menu
+        // When customer clicks an ad CTA and immediately sends "توضيح", "تفاصيل", or greetings within 25 seconds of the welcome menu:
+        // The interactive menu ALREADY addresses their inquiry with buttons. Suppress duplicate AI replies!
+        const menuDispatchTime = activeMenuDispatches.get(remoteJid);
+        if (menuDispatchTime && (Date.now() - menuDispatchTime < 25000) && text && !buttonId) {
+            const genericPhrases = [
+                'توضيح', 'تفاصيل', 'التفاصيل', 'ممكن تفاصيل', 'عاوز تفاصيل', 'عايز تفاصيل',
+                'السلام عليكم', 'سلام عليكم', 'مرحبا', 'مرحباً', 'هلا', 'hi', 'hello',
+                'معلومات', 'استفسار', 'ياريت اعرف', 'عايز اعرف', 'مهتم', 'عاوز اعرف اكتر', 'عايز اعرف اكتر'
+            ];
+            const cleanT = text.trim().toLowerCase();
+            const isGeneric = genericPhrases.some(p => cleanT === p || cleanT.includes(p));
+            if (isGeneric) {
+                console.log(`🛡️ [Welcome Menu Follow-up Suppressed] Customer ${remoteJid} sent generic follow-up "${cleanT}" ${Math.round((Date.now() - menuDispatchTime) / 1000)}s after welcome menu. Menu buttons already provided.`);
+                return { success: true, action: 'suppressed_generic_welcome_followup' };
             }
         }
 
