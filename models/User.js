@@ -142,6 +142,11 @@ const User = sequelize.define('User', {
         type: DataTypes.DECIMAL(5, 2),
         defaultValue: 0.00,
         comment: 'نسبة العمولة الافتراضية للموظف كنسبة مئوية'
+    },
+    commissionSystem: {
+        type: DataTypes.STRING(20),
+        defaultValue: 'system1',
+        comment: 'نظام العمولة المطبق على الموظف: system1 (صافي الربح) أو system2 (نسبة من الإجمالي حسب الخدمة)'
     }
 }, {
     tableName: 'users',

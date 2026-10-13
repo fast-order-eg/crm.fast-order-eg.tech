@@ -1,6 +1,7 @@
 import { DataTypes } from 'sequelize';
 import sequelize from '../config/database.js';
 import User from './User.js';
+import CommissionService from './CommissionService.js';
 
 const Commission = sequelize.define('Commission', {
     id: {
@@ -63,6 +64,20 @@ const Commission = sequelize.define('Commission', {
         defaultValue: false,
         comment: 'هل تم تحديد نسبة مخصصة بواسطة الأدمن'
     },
+    commissionSystem: {
+        type: DataTypes.STRING(20),
+        defaultValue: 'system1',
+        comment: 'نظام العمولة: system1 (صافي الربح) أو system2 (نسبة من الإجمالي حسب الخدمة)'
+    },
+    serviceId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        references: {
+            model: 'commission_services',
+            key: 'id'
+        },
+        comment: 'الخدمة المرتبطة في حالة نظام 2'
+    },
     employeeId: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -99,7 +114,9 @@ const Commission = sequelize.define('Commission', {
 Commission.belongsTo(User, { as: 'employee', foreignKey: 'employeeId' });
 Commission.belongsTo(User, { as: 'creator', foreignKey: 'createdById' });
 Commission.belongsTo(User, { as: 'owner', foreignKey: 'UserId' });
+Commission.belongsTo(CommissionService, { as: 'service', foreignKey: 'serviceId' });
 
 User.hasMany(Commission, { as: 'commissions', foreignKey: 'employeeId' });
+CommissionService.hasMany(Commission, { as: 'commissions', foreignKey: 'serviceId' });
 
 export default Commission;

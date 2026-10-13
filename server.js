@@ -370,6 +370,17 @@ sequelize.sync().then(async () => {
         await sequelize.query("ALTER TABLE customers ADD COLUMN IF NOT EXISTS notesUpdatedAt DATETIME NULL;").catch(async () => {
             await sequelize.query("ALTER TABLE customers ADD COLUMN notesUpdatedAt DATETIME NULL;").catch(() => {});
         });
+
+        // Ensure commissionSystem & serviceId columns exist
+        await sequelize.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS commissionSystem VARCHAR(20) DEFAULT 'system1';").catch(async () => {
+            await sequelize.query("ALTER TABLE users ADD COLUMN commissionSystem VARCHAR(20) DEFAULT 'system1';").catch(() => {});
+        });
+        await sequelize.query("ALTER TABLE commissions ADD COLUMN IF NOT EXISTS commissionSystem VARCHAR(20) DEFAULT 'system1';").catch(async () => {
+            await sequelize.query("ALTER TABLE commissions ADD COLUMN commissionSystem VARCHAR(20) DEFAULT 'system1';").catch(() => {});
+        });
+        await sequelize.query("ALTER TABLE commissions ADD COLUMN IF NOT EXISTS serviceId INT NULL;").catch(async () => {
+            await sequelize.query("ALTER TABLE commissions ADD COLUMN serviceId INT NULL;").catch(() => {});
+        });
     } catch (e) {}
 
     // Create Super Admin if not exists

@@ -24,6 +24,7 @@ import Notification from '../models/Notification.js';
 import { getSetting, setSetting, defaultSettingsMeta } from '../services/settingsService.js';
 import FinancialTransaction from '../models/FinancialTransaction.js';
 import Commission from '../models/Commission.js';
+import CommissionService from '../models/CommissionService.js';
 import { getAuthorizedAdmins, addAuthorizedAdmin, removeAuthorizedAdmin } from '../services/reminderService.js';
 import { getAdsAuthorizedAdmins, addAdsAuthorizedAdmin, removeAdsAuthorizedAdmin } from '../services/adsReportService.js';
 import { getFastOrderAuthorizedStaff, addFastOrderStaff, removeFastOrderStaff } from '../services/whatsappProductCreatorService.js';
@@ -4647,17 +4648,24 @@ router.get('/commissions', async (req, res) => {
                     is_active: true,
                     role: { [Op.notIn]: ['admin', 'super_admin'] }
                 },
-                attributes: ['id', 'fullName', 'username', 'role', 'commissionRate'],
+                attributes: ['id', 'fullName', 'username', 'role', 'commissionRate', 'commissionSystem'],
                 order: [['fullName', 'ASC']]
             });
         }
+
+        const commissionServices = await CommissionService.findAll({
+            where: { isActive: true },
+            order: [['name', 'ASC']]
+        });
 
         res.render('commissions', {
             user: req.user,
             page: 'commissions',
             employees,
+            commissionServices,
             isAdmin: isAdminUser,
             userCommissionRate: req.user.commissionRate || 0,
+            userCommissionSystem: req.user.commissionSystem || 'system1',
             success_msg: req.flash('success_msg'),
             error_msg: req.flash('error_msg')
         });
@@ -4738,12 +4746,17 @@ router.get('/commissions/data', async (req, res) => {
                 {
                     model: User,
                     as: 'employee',
-                    attributes: ['id', 'fullName', 'username', 'commissionRate']
+                    attributes: ['id', 'fullName', 'username', 'commissionRate', 'commissionSystem']
                 },
                 {
                     model: User,
                     as: 'creator',
                     attributes: ['id', 'fullName', 'username']
+                },
+                {
+                    model: CommissionService,
+                    as: 'service',
+                    attributes: ['id', 'name', 'rate']
                 }
             ],
             order: [['date', 'DESC'], ['id', 'DESC']]
@@ -4779,13 +4792,117 @@ router.get('/commissions/data', async (req, res) => {
     }
 });
 
+// ==========================================
+// 🛠️ إدارة خدمات النظام 2 (Commission Services)
+// ==========================================
+
+router.get('/commissions/services', async (req, res) => {
+    try {
+        const services = await CommissionService.findAll({
+            where: { isActive: true },
+            order: [['name', 'ASC']]
+        });
+        res.json({ success: true, services });
+    } catch (err) {
+        console.error('Error fetching commission services:', err);
+        res.status(500).json({ success: false, error: 'حدث خطأ أثناء جلب قائمة الخدمات.' });
+    }
+});
+
+router.post('/commissions/services/add', async (req, res) => {
+    try {
+        const isAdminUser = req.user.role === 'admin' || req.user.role === 'super_admin';
+        if (!isAdminUser) {
+            return res.status(403).json({ success: false, error: 'غير مصرح بتعديل الخدمات إلا للإدارة.' });
+        }
+
+        const { name, rate } = req.body;
+        if (!name || name.trim() === '' || rate === undefined || isNaN(rate)) {
+            return res.status(400).json({ success: false, error: 'يرجى إدخال اسم الخدمة ونسبة العمولة بشكل صحيح.' });
+        }
+
+        const numRate = parseFloat(rate);
+        if (numRate < 0 || numRate > 100) {
+            return res.status(400).json({ success: false, error: 'نسبة العمولة يجب أن تكون بين 0% و 100%.' });
+        }
+
+        const ownerUser = await getOwnerUser(req.user);
+        const ownerId = ownerUser ? ownerUser.id : req.user.id;
+
+        const newService = await CommissionService.create({
+            name: name.trim(),
+            rate: Math.round(numRate * 100) / 100,
+            UserId: ownerId
+        });
+
+        res.json({ success: true, message: 'تم إضافة الخدمة بنجاح.', service: newService });
+    } catch (err) {
+        console.error('Error adding commission service:', err);
+        res.status(500).json({ success: false, error: 'حدث خطأ أثناء إضافة الخدمة.' });
+    }
+});
+
+router.post('/commissions/services/edit', async (req, res) => {
+    try {
+        const isAdminUser = req.user.role === 'admin' || req.user.role === 'super_admin';
+        if (!isAdminUser) {
+            return res.status(403).json({ success: false, error: 'غير مصرح بتعديل الخدمات إلا للإدارة.' });
+        }
+
+        const { id, name, rate } = req.body;
+        const service = await CommissionService.findByPk(id);
+        if (!service) {
+            return res.status(404).json({ success: false, error: 'الخدمة غير موجودة.' });
+        }
+
+        if (name && name.trim() !== '') {
+            service.name = name.trim();
+        }
+
+        if (rate !== undefined && !isNaN(rate)) {
+            const numRate = parseFloat(rate);
+            if (numRate < 0 || numRate > 100) {
+                return res.status(400).json({ success: false, error: 'النسبة يجب أن تكون بين 0% و 100%.' });
+            }
+            service.rate = Math.round(numRate * 100) / 100;
+        }
+
+        await service.save();
+        res.json({ success: true, message: 'تم تعديل الخدمة بنجاح.', service });
+    } catch (err) {
+        console.error('Error editing commission service:', err);
+        res.status(500).json({ success: false, error: 'حدث خطأ أثناء تعديل الخدمة.' });
+    }
+});
+
+router.post('/commissions/services/delete', async (req, res) => {
+    try {
+        const isAdminUser = req.user.role === 'admin' || req.user.role === 'super_admin';
+        if (!isAdminUser) {
+            return res.status(403).json({ success: false, error: 'غير مصرح بحذف الخدمات إلا للإدارة.' });
+        }
+
+        const { id } = req.body;
+        const service = await CommissionService.findByPk(id);
+        if (!service) {
+            return res.status(404).json({ success: false, error: 'الخدمة غير موجودة.' });
+        }
+
+        await service.destroy();
+        res.json({ success: true, message: 'تم حذف الخدمة بنجاح.' });
+    } catch (err) {
+        console.error('Error deleting commission service:', err);
+        res.status(500).json({ success: false, error: 'حدث خطأ أثناء حذف الخدمة.' });
+    }
+});
+
 router.post('/commissions/add', async (req, res) => {
     try {
-        const { serviceName, customerName, totalPaid, serviceCost, date, notes, employeeId, customRate } = req.body;
+        const { serviceName, serviceId, customerName, totalPaid, serviceCost, date, notes, employeeId, customRate } = req.body;
         const isAdminUser = req.user.role === 'admin' || req.user.role === 'super_admin';
 
-        if (!serviceName || totalPaid === undefined || totalPaid === '') {
-            return res.status(400).json({ success: false, error: 'يرجى إدخال اسم الخدمة وإجمالي المبلغ المدفوع.' });
+        if (totalPaid === undefined || totalPaid === '') {
+            return res.status(400).json({ success: false, error: 'يرجى إدخال إجمالي المبلغ المدفوع.' });
         }
 
         // Determine target employee
@@ -4799,25 +4916,68 @@ router.post('/commissions/add', async (req, res) => {
             return res.status(404).json({ success: false, error: 'الموظف المحدد غير موجود.' });
         }
 
-        // Determine commission rate
-        let appliedRate = parseFloat(employee.commissionRate) || 0;
+        const empSystem = employee.commissionSystem || 'system1';
+        let appliedRate = 0;
         let isCustomRate = false;
-
-        if (isAdminUser && customRate !== undefined && customRate !== '' && !isNaN(customRate)) {
-            appliedRate = parseFloat(customRate);
-            isCustomRate = true;
-        }
-
+        let finalServiceName = '';
+        let finalServiceId = null;
+        let cost = 0;
+        let netProfit = 0;
+        let commissionAmount = 0;
         const paid = parseFloat(totalPaid) || 0;
-        const cost = parseFloat(serviceCost) || 0;
-        const netProfit = Math.max(0, paid - cost);
-        const commissionAmount = (netProfit * appliedRate) / 100;
+
+        if (empSystem === 'system2') {
+            // نظام 2: يختار من الخدمات المعرفة مسبقاً، والعمولة تحسب من إجمالي المدفوع مباشرة
+            let commService = null;
+            if (serviceId) {
+                commService = await CommissionService.findByPk(serviceId);
+            } else if (serviceName) {
+                commService = await CommissionService.findOne({ where: { name: serviceName.trim(), isActive: true } });
+            }
+
+            if (!commService) {
+                return res.status(400).json({ success: false, error: 'يرجى اختيار خدمة صالحة من قائمة خدمات النظام 2.' });
+            }
+
+            finalServiceName = commService.name;
+            finalServiceId = commService.id;
+            appliedRate = parseFloat(commService.rate) || 0;
+
+            if (isAdminUser && customRate !== undefined && customRate !== '' && !isNaN(customRate)) {
+                appliedRate = parseFloat(customRate);
+                isCustomRate = true;
+            }
+
+            cost = 0;
+            netProfit = paid;
+            commissionAmount = (paid * appliedRate) / 100;
+        } else {
+            // نظام 1: الوضع الحالي (إجمالي المدفوع - تكلفة الخدمة = صافي الربح * نسبة الموظف)
+            if (!serviceName || serviceName.trim() === '') {
+                return res.status(400).json({ success: false, error: 'يرجى إدخال اسم الخدمة.' });
+            }
+
+            finalServiceName = serviceName.trim();
+            finalServiceId = null;
+            appliedRate = parseFloat(employee.commissionRate) || 0;
+
+            if (isAdminUser && customRate !== undefined && customRate !== '' && !isNaN(customRate)) {
+                appliedRate = parseFloat(customRate);
+                isCustomRate = true;
+            }
+
+            cost = parseFloat(serviceCost) || 0;
+            netProfit = Math.max(0, paid - cost);
+            commissionAmount = (netProfit * appliedRate) / 100;
+        }
 
         const ownerUser = await getOwnerUser(req.user);
         const ownerId = ownerUser ? ownerUser.id : req.user.id;
 
         const newCommission = await Commission.create({
-            serviceName: serviceName.trim(),
+            serviceName: finalServiceName,
+            serviceId: finalServiceId,
+            commissionSystem: empSystem,
             customerName: customerName ? customerName.trim() : null,
             totalPaid: paid,
             serviceCost: cost,
@@ -4841,7 +5001,7 @@ router.post('/commissions/add', async (req, res) => {
 
 router.post('/commissions/edit', async (req, res) => {
     try {
-        const { id, serviceName, customerName, totalPaid, serviceCost, date, notes, employeeId, customRate } = req.body;
+        const { id, serviceName, serviceId, customerName, totalPaid, serviceCost, date, notes, employeeId, customRate } = req.body;
         const isAdminUser = req.user.role === 'admin' || req.user.role === 'super_admin';
 
         const commission = await Commission.findByPk(id);
@@ -4860,25 +5020,66 @@ router.post('/commissions/edit', async (req, res) => {
         }
 
         const employee = await User.findByPk(targetEmployeeId);
+        const empSystem = employee ? (employee.commissionSystem || 'system1') : (commission.commissionSystem || 'system1');
+
         let appliedRate = commission.commissionRate;
         let isCustomRate = commission.isCustomRate;
+        let finalServiceName = commission.serviceName;
+        let finalServiceId = commission.serviceId;
+        let cost = commission.serviceCost;
+        let paid = totalPaid !== undefined ? (parseFloat(totalPaid) || 0) : commission.totalPaid;
+        let netProfit = 0;
+        let commissionAmount = 0;
 
-        // If admin provides customRate
-        if (isAdminUser && customRate !== undefined && customRate !== '' && !isNaN(customRate)) {
-            appliedRate = parseFloat(customRate);
-            isCustomRate = true;
-        } else if (employee && (!isCustomRate || targetEmployeeId !== commission.employeeId)) {
-            appliedRate = parseFloat(employee.commissionRate) || 0;
-            isCustomRate = false;
+        if (empSystem === 'system2') {
+            let commService = null;
+            if (serviceId) {
+                commService = await CommissionService.findByPk(serviceId);
+            } else if (serviceName) {
+                commService = await CommissionService.findOne({ where: { name: serviceName.trim(), isActive: true } });
+            } else if (commission.serviceId) {
+                commService = await CommissionService.findByPk(commission.serviceId);
+            }
+
+            if (commService) {
+                finalServiceName = commService.name;
+                finalServiceId = commService.id;
+                if (!isCustomRate || targetEmployeeId !== commission.employeeId) {
+                    appliedRate = parseFloat(commService.rate) || 0;
+                }
+            }
+
+            if (isAdminUser && customRate !== undefined && customRate !== '' && !isNaN(customRate)) {
+                appliedRate = parseFloat(customRate);
+                isCustomRate = true;
+            }
+
+            cost = 0;
+            netProfit = paid;
+            commissionAmount = (paid * appliedRate) / 100;
+        } else {
+            if (serviceName) {
+                finalServiceName = serviceName.trim();
+            }
+            finalServiceId = null;
+
+            if (isAdminUser && customRate !== undefined && customRate !== '' && !isNaN(customRate)) {
+                appliedRate = parseFloat(customRate);
+                isCustomRate = true;
+            } else if (employee && (!isCustomRate || targetEmployeeId !== commission.employeeId)) {
+                appliedRate = parseFloat(employee.commissionRate) || 0;
+                isCustomRate = false;
+            }
+
+            cost = serviceCost !== undefined ? (parseFloat(serviceCost) || 0) : commission.serviceCost;
+            netProfit = Math.max(0, paid - cost);
+            commissionAmount = (netProfit * appliedRate) / 100;
         }
 
-        const paid = totalPaid !== undefined ? (parseFloat(totalPaid) || 0) : commission.totalPaid;
-        const cost = serviceCost !== undefined ? (parseFloat(serviceCost) || 0) : commission.serviceCost;
-        const netProfit = Math.max(0, paid - cost);
-        const commissionAmount = (netProfit * appliedRate) / 100;
-
         await commission.update({
-            serviceName: serviceName ? serviceName.trim() : commission.serviceName,
+            serviceName: finalServiceName,
+            serviceId: finalServiceId,
+            commissionSystem: empSystem,
             customerName: customerName !== undefined ? (customerName ? customerName.trim() : null) : commission.customerName,
             totalPaid: paid,
             serviceCost: cost,
@@ -4928,9 +5129,9 @@ router.post('/commissions/update-employee-rate', async (req, res) => {
             return res.status(403).json({ success: false, error: 'غير مصرح بتعديل نسب الموظفين إلا للإدارة.' });
         }
 
-        const { employeeId, commissionRate } = req.body;
-        if (!employeeId || commissionRate === undefined || isNaN(commissionRate)) {
-            return res.status(400).json({ success: false, error: 'يرجى إدخال معرف الموظف ونسبة العمولة بشكل صحيح.' });
+        const { employeeId, commissionRate, commissionSystem } = req.body;
+        if (!employeeId) {
+            return res.status(400).json({ success: false, error: 'يرجى إدخال معرف الموظف.' });
         }
 
         const employee = await User.findByPk(employeeId);
@@ -4938,18 +5139,23 @@ router.post('/commissions/update-employee-rate', async (req, res) => {
             return res.status(404).json({ success: false, error: 'الموظف غير موجود.' });
         }
 
-        const rate = parseFloat(commissionRate);
-        if (rate < 0 || rate > 100) {
-            return res.status(400).json({ success: false, error: 'النسبة يجب أن تكون بين 0% و 100%.' });
+        if (commissionRate !== undefined && !isNaN(commissionRate)) {
+            const rate = parseFloat(commissionRate);
+            if (rate >= 0 && rate <= 100) {
+                employee.commissionRate = rate;
+            }
         }
 
-        employee.commissionRate = rate;
+        if (commissionSystem === 'system1' || commissionSystem === 'system2') {
+            employee.commissionSystem = commissionSystem;
+        }
+
         await employee.save();
 
-        res.json({ success: true, message: `تم تحديث نسبة عمولة ${employee.fullName || employee.username} إلى ${rate}% بنجاح.` });
+        res.json({ success: true, message: `تم تحديث إعدادات عمولة ${employee.fullName || employee.username} بنجاح.` });
     } catch (err) {
         console.error('Error updating employee commission rate:', err);
-        res.status(500).json({ success: false, error: 'حدث خطأ أثناء تحديث نسبة العمولة.' });
+        res.status(500).json({ success: false, error: 'حدث خطأ أثناء تحديث إعدادات العمولة.' });
     }
 });
 
@@ -4968,12 +5174,18 @@ router.post('/commissions/update-all-rates', async (req, res) => {
         for (const item of rates) {
             const empId = parseInt(item.employeeId);
             const rate = parseFloat(item.commissionRate);
-            if (empId && !isNaN(rate) && rate >= 0 && rate <= 100) {
-                await User.update({ commissionRate: rate }, { where: { id: empId } });
+            const system = (item.commissionSystem === 'system2') ? 'system2' : 'system1';
+
+            if (empId) {
+                const updateData = { commissionSystem: system };
+                if (!isNaN(rate) && rate >= 0 && rate <= 100) {
+                    updateData.commissionRate = rate;
+                }
+                await User.update(updateData, { where: { id: empId } });
             }
         }
 
-        res.json({ success: true, message: 'تم حفظ نسب العمولات لجميع الموظفين بنجاح!' });
+        res.json({ success: true, message: 'تم حفظ إعدادات ونسب العمولات لجميع الموظفين بنجاح!' });
     } catch (err) {
         console.error('Error updating all employee commission rates:', err);
         res.status(500).json({ success: false, error: 'حدث خطأ أثناء حفظ نسب الموظفين.' });

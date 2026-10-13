@@ -162,9 +162,15 @@
                         <i class="bi bi-cash-stack text-warning"></i>
                         <span>إدارة ومتابعة العمولات</span>
                         <% if (!isAdmin) { %>
-                            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-3 py-1 rounded-pill fs-6 fw-bold ms-md-2" title="نسبة عمولتك المعتمدة">
-                                <i class="bi bi-percent me-1"></i> نسبة عمولتك: <span id="currentEmployeeRateBadge"><%= Math.round(userCommissionRate || 0) %>%</span>
-                            </span>
+                            <% if (userCommissionSystem === 'system2') { %>
+                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-1 rounded-pill fs-6 fw-bold ms-md-2" title="نظام العمولة المعتمد لك">
+                                    <i class="bi bi-stars me-1"></i> نظام العمولات: <span>نظام 2 (نسبة من إجمالي الخدمة)</span>
+                                </span>
+                            <% } else { %>
+                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-3 py-1 rounded-pill fs-6 fw-bold ms-md-2" title="نسبة عمولتك المعتمدة">
+                                    <i class="bi bi-percent me-1"></i> نسبة عمولتك: <span id="currentEmployeeRateBadge"><%= Math.round(userCommissionRate || 0) %>% (من صافي الربح)</span>
+                                </span>
+                            <% } %>
                         <% } %>
                     </h2>
                     <p class="text-secondary small m-0 mt-1">حساب وإدارة أرباح وعمولات مبيعات الخدمات وتكاليفها مقسمة بالشهور.</p>
@@ -423,42 +429,72 @@
                                 <select id="commEmployeeId" class="form-select" onchange="onEmployeeSelectChange()" required>
                                     <option value="">اختر الموظف...</option>
                                     <% employees.forEach(emp => { %>
-                                        <option value="<%= emp.id %>" data-rate="<%= Math.round(parseFloat(emp.commissionRate || 0)) %>"><%= emp.fullName || emp.username %> (النسبة: <%= Math.round(parseFloat(emp.commissionRate || 0)) %>%)</option>
+                                        <option value="<%= emp.id %>" 
+                                                data-rate="<%= Math.round(parseFloat(emp.commissionRate || 0)) %>"
+                                                data-system="<%= emp.commissionSystem || 'system1' %>">
+                                            <%= emp.fullName || emp.username %> (<%= emp.commissionSystem === 'system2' ? 'نظام 2: نسبة حسب الخدمة' : `نظام 1: ${Math.round(parseFloat(emp.commissionRate || 0))}%` %>)
+                                        </option>
                                     <% }) %>
                                 </select>
                             </div>
                             <% } else { %>
-                                <input type="hidden" id="commEmployeeId" value="<%= user.id %>" data-rate="<%= Math.round(userCommissionRate || 0) %>">
+                                <input type="hidden" id="commEmployeeId" value="<%= user.id %>" data-rate="<%= Math.round(userCommissionRate || 0) %>" data-system="<%= userCommissionSystem || 'system1' %>">
                             <% } %>
+
+                            <!-- شريط توضيحي لنظام الموظف -->
+                            <div class="col-12" id="commSystemNoticeWrapper">
+                                <div id="commSystemNotice" class="p-2 px-3 rounded-3 small fw-semibold d-flex align-items-center gap-2 bg-light text-secondary border">
+                                    <i class="bi bi-info-circle text-primary fs-6"></i>
+                                    <span id="commSystemNoticeText">نظام العمولة: جاري التحديد...</span>
+                                </div>
+                            </div>
 
                             <div class="col-12">
                                 <label class="form-label small fw-bold text-secondary">اسم العميل <span class="text-secondary opacity-75 small">(اختياري)</span></label>
                                 <input type="text" id="commCustomerName" class="form-control" placeholder="اسم العميل أو المتجر (مثال: متجر السعادة / أحمد محمد)">
                             </div>
 
-                            <div class="col-12">
+                            <!-- حقل الخدمة لنظام 1 (كتابة يدوية) -->
+                            <div class="col-12" id="commServiceNameInputWrapper">
                                 <label class="form-label small fw-bold text-secondary">اسم الخدمة <span class="text-danger">*</span></label>
-                                <input type="text" id="commServiceName" class="form-control" placeholder="مثال: متجر إلكتروني سنوي / إعلان ممول" required>
+                                <input type="text" id="commServiceName" class="form-control" placeholder="مثال: متجر إلكتروني سنوي / إعلان ممول">
                             </div>
 
-                            <div class="col-6">
+                            <!-- حقل الخدمة لنظام 2 (اختيار حصري من قائمة الخدمات) -->
+                            <div class="col-12 d-none" id="commServiceSelectWrapper">
+                                <label class="form-label small fw-bold text-secondary">اختر الخدمة <span class="text-danger">*</span></label>
+                                <select id="commServiceSelect" class="form-select" onchange="onServiceSelectChange()">
+                                    <option value="">اختر الخدمة من القائمة...</option>
+                                    <% (commissionServices || []).forEach(srv => { %>
+                                        <option value="<%= srv.id %>" data-rate="<%= parseFloat(srv.rate) %>" data-name="<%= srv.name %>"><%= srv.name %> (<%= parseFloat(srv.rate) %>%)</option>
+                                    <% }) %>
+                                </select>
+                            </div>
+
+                            <div class="col-12">
                                 <label class="form-label small fw-bold text-secondary">إجمالي المدفوع (ج.م) <span class="text-danger">*</span></label>
                                 <input type="number" step="1" min="0" id="commTotalPaid" class="form-control fw-bold text-primary" placeholder="0" oninput="calculateCommissionModal()" required>
                             </div>
 
-                            <div class="col-6">
-                                <label class="form-label small fw-bold text-secondary">تكلفة الخدمة (ج.م)</label>
-                                <input type="number" step="1" min="0" id="commServiceCost" class="form-control fw-bold text-danger" placeholder="0" value="0" oninput="calculateCommissionModal()">
+                            <!-- صف التكلفة وصافي الربح (خاص بنظام 1 فقط، ومخفي في نظام 2) -->
+                            <div class="row g-3 col-12 m-0 p-0" id="commCostProfitRow">
+                                <div class="col-6 pe-2 ps-0">
+                                    <label class="form-label small fw-bold text-secondary">تكلفة الخدمة (ج.م)</label>
+                                    <input type="number" step="1" min="0" id="commServiceCost" class="form-control fw-bold text-danger" placeholder="0" value="0" oninput="calculateCommissionModal()">
+                                </div>
+
+                                <div class="col-6 ps-2 pe-0">
+                                    <label class="form-label small fw-bold text-secondary">الربح الصافي</label>
+                                    <input type="text" id="commNetProfit" class="form-control-plaintext fw-bold text-success fs-6 ps-2" value="0 ج.م" readonly>
+                                </div>
                             </div>
 
-                            <div class="col-6">
-                                <label class="form-label small fw-bold text-secondary">الربح الصافي</label>
-                                <input type="text" id="commNetProfit" class="form-control-plaintext fw-bold text-success fs-6 ps-2" value="0 ج.م" readonly>
-                            </div>
-
-                            <div class="col-6">
+                            <div class="col-12" id="commAmountDisplayCol">
                                 <label class="form-label small fw-bold text-secondary">العمولة المستحقة</label>
-                                <input type="text" id="commAmountDisplay" class="form-control-plaintext fw-bold text-warning-emphasis fs-6 ps-2" value="0 ج.م" readonly>
+                                <div class="p-2 px-3 rounded-3 bg-warning bg-opacity-10 border border-warning-subtle d-flex justify-content-between align-items-center">
+                                    <input type="text" id="commAmountDisplay" class="form-control-plaintext fw-bold text-warning-emphasis fs-5 p-0" value="0 ج.م" readonly>
+                                    <span id="commAppliedRateBadge" class="badge bg-warning text-dark px-2 py-1">0%</span>
+                                </div>
                             </div>
 
                             <% if (isAdmin) { %>
@@ -502,51 +538,154 @@
     </div>
 
     <% if (isAdmin) { %>
-    <!-- Modal: Employee Rates Settings (Admin Only) -->
+    <!-- Modal: Employee Rates & System 2 Services Settings (Admin Only) -->
     <div class="modal fade" id="employeeRatesModal" tabindex="-1" aria-labelledby="employeeRatesModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content shadow-lg border-0 rounded-4">
                 <div class="modal-header border-0 pb-0">
                     <h5 class="modal-title fw-bold" id="employeeRatesModalLabel">
-                        <i class="bi bi-percent text-warning me-1"></i> تحديد نسب العمولات الافتراضية للموظفين
+                        <i class="bi bi-gear-wide-connected text-warning me-1"></i> إعدادات العمولات وخدمات النظام 2
                     </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body p-4">
-                    <p class="text-secondary small mb-3">هذه النسب تُطبق تلقائياً على كل العمليات الجديدة التي يسجلها الموظف، ويمكن تعديلها في أي وقت.</p>
                     
-                    <div class="table-responsive">
-                        <table class="table align-middle">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>الموظف</th>
-                                    <th style="width: 150px;" class="text-center">نسبة العمولة (%)</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <% employees.filter(emp => emp.role !== 'admin' && emp.role !== 'super_admin').forEach(emp => { %>
+                    <!-- القسم الأول: تحديد نظام ونسب الموظفين -->
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="fw-bold text-dark m-0 d-flex align-items-center gap-2">
+                                <i class="bi bi-people-fill text-primary"></i>
+                                <span>تحديد نظام ونسب الموظفين</span>
+                            </h6>
+                            <span class="badge bg-light text-secondary border">نظام 1: من الصافي | نظام 2: من الإجمالي</span>
+                        </div>
+                        <p class="text-secondary small mb-3">اختر لكل موظف النظام الذي يعمل به (نظام 1 يعتمد على نسبة من صافي الربح، بينما نظام 2 يحسب العمولة مباشرة من إجمالي المدفوع وفقاً للخدمة المختارة).</p>
+
+                        <div class="table-responsive rounded-3 border">
+                            <table class="table align-middle mb-0">
+                                <thead class="table-light">
                                     <tr>
-                                        <td>
-                                            <div class="fw-bold text-dark"><%= emp.fullName || emp.username %></div>
-                                            <span class="badge bg-secondary-subtle text-secondary small"><%= emp.role %></span>
-                                        </td>
-                                        <td>
-                                            <div class="input-group input-group-sm">
-                                                <input type="number" step="1" min="0" max="100" class="form-control fw-bold text-center emp-rate-input" id="rate-input-<%= emp.id %>" data-emp-id="<%= emp.id %>" value="<%= Math.round(parseFloat(emp.commissionRate || 0)) %>">
-                                                <span class="input-group-text">%</span>
-                                            </div>
-                                        </td>
+                                        <th>الموظف</th>
+                                        <th style="width: 220px;">نظام العمولة</th>
+                                        <th style="width: 160px;" class="text-center">نسبة العمولة (%)</th>
                                     </tr>
-                                <% }) %>
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    <% employees.filter(emp => emp.role !== 'admin' && emp.role !== 'super_admin').forEach(emp => { %>
+                                        <tr>
+                                            <td>
+                                                <div class="fw-bold text-dark"><%= emp.fullName || emp.username %></div>
+                                                <span class="badge bg-secondary-subtle text-secondary small"><%= emp.role %></span>
+                                            </td>
+                                            <td>
+                                                <select class="form-select form-select-sm emp-system-select fw-semibold" id="system-select-<%= emp.id %>" data-emp-id="<%= emp.id %>" onchange="onEmpSystemChange(<%= emp.id %>)">
+                                                    <option value="system1" <%= (emp.commissionSystem !== 'system2') ? 'selected' : '' %>>نظام 1 (نسبة من الصافي)</option>
+                                                    <option value="system2" <%= (emp.commissionSystem === 'system2') ? 'selected' : '' %>>نظام 2 (نسبة من الإجمالي)</option>
+                                                </select>
+                                            </td>
+                                            <td>
+                                                <div id="rate-wrapper-<%= emp.id %>" class="<%= (emp.commissionSystem === 'system2') ? 'd-none' : '' %>">
+                                                    <div class="input-group input-group-sm">
+                                                        <input type="number" step="1" min="0" max="100" class="form-control fw-bold text-center emp-rate-input" id="rate-input-<%= emp.id %>" data-emp-id="<%= emp.id %>" value="<%= Math.round(parseFloat(emp.commissionRate || 0)) %>">
+                                                        <span class="input-group-text">%</span>
+                                                    </div>
+                                                </div>
+                                                <div id="rate-notice-<%= emp.id %>" class="<%= (emp.commissionSystem === 'system2') ? '' : 'd-none' %> text-center">
+                                                    <span class="badge bg-info-subtle text-info border border-info-subtle small px-2 py-1">تعتمد على الخدمة</span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    <% }) %>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="text-end mt-2">
+                            <button type="button" class="btn btn-primary btn-sm rounded-pill px-4 text-white fw-bold shadow-sm" id="btnSaveAllRates" onclick="saveAllEmployeeRates()">
+                                <i class="bi bi-check-lg me-1"></i> حفظ إعدادات الموظفين
+                            </button>
+                        </div>
                     </div>
+
+                    <hr class="my-4 text-secondary opacity-25">
+
+                    <!-- القسم الثاني: إدارة خدمات النظام 2 ونسبها -->
+                    <div>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="fw-bold text-dark m-0 d-flex align-items-center gap-2">
+                                <i class="bi bi-list-stars text-warning"></i>
+                                <span>خدمات النظام 2 (الخدمات ونسبها من إجمالي المدفوع)</span>
+                            </h6>
+                            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">خاص بنظام 2</span>
+                        </div>
+                        <p class="text-secondary small mb-3">هذه الخدمات تظهر في القائمة المنسدلة لموظفي نظام 2 ليختاروا منها عند تسجيل أي عملية، والنسبة تُحسب مباشرة من إجمالي المبلغ المدفوع بدون خصم تكلفة.</p>
+
+                        <!-- نموذج إضافة خدمة جديدة -->
+                        <div class="card bg-light border-0 rounded-3 p-3 mb-3">
+                            <form id="addServiceForm" onsubmit="addServiceAjax(event)" class="row g-2 align-items-end">
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label small fw-bold text-secondary mb-1">اسم الخدمة <span class="text-danger">*</span></label>
+                                    <input type="text" id="newServiceName" class="form-control form-control-sm" placeholder="مثال: إعلان ممول / متجر سنوي" required>
+                                </div>
+                                <div class="col-8 col-md-3">
+                                    <label class="form-label small fw-bold text-secondary mb-1">نسبة العمولة (%) <span class="text-danger">*</span></label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="number" step="0.5" min="0" max="100" id="newServiceRate" class="form-control text-center fw-bold" placeholder="مثال: 4" required>
+                                        <span class="input-group-text">%</span>
+                                    </div>
+                                </div>
+                                <div class="col-4 col-md-3">
+                                    <button type="submit" id="btnAddService" class="btn btn-success btn-sm rounded-pill w-100 fw-bold d-flex align-items-center justify-content-center gap-1" style="height: 31px;">
+                                        <i class="bi bi-plus-lg"></i>
+                                        <span>إضافة خدمة</span>
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+
+                        <!-- جدول الخدمات الحالية -->
+                        <div class="table-responsive rounded-3 border">
+                            <table class="table align-middle mb-0 table-sm">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="width: 50%;">اسم الخدمة</th>
+                                        <th style="width: 25%;" class="text-center">نسبة العمولة</th>
+                                        <th style="width: 25%;" class="text-center">إجراءات</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="servicesTableBody">
+                                    <% if (commissionServices && commissionServices.length > 0) { %>
+                                        <% commissionServices.forEach(srv => { %>
+                                            <tr id="service-row-<%= srv.id %>">
+                                                <td class="fw-bold text-dark"><%= srv.name %></td>
+                                                <td class="text-center">
+                                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 fs-6"><%= parseFloat(srv.rate) %>%</span>
+                                                </td>
+                                                <td class="text-center">
+                                                    <div class="d-flex justify-content-center gap-1">
+                                                        <button class="btn btn-sm btn-outline-primary py-0 px-2 rounded-pill" onclick="editServiceAjax(<%= srv.id %>, '<%= srv.name %>', <%= srv.rate %>)" title="تعديل">
+                                                            <i class="bi bi-pencil-square"></i>
+                                                        </button>
+                                                        <button class="btn btn-sm btn-outline-danger py-0 px-2 rounded-pill" onclick="deleteServiceAjax(<%= srv.id %>)" title="حذف">
+                                                            <i class="bi bi-trash3-fill"></i>
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        <% }) %>
+                                    <% } else { %>
+                                        <tr id="noServicesRow">
+                                            <td colspan="3" class="text-center text-muted py-3 small">لا توجد خدمات مضافة حالياً. أضف أول خدمة من النموذج أعلاه.</td>
+                                        </tr>
+                                    <% } %>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
                 </div>
-                <div class="modal-footer border-0 pt-0 d-flex justify-content-between">
-                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">إلغاء</button>
-                    <button type="button" class="btn btn-primary rounded-pill px-5 text-white fw-bold shadow-sm" id="btnSaveAllRates" onclick="saveAllEmployeeRates()">
-                        <i class="bi bi-check-lg me-1"></i> حفظ
-                    </button>
+                <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">إغلاق</button>
                 </div>
             </div>
         </div>
@@ -718,8 +857,13 @@
                 const commAmount = parseFloat(c.commissionAmount) || 0;
                 const rate = Math.round(parseFloat(c.commissionRate) || 0);
 
+                const isSys2 = (c.commissionSystem === 'system2');
                 const empName = c.employee ? (c.employee.fullName || c.employee.username) : '—';
                 const customBadge = c.isCustomRate ? `<span class="badge-custom-rate d-block mt-1">مخصصة</span>` : '';
+                const systemBadge = isSys2 
+                    ? `<span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-0.5 small me-1">نظام 2</span>` 
+                    : `<span class="badge bg-secondary-subtle text-secondary border px-2 py-0.5 small me-1">نظام 1</span>`;
+
                 const customerDisplay = c.customerName ? `<div class="fw-bold text-dark text-truncate" style="max-width: 170px;" title="${c.customerName}">${c.customerName}</div>` : `<span class="text-muted small">—</span>`;
 
                 const row = `
@@ -729,14 +873,21 @@
                         ${isAdmin ? `<td><div class="fw-bold text-dark">${empName}</div></td>` : ''}
                         <td>${customerDisplay}</td>
                         <td>
-                            <div class="fw-bold text-dark">${c.serviceName}</div>
+                            <div class="d-flex align-items-center flex-wrap gap-1">
+                                ${systemBadge}
+                                <span class="fw-bold text-dark">${c.serviceName}</span>
+                            </div>
                             ${c.notes ? `<div class="small text-muted mt-1 text-truncate" style="max-width: 220px;" title="${c.notes}"><i class="bi bi-chat-left-text me-1"></i>${c.notes}</div>` : ''}
                         </td>
                         <td class="text-center fw-bold text-primary" dir="ltr">${formatMoney(paid)}</td>
-                        <td class="text-center fw-bold text-danger" dir="ltr">${formatMoney(cost)}</td>
+                        <td class="text-center fw-bold ${isSys2 ? 'text-muted' : 'text-danger'}" dir="ltr">
+                            ${isSys2 ? '—' : formatMoney(cost)}
+                        </td>
                         <td class="text-center fw-bold text-success" dir="ltr">${formatMoney(profit)}</td>
                         <td class="text-center">
-                            <span class="badge-rate">${rate}%</span>
+                            <span class="badge-rate ${isSys2 ? 'bg-primary-subtle text-primary border-primary-subtle' : ''}">
+                                ${rate}% ${isSys2 ? '<small class="opacity-75">(إجمالي)</small>' : ''}
+                            </span>
                             ${customBadge}
                         </td>
                         <td class="text-center fw-bold text-warning-emphasis fs-6" dir="ltr">${formatMoney(commAmount)}</td>
@@ -774,6 +925,130 @@
             document.getElementById('footerTotalCommission').innerHTML = `<span>${comm}</span> <span class="small opacity-75">ج.م</span>`;
         }
 
+        // Services Global State
+        let globalServices = <%- JSON.stringify(commissionServices || []) %>;
+
+        // Current Active System in Modal ('system1' or 'system2')
+        let currentModalSystem = 'system1';
+
+        function updateModalSystemMode(system) {
+            currentModalSystem = system || 'system1';
+            const isSys2 = (currentModalSystem === 'system2');
+
+            const nameInputWrapper = document.getElementById('commServiceNameInputWrapper');
+            const nameInput = document.getElementById('commServiceName');
+            const selectWrapper = document.getElementById('commServiceSelectWrapper');
+            const selectEl = document.getElementById('commServiceSelect');
+            const costProfitRow = document.getElementById('commCostProfitRow');
+            const noticeText = document.getElementById('commSystemNoticeText');
+
+            if (isSys2) {
+                // System 2: Exclusive select, no cost/profit
+                nameInputWrapper.classList.add('d-none');
+                nameInput.removeAttribute('required');
+                nameInput.value = '';
+
+                selectWrapper.classList.remove('d-none');
+                selectEl.setAttribute('required', 'required');
+
+                costProfitRow.classList.add('d-none');
+                document.getElementById('commServiceCost').value = '0';
+
+                noticeText.innerHTML = '<span class="text-primary fw-bold">نظام 2:</span> حساب العمولة كنسبة مباشرة من إجمالي المدفوع وفقاً للخدمة المختارة.';
+            } else {
+                // System 1: Text input, with cost and net profit
+                selectWrapper.classList.add('d-none');
+                selectEl.removeAttribute('required');
+
+                nameInputWrapper.classList.remove('d-none');
+                nameInput.setAttribute('required', 'required');
+
+                costProfitRow.classList.remove('d-none');
+
+                noticeText.innerHTML = '<span class="text-secondary fw-bold">نظام 1:</span> حساب العمولة من صافي الربح (إجمالي المدفوع - تكلفة الخدمة).';
+            }
+
+            calculateCommissionModal();
+        }
+
+        function onEmployeeSelectChange() {
+            const empEl = document.getElementById('commEmployeeId');
+            let system = 'system1';
+
+            if (empEl) {
+                if (empEl.tagName === 'SELECT') {
+                    const opt = empEl.options[empEl.selectedIndex];
+                    system = opt ? (opt.getAttribute('data-system') || 'system1') : 'system1';
+                } else {
+                    system = empEl.getAttribute('data-system') || 'system1';
+                }
+            }
+
+            updateModalSystemMode(system);
+        }
+
+        function onServiceSelectChange() {
+            calculateCommissionModal();
+        }
+
+        // Real-time calculation inside modal
+        function calculateCommissionModal() {
+            const totalPaid = parseFloat(document.getElementById('commTotalPaid').value) || 0;
+            const isSys2 = (currentModalSystem === 'system2');
+
+            let rate = 0;
+            let netProfit = 0;
+            let cost = 0;
+
+            const customRateToggle = document.getElementById('commCustomRateToggle');
+            const customRateInput = document.getElementById('commCustomRate');
+            const isCustom = (isAdmin && customRateToggle && customRateToggle.checked && customRateInput && customRateInput.value !== '');
+
+            if (isSys2) {
+                // System 2 Logic: Rate from selected service, net profit = total paid
+                cost = 0;
+                netProfit = totalPaid;
+
+                if (isCustom) {
+                    rate = parseFloat(customRateInput.value) || 0;
+                } else {
+                    const selectEl = document.getElementById('commServiceSelect');
+                    if (selectEl && selectEl.selectedIndex >= 0) {
+                        const opt = selectEl.options[selectEl.selectedIndex];
+                        rate = opt ? (parseFloat(opt.getAttribute('data-rate')) || 0) : 0;
+                    }
+                }
+            } else {
+                // System 1 Logic: Rate from employee, net profit = total paid - cost
+                cost = parseFloat(document.getElementById('commServiceCost').value) || 0;
+                netProfit = Math.max(0, totalPaid - cost);
+
+                if (isCustom) {
+                    rate = parseFloat(customRateInput.value) || 0;
+                } else {
+                    const empEl = document.getElementById('commEmployeeId');
+                    if (empEl) {
+                        if (empEl.tagName === 'SELECT') {
+                            const opt = empEl.options[empEl.selectedIndex];
+                            rate = opt ? (parseFloat(opt.getAttribute('data-rate')) || 0) : 0;
+                        } else {
+                            rate = parseFloat(empEl.getAttribute('data-rate')) || 0;
+                        }
+                    }
+                }
+            }
+
+            const commissionAmount = (netProfit * rate) / 100;
+
+            document.getElementById('commNetProfit').value = `${formatMoney(netProfit)} ج.م`;
+            document.getElementById('commAmountDisplay').value = `${formatMoney(commissionAmount)} ج.م`;
+            
+            const badge = document.getElementById('commAppliedRateBadge');
+            if (badge) {
+                badge.textContent = `${Math.round(rate)}% ${isSys2 ? '(من الإجمالي)' : '(من الصافي)'}`;
+            }
+        }
+
         // Modal: Add
         function openAddModal() {
             document.getElementById('commissionForm').reset();
@@ -785,6 +1060,7 @@
             const now = new Date();
             document.getElementById('commDate').value = now.toISOString().split('T')[0];
             document.getElementById('commServiceCost').value = '0';
+            document.getElementById('commTotalPaid').value = '';
 
             const customRateToggle = document.getElementById('commCustomRateToggle');
             if (customRateToggle) {
@@ -792,7 +1068,7 @@
                 toggleCustomRate(false);
             }
 
-            calculateCommissionModal();
+            onEmployeeSelectChange();
             modalInstance.show();
         }
 
@@ -806,7 +1082,6 @@
             document.getElementById('btnSubmitCommission').textContent = 'حفظ التعديلات';
 
             document.getElementById('commCustomerName').value = comm.customerName || '';
-            document.getElementById('commServiceName').value = comm.serviceName;
             document.getElementById('commTotalPaid').value = comm.totalPaid;
             document.getElementById('commServiceCost').value = comm.serviceCost;
             document.getElementById('commDate').value = comm.date;
@@ -815,7 +1090,32 @@
             if (isAdmin) {
                 const empSelect = document.getElementById('commEmployeeId');
                 if (empSelect) empSelect.value = comm.employeeId;
+            }
 
+            // Determine system for this commission
+            const commSystem = comm.commissionSystem || (comm.employee ? comm.employee.commissionSystem : 'system1');
+            updateModalSystemMode(commSystem);
+
+            if (commSystem === 'system2') {
+                const serviceSelect = document.getElementById('commServiceSelect');
+                if (serviceSelect) {
+                    if (comm.serviceId) {
+                        serviceSelect.value = String(comm.serviceId);
+                    } else {
+                        // Match by name
+                        for (let i = 0; i < serviceSelect.options.length; i++) {
+                            if (serviceSelect.options[i].getAttribute('data-name') === comm.serviceName) {
+                                serviceSelect.selectedIndex = i;
+                                break;
+                            }
+                        }
+                    }
+                }
+            } else {
+                document.getElementById('commServiceName').value = comm.serviceName;
+            }
+
+            if (isAdmin) {
                 const customRateToggle = document.getElementById('commCustomRateToggle');
                 const customRateInput = document.getElementById('commCustomRate');
                 if (customRateToggle && customRateInput) {
@@ -847,50 +1147,36 @@
             calculateCommissionModal();
         }
 
-        function onEmployeeSelectChange() {
-            calculateCommissionModal();
-        }
-
-        // Real-time calculation inside modal
-        function calculateCommissionModal() {
-            const totalPaid = parseFloat(document.getElementById('commTotalPaid').value) || 0;
-            const serviceCost = parseFloat(document.getElementById('commServiceCost').value) || 0;
-            const netProfit = Math.max(0, totalPaid - serviceCost);
-
-            let rate = 0;
-            const customRateToggle = document.getElementById('commCustomRateToggle');
-            const customRateInput = document.getElementById('commCustomRate');
-
-            if (isAdmin && customRateToggle && customRateToggle.checked && customRateInput && customRateInput.value !== '') {
-                rate = parseFloat(customRateInput.value) || 0;
-            } else {
-                const empEl = document.getElementById('commEmployeeId');
-                if (empEl) {
-                    if (empEl.tagName === 'SELECT') {
-                        const opt = empEl.options[empEl.selectedIndex];
-                        rate = opt ? (parseFloat(opt.getAttribute('data-rate')) || 0) : 0;
-                    } else {
-                        rate = parseFloat(empEl.getAttribute('data-rate')) || 0;
-                    }
-                }
-            }
-
-            const commissionAmount = (netProfit * rate) / 100;
-
-            document.getElementById('commNetProfit').value = `${formatMoney(netProfit)} ج.م`;
-            document.getElementById('commAmountDisplay').value = `${formatMoney(commissionAmount)} ج.م (${Math.round(rate)}%)`;
-        }
-
         // Submit Add / Edit
         function submitCommission(event) {
             event.preventDefault();
             const id = document.getElementById('commId').value;
             const isEdit = !!id;
 
-            const serviceName = document.getElementById('commServiceName').value;
+            const isSys2 = (currentModalSystem === 'system2');
+            let serviceName = '';
+            let serviceId = null;
+
+            if (isSys2) {
+                const sSelect = document.getElementById('commServiceSelect');
+                if (!sSelect.value) {
+                    showAlert('يرجى اختيار خدمة صالحة من القائمة.', 'danger');
+                    return;
+                }
+                serviceId = parseInt(sSelect.value);
+                const opt = sSelect.options[sSelect.selectedIndex];
+                serviceName = opt ? opt.getAttribute('data-name') : '';
+            } else {
+                serviceName = document.getElementById('commServiceName').value.trim();
+                if (!serviceName) {
+                    showAlert('يرجى إدخال اسم الخدمة.', 'danger');
+                    return;
+                }
+            }
+
             const customerName = document.getElementById('commCustomerName').value;
             const totalPaid = document.getElementById('commTotalPaid').value;
-            const serviceCost = document.getElementById('commServiceCost').value;
+            const serviceCost = isSys2 ? 0 : document.getElementById('commServiceCost').value;
             const date = document.getElementById('commDate').value;
             const notes = document.getElementById('commNotes').value;
 
@@ -907,6 +1193,7 @@
             const payload = {
                 id,
                 serviceName,
+                serviceId,
                 customerName,
                 totalPaid,
                 serviceCost,
@@ -971,14 +1258,36 @@
         }
 
         <% if (isAdmin) { %>
-        // Save All Employee Commission Rates (Admin Only)
+        // Toggle Employee System View in Rates Modal
+        function onEmpSystemChange(empId) {
+            const systemSelect = document.getElementById(`system-select-${empId}`);
+            const rateWrapper = document.getElementById(`rate-wrapper-${empId}`);
+            const rateNotice = document.getElementById(`rate-notice-${empId}`);
+
+            if (systemSelect && systemSelect.value === 'system2') {
+                if (rateWrapper) rateWrapper.classList.add('d-none');
+                if (rateNotice) rateNotice.classList.remove('d-none');
+            } else {
+                if (rateWrapper) rateWrapper.classList.remove('d-none');
+                if (rateNotice) rateNotice.classList.add('d-none');
+            }
+        }
+
+        // Save All Employee Commission Rates & Systems (Admin Only)
         function saveAllEmployeeRates() {
-            const inputs = document.querySelectorAll('.emp-rate-input');
+            const selects = document.querySelectorAll('.emp-system-select');
             const rates = [];
-            inputs.forEach(input => {
-                const empId = input.getAttribute('data-emp-id');
-                const rate = parseFloat(input.value) || 0;
-                rates.push({ employeeId: parseInt(empId), commissionRate: rate });
+
+            selects.forEach(select => {
+                const empId = select.getAttribute('data-emp-id');
+                const system = select.value;
+                const rateInput = document.getElementById(`rate-input-${empId}`);
+                const rate = rateInput ? (parseFloat(rateInput.value) || 0) : 0;
+                rates.push({
+                    employeeId: parseInt(empId),
+                    commissionRate: rate,
+                    commissionSystem: system
+                });
             });
 
             const btn = document.getElementById('btnSaveAllRates');
@@ -996,18 +1305,20 @@
                 btn.disabled = false;
                 btn.innerHTML = originalText;
                 if (res.success) {
-                    const modalEl = document.getElementById('employeeRatesModal');
-                    const modal = bootstrap.Modal.getInstance(modalEl);
-                    if (modal) modal.hide();
-                    showAlert(res.message || 'تم حفظ جميع النسب بنجاح!');
+                    showAlert(res.message || 'تم حفظ إعدادات ونسب الموظفين بنجاح!');
                     
-                    // Update data-rate attribute in select dropdown
+                    // Update data attributes in commEmployeeId dropdown
                     rates.forEach(item => {
                         const opt = document.querySelector(`#commEmployeeId option[value="${item.employeeId}"]`);
-                        if (opt) opt.setAttribute('data-rate', item.commissionRate);
+                        if (opt) {
+                            opt.setAttribute('data-rate', item.commissionRate);
+                            opt.setAttribute('data-system', item.commissionSystem);
+                            const namePart = opt.textContent.split('(')[0].trim();
+                            opt.textContent = `${namePart} (${item.commissionSystem === 'system2' ? 'نظام 2: نسبة حسب الخدمة' : `نظام 1: ${item.commissionRate}%`})`;
+                        }
                     });
                 } else {
-                    showAlert(res.error || 'فشل حفظ النسب.', 'danger');
+                    showAlert(res.error || 'فشل حفظ الإعدادات.', 'danger');
                 }
             })
             .catch(err => {
@@ -1017,8 +1328,174 @@
                 showAlert('حدث خطأ في الاتصال بالسيرفر.', 'danger');
             });
         }
+
+        // Add Service Ajax (Admin Only)
+        function addServiceAjax(event) {
+            event.preventDefault();
+            const name = document.getElementById('newServiceName').value.trim();
+            const rate = document.getElementById('newServiceRate').value;
+
+            if (!name || rate === '') {
+                showAlert('يرجى كتابة اسم الخدمة ونسبتها.', 'danger');
+                return;
+            }
+
+            const btn = document.getElementById('btnAddService');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> جاري الإضافة...';
+
+            fetch('/dashboard/commissions/services/add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, rate })
+            })
+            .then(res => res.json())
+            .then(res => {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+                if (res.success && res.service) {
+                    showAlert('تم إضافة الخدمة بنجاح!');
+                    document.getElementById('addServiceForm').reset();
+                    globalServices.push(res.service);
+                    renderServicesTable();
+                    refreshServicesDropdown();
+                } else {
+                    showAlert(res.error || 'فشل إضافة الخدمة.', 'danger');
+                }
+            })
+            .catch(err => {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+                console.error(err);
+                showAlert('حدث خطأ أثناء إضافة الخدمة.', 'danger');
+            });
+        }
+
+        // Delete Service Ajax (Admin Only)
+        function deleteServiceAjax(id) {
+            if (!confirm('هل أنت متأكد من رغبتك في حذف هذه الخدمة؟')) return;
+
+            fetch('/dashboard/commissions/services/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id })
+            })
+            .then(res => res.json())
+            .then(res => {
+                if (res.success) {
+                    showAlert('تم حذف الخدمة بنجاح!');
+                    globalServices = globalServices.filter(s => s.id !== id);
+                    renderServicesTable();
+                    refreshServicesDropdown();
+                } else {
+                    showAlert(res.error || 'فشل حذف الخدمة.', 'danger');
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                showAlert('حدث خطأ أثناء حذف الخدمة.', 'danger');
+            });
+        }
+
+        // Edit Service Ajax (Admin Only)
+        function editServiceAjax(id, currentName, currentRate) {
+            const newName = prompt('تعديل اسم الخدمة:', currentName);
+            if (newName === null) return;
+            const newRateStr = prompt('تعديل نسبة العمولة (%):', currentRate);
+            if (newRateStr === null) return;
+
+            const newRate = parseFloat(newRateStr);
+            if (isNaN(newRate) || newRate < 0 || newRate > 100) {
+                showAlert('النسبة يجب أن تكون رقماً بين 0 و 100.', 'danger');
+                return;
+            }
+
+            fetch('/dashboard/commissions/services/edit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, name: newName, rate: newRate })
+            })
+            .then(res => res.json())
+            .then(res => {
+                if (res.success && res.service) {
+                    showAlert('تم تعديل الخدمة بنجاح!');
+                    const index = globalServices.findIndex(s => s.id === id);
+                    if (index !== -1) globalServices[index] = res.service;
+                    renderServicesTable();
+                    refreshServicesDropdown();
+                } else {
+                    showAlert(res.error || 'فشل تعديل الخدمة.', 'danger');
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                showAlert('حدث خطأ أثناء تعديل الخدمة.', 'danger');
+            });
+        }
+
+        // Render Services Table Inside Rates Modal
+        function renderServicesTable() {
+            const tbody = document.getElementById('servicesTableBody');
+            if (!tbody) return;
+
+            if (!globalServices || globalServices.length === 0) {
+                tbody.innerHTML = `
+                    <tr id="noServicesRow">
+                        <td colspan="3" class="text-center text-muted py-3 small">لا توجد خدمات مضافة حالياً. أضف أول خدمة من النموذج أعلاه.</td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = '';
+            globalServices.forEach(srv => {
+                const tr = `
+                    <tr id="service-row-${srv.id}">
+                        <td class="fw-bold text-dark">${srv.name}</td>
+                        <td class="text-center">
+                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 fs-6">${parseFloat(srv.rate)}%</span>
+                        </td>
+                        <td class="text-center">
+                            <div class="d-flex justify-content-center gap-1">
+                                <button class="btn btn-sm btn-outline-primary py-0 px-2 rounded-pill" onclick="editServiceAjax(${srv.id}, '${srv.name}', ${srv.rate})" title="تعديل">
+                                    <i class="bi bi-pencil-square"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger py-0 px-2 rounded-pill" onclick="deleteServiceAjax(${srv.id})" title="حذف">
+                                    <i class="bi bi-trash3-fill"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                tbody.insertAdjacentHTML('beforeend', tr);
+            });
+        }
+
+        // Refresh Services Dropdown in Commission Modal
+        function refreshServicesDropdown() {
+            const sSelect = document.getElementById('commServiceSelect');
+            if (!sSelect) return;
+
+            const selectedVal = sSelect.value;
+            sSelect.innerHTML = '<option value="">اختر الخدمة من القائمة...</option>';
+
+            globalServices.forEach(srv => {
+                const opt = document.createElement('option');
+                opt.value = srv.id;
+                opt.setAttribute('data-rate', parseFloat(srv.rate));
+                opt.setAttribute('data-name', srv.name);
+                opt.textContent = `${srv.name} (${parseFloat(srv.rate)}%)`;
+                sSelect.appendChild(opt);
+            });
+
+            if (selectedVal) {
+                sSelect.value = selectedVal;
+            }
+        }
         <% } %>
     </script>
 </body>
 
 </html>
+
