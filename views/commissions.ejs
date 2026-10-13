@@ -189,17 +189,6 @@
                     <h2 class="m-0 fw-bold d-flex align-items-center gap-2 flex-wrap">
                         <i class="bi bi-cash-stack text-warning"></i>
                         <span>إدارة ومتابعة العمولات</span>
-                        <% if (!isAdmin) { %>
-                            <% if (userCommissionSystem === 'system2') { %>
-                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-1 rounded-pill fs-6 fw-bold ms-md-2" title="نظام العمولة المعتمد لك">
-                                    <i class="bi bi-stars me-1"></i> نظام العمولات: <span>نظام 2 (نسبة من إجمالي الخدمة)</span>
-                                </span>
-                            <% } else { %>
-                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-3 py-1 rounded-pill fs-6 fw-bold ms-md-2" title="نسبة عمولتك المعتمدة">
-                                    <i class="bi bi-percent me-1"></i> نسبة عمولتك: <span id="currentEmployeeRateBadge"><%= Math.round(userCommissionRate || 0) %>% (من صافي الربح)</span>
-                                </span>
-                            <% } %>
-                        <% } %>
                     </h2>
                     <p class="text-secondary small m-0 mt-1">حساب وإدارة أرباح وعمولات مبيعات الخدمات وتكاليفها مقسمة بالشهور.</p>
                 </div>
@@ -465,13 +454,15 @@
                                 <input type="hidden" id="commEmployeeId" value="<%= user.id %>" data-rate="<%= Math.round(userCommissionRate || 0) %>" data-system="<%= userCommissionSystem || 'system1' %>">
                             <% } %>
 
-                            <!-- شريط توضيحي لنظام الموظف -->
+                            <!-- شريط توضيحي لنظام الموظف (للأدمن فقط) -->
+                            <% if (isAdmin) { %>
                             <div class="col-12" id="commSystemNoticeWrapper">
                                 <div id="commSystemNotice" class="p-2 px-3 rounded-3 small fw-semibold d-flex align-items-center gap-2 bg-light text-secondary border">
                                     <i class="bi bi-info-circle text-primary fs-6"></i>
                                     <span id="commSystemNoticeText">نظام العمولة: جاري التحديد...</span>
                                 </div>
                             </div>
+                            <% } %>
 
                             <div class="col-12">
                                 <label class="form-label small fw-bold text-secondary">اسم العميل <span class="text-secondary opacity-75 small">(اختياري)</span></label>
@@ -945,10 +936,6 @@
                 const isSys2 = (c.commissionSystem === 'system2');
                 const empName = c.employee ? (c.employee.fullName || c.employee.username) : '—';
                 const customBadge = c.isCustomRate ? `<span class="badge-custom-rate d-block mt-1">مخصصة</span>` : '';
-                const systemBadge = isSys2 
-                    ? `<span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-0.5 small me-1">نظام 2</span>` 
-                    : `<span class="badge bg-secondary-subtle text-secondary border px-2 py-0.5 small me-1">نظام 1</span>`;
-
                 const customerDisplay = c.customerName ? `<div class="fw-bold text-dark text-truncate" style="max-width: 170px;" title="${c.customerName}">${c.customerName}</div>` : `<span class="text-muted small">—</span>`;
 
                 const row = `
@@ -958,10 +945,7 @@
                         ${isAdmin ? `<td><div class="fw-bold text-dark">${empName}</div></td>` : ''}
                         <td>${customerDisplay}</td>
                         <td>
-                            <div class="d-flex align-items-center flex-wrap gap-1">
-                                ${systemBadge}
-                                <span class="fw-bold text-dark">${c.serviceName}</span>
-                            </div>
+                            <div class="fw-bold text-dark">${c.serviceName}</div>
                             ${c.notes ? `<div class="small text-muted mt-1 text-truncate" style="max-width: 220px;" title="${c.notes}"><i class="bi bi-chat-left-text me-1"></i>${c.notes}</div>` : ''}
                         </td>
                         <td class="text-center fw-bold text-primary" dir="ltr">${formatMoney(paid)}</td>
@@ -973,7 +957,7 @@
                         ` : ''}
                         <td class="text-center">
                             <span class="badge-rate ${isSys2 ? 'bg-primary-subtle text-primary border-primary-subtle' : ''}">
-                                ${rate}% ${isSys2 ? '<small class="opacity-75">(إجمالي)</small>' : ''}
+                                ${rate}%
                             </span>
                             ${customBadge}
                         </td>
@@ -1041,7 +1025,7 @@
                 costProfitRow.classList.add('d-none');
                 document.getElementById('commServiceCost').value = '0';
 
-                noticeText.innerHTML = '<span class="text-primary fw-bold">نظام 2:</span> حساب العمولة كنسبة مباشرة من إجمالي المدفوع وفقاً للخدمة المختارة.';
+                if (noticeText) noticeText.innerHTML = '<span class="text-primary fw-bold">نظام 2:</span> حساب العمولة كنسبة مباشرة من إجمالي المدفوع وفقاً للخدمة المختارة.';
             } else {
                 // System 1: Text input, with cost and net profit
                 selectWrapper.classList.add('d-none');
@@ -1052,7 +1036,7 @@
 
                 costProfitRow.classList.remove('d-none');
 
-                noticeText.innerHTML = '<span class="text-secondary fw-bold">نظام 1:</span> حساب العمولة من صافي الربح (إجمالي المدفوع - تكلفة الخدمة).';
+                if (noticeText) noticeText.innerHTML = '<span class="text-secondary fw-bold">نظام 1:</span> حساب العمولة من صافي الربح (إجمالي المدفوع - تكلفة الخدمة).';
             }
 
             calculateCommissionModal();
@@ -1132,7 +1116,7 @@
             
             const badge = document.getElementById('commAppliedRateBadge');
             if (badge) {
-                badge.textContent = `${Math.round(rate)}% ${isSys2 ? '(من الإجمالي)' : '(من الصافي)'}`;
+                badge.textContent = `${Math.round(rate)}%`;
             }
         }
 
