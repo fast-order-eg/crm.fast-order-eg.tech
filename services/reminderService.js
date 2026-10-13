@@ -216,13 +216,32 @@ export function parseCairoDateTime(dateStr) {
     const [_, y, m, d, h, min, s] = parts.map(Number);
     const roughUtc = new Date(Date.UTC(y, m - 1, d, h, min, s || 0));
     
-    // حساب الفارق الزمني لتوقيت القاهرة في هذه اللحظة المحددة (صيفي أو شتوي)
-    const cairoStr = roughUtc.toLocaleString('en-US', { timeZone: 'Africa/Cairo', hour12: false });
-    const utcStr = roughUtc.toLocaleString('en-US', { timeZone: 'UTC', hour12: false });
-    const cairoTs = Date.parse(cairoStr + ' UTC');
-    const utcTs = Date.parse(utcStr + ' UTC');
-    const offsetMs = cairoTs - utcTs;
+    // حساب الفارق الزمني الحقيقي لتوقيت القاهرة بدقة باستخدام formatToParts و hourCycle: 'h23'
+    // هذا يتجنب مشكلة لينكس/Node حيث يتم تمثيل منتصف الليل بـ 24:00:00 مما كان يسبب إضافة 24 ساعة للفرق فيعتبره وقتاً ماضياً
+    const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Africa/Cairo',
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: 'numeric',
+        second: 'numeric',
+        hourCycle: 'h23'
+    });
     
+    const formattedParts = formatter.formatToParts(roughUtc);
+    const getVal = (type) => parseInt(formattedParts.find(p => p.type === type)?.value || '0', 10);
+    
+    const cairoAsUtc = Date.UTC(
+        getVal('year'),
+        getVal('month') - 1,
+        getVal('day'),
+        getVal('hour'),
+        getVal('minute'),
+        getVal('second')
+    );
+    
+    const offsetMs = cairoAsUtc - roughUtc.getTime();
     return new Date(roughUtc.getTime() - offsetMs);
 }
 
@@ -240,7 +259,7 @@ function getCairoDateTimeInfo() {
         hour: '2-digit',
         minute: '2-digit',
         second: '2-digit',
-        hour12: false
+        hourCycle: 'h23'
     };
     const cairoDateStr = new Intl.DateTimeFormat('en-CA', options).format(now); // YYYY-MM-DD, HH:mm:ss
     const dayFormatter = new Intl.DateTimeFormat('ar-EG', { timeZone: 'Africa/Cairo', weekday: 'long' });
@@ -445,7 +464,7 @@ export function formatArabicDateTime(dateObj) {
         day: 'numeric',
         hour: 'numeric',
         minute: '2-digit',
-        hour12: false
+        hourCycle: 'h23'
     });
     
     const parts = formatter.formatToParts(dateObj);
@@ -454,7 +473,7 @@ export function formatArabicDateTime(dateObj) {
     const year = parseInt(getVal('year'), 10);
     const month = parseInt(getVal('month'), 10) - 1;
     const day = parseInt(getVal('day'), 10);
-    let hours = parseInt(getVal('hour'), 10);
+    let hours = parseInt(getVal('hour'), 10) % 24;
     const minutes = getVal('minute');
     
     const dayFormatter = new Intl.DateTimeFormat('ar-EG', { timeZone: 'Africa/Cairo', weekday: 'long' });
