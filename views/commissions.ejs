@@ -141,6 +141,34 @@
             border-color: #86b7fe;
             box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.15);
         }
+
+        @media (max-width: 767.98px) {
+            .stat-card-comm {
+                padding: 1rem;
+            }
+            .stat-card-comm h3 {
+                font-size: 1.35rem;
+            }
+            .main-content {
+                padding-left: 0.6rem !important;
+                padding-right: 0.6rem !important;
+            }
+            .glass-card {
+                padding: 1rem !important;
+                border-radius: 14px !important;
+            }
+            .table th, .table td {
+                font-size: 13px;
+                padding: 8px 6px !important;
+            }
+            .table-totals-row td {
+                padding: 10px 4px !important;
+            }
+            .totals-badge {
+                padding: 4px 8px;
+                font-size: 12px;
+            }
+        }
     </style>
 </head>
 
@@ -188,16 +216,12 @@
                             <span>نسب الموظفين</span>
                         </button>
                     <% } %>
-
-                    <button class="btn btn-outline-secondary rounded-circle d-flex align-items-center justify-content-center" onclick="loadData()" title="تحديث البيانات" style="width: 40px; height: 40px; padding: 0;">
-                        <i class="bi bi-arrow-clockwise fs-5"></i>
-                    </button>
                 </div>
             </div>
 
             <!-- Summary Cards Section -->
             <div class="row g-3 mb-4">
-                <div class="col-12 col-sm-6 col-xl-3">
+                <div class="col-12 col-sm-6 <%= (!isAdmin && userCommissionSystem === 'system2') ? '' : 'col-xl-3' %>" id="statCardPaidCol">
                     <div class="stat-card-comm sales">
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
@@ -211,7 +235,7 @@
                     </div>
                 </div>
 
-                <div class="col-12 col-sm-6 col-xl-3">
+                <div class="col-12 col-sm-6 col-xl-3 <%= (!isAdmin && userCommissionSystem === 'system2') ? 'd-none' : '' %>" id="statCardCostCol">
                     <div class="stat-card-comm cost">
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
@@ -225,7 +249,7 @@
                     </div>
                 </div>
 
-                <div class="col-12 col-sm-6 col-xl-3">
+                <div class="col-12 col-sm-6 col-xl-3 <%= (!isAdmin && userCommissionSystem === 'system2') ? 'd-none' : '' %>" id="statCardProfitCol">
                     <div class="stat-card-comm profit">
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
@@ -239,7 +263,7 @@
                     </div>
                 </div>
 
-                <div class="col-12 col-sm-6 col-xl-3">
+                <div class="col-12 col-sm-6 <%= (!isAdmin && userCommissionSystem === 'system2') ? '' : 'col-xl-3' %>" id="statCardCommCol">
                     <div class="stat-card-comm comm">
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
@@ -292,7 +316,7 @@
                             <select id="filterEmployee" class="form-select filter-pill-select rounded-pill shadow-sm" onchange="loadData()">
                                 <option value="all">كل الموظفين</option>
                                 <% employees.forEach(emp => { %>
-                                    <option value="<%= emp.id %>"><%= emp.fullName || emp.username %></option>
+                                    <option value="<%= emp.id %>" data-system="<%= emp.commissionSystem || 'system1' %>"><%= emp.fullName || emp.username %></option>
                                 <% }) %>
                             </select>
                         </div>
@@ -354,19 +378,19 @@
             <div id="tableView" class="table-responsive d-none">
                 <table class="table align-middle table-hover">
                     <thead class="table-light">
-                        <tr>
+                        <tr id="commissionsTableHeadRow">
                             <th style="width: 4%">#</th>
                             <th style="width: 10%">التاريخ</th>
                             <% if (isAdmin) { %>
                                 <th style="width: 12%">الموظف</th>
                             <% } %>
                             <th style="width: 13%">اسم العميل</th>
-                            <th style="width: 14%">اسم الخدمة</th>
-                            <th style="width: 10%" class="text-center">إجمالي المدفوع</th>
-                            <th style="width: 10%" class="text-center">تكلفة الخدمة</th>
-                            <th style="width: 10%" class="text-center">الربح الصافي</th>
-                            <th style="width: 8%" class="text-center">النسبة</th>
-                            <th style="width: 10%" class="text-center">العمولة</th>
+                            <th style="width: 15%">اسم الخدمة</th>
+                            <th style="width: 11%" class="text-center">إجمالي المدفوع</th>
+                            <th style="width: 10%" class="text-center col-cost-header <%= (!isAdmin && userCommissionSystem === 'system2') ? 'd-none' : '' %>">تكلفة الخدمة</th>
+                            <th style="width: 10%" class="text-center col-profit-header <%= (!isAdmin && userCommissionSystem === 'system2') ? 'd-none' : '' %>">الربح الصافي</th>
+                            <th style="width: 9%" class="text-center">النسبة</th>
+                            <th style="width: 11%" class="text-center">العمولة</th>
                             <th class="text-center" style="width: 9%">إجراءات</th>
                         </tr>
                     </thead>
@@ -375,7 +399,7 @@
                     </tbody>
                     <tfoot class="table-totals-row" id="tableFooter">
                         <tr>
-                            <td colspan="<%= isAdmin ? '5' : '4' %>" class="text-center">
+                            <td colspan="<%= (!isAdmin && userCommissionSystem === 'system2') ? '3' : (isAdmin ? '5' : '4') %>" class="text-center" id="footerTitleCell">
                                 <span class="fw-bold text-dark fs-6">الإجمالي</span>
                             </td>
                             <td class="text-center">
@@ -383,12 +407,12 @@
                                     <span>0</span> <span class="small opacity-75">ج.م</span>
                                 </span>
                             </td>
-                            <td class="text-center">
+                            <td class="text-center col-cost-footer <%= (!isAdmin && userCommissionSystem === 'system2') ? 'd-none' : '' %>" id="footerCostCell">
                                 <span class="totals-badge totals-cost" id="footerTotalCost" dir="rtl">
                                     <span>0</span> <span class="small opacity-75">ج.م</span>
                                 </span>
                             </td>
-                            <td class="text-center">
+                            <td class="text-center col-profit-footer <%= (!isAdmin && userCommissionSystem === 'system2') ? 'd-none' : '' %>" id="footerProfitCell">
                                 <span class="totals-badge totals-profit" id="footerTotalProfit" dir="rtl">
                                     <span>0</span> <span class="small opacity-75">ج.م</span>
                                 </span>
@@ -684,9 +708,6 @@
                     </div>
 
                 </div>
-                <div class="modal-footer border-0 pt-0">
-                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">إغلاق</button>
-                </div>
             </div>
         </div>
     </div>
@@ -794,6 +815,7 @@
                         document.getElementById('tableView').classList.remove('d-none');
                     } else {
                         currentLoadedCommissions = [];
+                        updateTableAndCardsLayout(checkIsCurrentViewSystem2([]));
                         updateCardsAndTotals({ totalPaid: 0, totalCost: 0, totalProfit: 0, totalCommission: 0 });
                         document.getElementById('emptyState').classList.remove('d-none');
                     }
@@ -845,10 +867,73 @@
             `;
         }
 
+        const userCommissionSystem = '<%= userCommissionSystem || "system1" %>';
+
+        function checkIsCurrentViewSystem2(commissions) {
+            if (!isAdmin) {
+                return (userCommissionSystem === 'system2');
+            }
+            const empSelect = document.getElementById('filterEmployee');
+            if (empSelect && empSelect.value !== 'all') {
+                const opt = empSelect.options[empSelect.selectedIndex];
+                return opt ? (opt.getAttribute('data-system') === 'system2') : false;
+            }
+            if (commissions && commissions.length > 0) {
+                return commissions.every(c => c.commissionSystem === 'system2');
+            }
+            return false;
+        }
+
+        function updateTableAndCardsLayout(isSys2) {
+            // 1. Table Columns (Header & Footer)
+            const costHeaders = document.querySelectorAll('.col-cost-header');
+            const profitHeaders = document.querySelectorAll('.col-profit-header');
+            const costFooters = document.querySelectorAll('.col-cost-footer');
+            const profitFooters = document.querySelectorAll('.col-profit-footer');
+            const footerTitle = document.getElementById('footerTitleCell');
+
+            if (isSys2) {
+                costHeaders.forEach(el => el.classList.add('d-none'));
+                profitHeaders.forEach(el => el.classList.add('d-none'));
+                costFooters.forEach(el => el.classList.add('d-none'));
+                profitFooters.forEach(el => el.classList.add('d-none'));
+                if (footerTitle) footerTitle.setAttribute('colspan', isAdmin ? '4' : '3');
+            } else {
+                costHeaders.forEach(el => el.classList.remove('d-none'));
+                profitHeaders.forEach(el => el.classList.remove('d-none'));
+                costFooters.forEach(el => el.classList.remove('d-none'));
+                profitFooters.forEach(el => el.classList.remove('d-none'));
+                if (footerTitle) footerTitle.setAttribute('colspan', isAdmin ? '5' : '4');
+            }
+
+            // 2. Summary Cards
+            const costCol = document.getElementById('statCardCostCol');
+            const profitCol = document.getElementById('statCardProfitCol');
+            const paidCol = document.getElementById('statCardPaidCol');
+            const commCol = document.getElementById('statCardCommCol');
+
+            if (costCol && profitCol && paidCol && commCol) {
+                if (isSys2) {
+                    costCol.classList.add('d-none');
+                    profitCol.classList.add('d-none');
+                    paidCol.className = 'col-12 col-sm-6';
+                    commCol.className = 'col-12 col-sm-6';
+                } else {
+                    costCol.classList.remove('d-none');
+                    profitCol.classList.remove('d-none');
+                    paidCol.className = 'col-12 col-sm-6 col-xl-3';
+                    commCol.className = 'col-12 col-sm-6 col-xl-3';
+                }
+            }
+        }
+
         // Render Table Rows
         function renderTable(commissions) {
             const tbody = document.getElementById('commissionsTableBody');
             tbody.innerHTML = '';
+
+            const isSys2View = checkIsCurrentViewSystem2(commissions);
+            updateTableAndCardsLayout(isSys2View);
 
             commissions.forEach((c, index) => {
                 const paid = parseFloat(c.totalPaid) || 0;
@@ -880,10 +965,12 @@
                             ${c.notes ? `<div class="small text-muted mt-1 text-truncate" style="max-width: 220px;" title="${c.notes}"><i class="bi bi-chat-left-text me-1"></i>${c.notes}</div>` : ''}
                         </td>
                         <td class="text-center fw-bold text-primary" dir="ltr">${formatMoney(paid)}</td>
-                        <td class="text-center fw-bold ${isSys2 ? 'text-muted' : 'text-danger'}" dir="ltr">
-                            ${isSys2 ? '—' : formatMoney(cost)}
-                        </td>
-                        <td class="text-center fw-bold text-success" dir="ltr">${formatMoney(profit)}</td>
+                        ${!isSys2View ? `
+                            <td class="text-center fw-bold ${isSys2 ? 'text-muted' : 'text-danger'}" dir="ltr">
+                                ${isSys2 ? '—' : formatMoney(cost)}
+                            </td>
+                            <td class="text-center fw-bold text-success" dir="ltr">${formatMoney(profit)}</td>
+                        ` : ''}
                         <td class="text-center">
                             <span class="badge-rate ${isSys2 ? 'bg-primary-subtle text-primary border-primary-subtle' : ''}">
                                 ${rate}% ${isSys2 ? '<small class="opacity-75">(إجمالي)</small>' : ''}
