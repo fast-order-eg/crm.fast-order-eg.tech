@@ -467,17 +467,29 @@ function getNumberBadge(num) {
 }
 
 /**
- * Call External API 1: Suggest Keywords (Vertex AI)
+ * Call External API 1: Suggest Keywords (Vertex AI) with pagination support
  */
-export async function fetchSuggestedKeywords(niche, country = 'EG') {
+export async function fetchSuggestedKeywords(niche, country = 'EG', page = 1, startIndex = 0) {
     try {
+        // Prepare request body with page and more parameters
+        // When page > 1, send modified niche prompt so Vertex AI bypasses page 1 cache if backend doesn't handle page natively yet
+        const effectiveNiche = (page > 1) 
+            ? `${niche} - زوايا بحثية وأفكار إعلانية متقدمة وإضافية دفعة ${page}`
+            : niche;
+
         const res = await fetch(`${COMPETITOR_API_BASE}/suggest-keywords`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'x-api-key': COMPETITOR_API_KEY
             },
-            body: JSON.stringify({ niche, country })
+            body: JSON.stringify({ 
+                niche: effectiveNiche, 
+                query: effectiveNiche, 
+                country,
+                page: page,
+                more: true
+            })
         });
 
         const data = await res.json().catch(() => null);
@@ -486,10 +498,11 @@ export async function fetchSuggestedKeywords(niche, country = 'EG') {
         }
 
         if (data && (data.angles || data.suggested_keywords || data.keywords_list)) {
-            let totalIndex = 0;
-            const allKeywords = [];
+            let totalIndex = startIndex;
+            const newKeywords = [];
 
-            let formattedMsg = `🎯 *الكلمات والزوايا البحثية لمجال:* ${data.query || niche}\n` +
+            const cleanNicheTitle = (data.query || niche).replace(/\s*-\s*زوايا[\s\S]*$/, '');
+            let formattedMsg = `🎯 *الكلمات والزوايا البحثية لمجال:* ${cleanNicheTitle}${page > 1 ? ` (الدفعة ${page})` : ''}\n` +
                                `🌍 *الدولة:* ${data.country === 'EG' ? 'مصر 🇪🇬' : (data.country || 'مصر 🇪🇬')}\n` +
                                `══════════════════════`;
 
@@ -503,7 +516,7 @@ export async function fetchSuggestedKeywords(niche, country = 'EG') {
                     for (const kwItem of kwList) {
                         totalIndex++;
                         const kw = typeof kwItem === 'string' ? kwItem : (kwItem.keyword || String(kwItem));
-                        allKeywords.push(kw);
+                        newKeywords.push(kw);
                         formattedMsg += `\n${getNumberBadge(totalIndex)} ${kw}`;
                     }
                 }
@@ -512,22 +525,27 @@ export async function fetchSuggestedKeywords(niche, country = 'EG') {
                 for (const kwItem of data.suggested_keywords) {
                     totalIndex++;
                     const kw = typeof kwItem === 'string' ? kwItem : (kwItem.keyword || String(kwItem));
-                    allKeywords.push(kw);
+                    newKeywords.push(kw);
                     formattedMsg += `\n${getNumberBadge(totalIndex)} ${kw}`;
                 }
             } else if (Array.isArray(data.keywords_list) && data.keywords_list.length > 0) {
                 formattedMsg += `\n\n💡 *أقوى الكلمات المفتاحية:*`;
                 for (const kw of data.keywords_list) {
                     totalIndex++;
-                    allKeywords.push(kw);
+                    newKeywords.push(kw);
                     formattedMsg += `\n${getNumberBadge(totalIndex)} ${kw}`;
                 }
             }
 
+            const nextMoreNum = totalIndex + 1;
+            formattedMsg += `\n\n${getNumberBadge(nextMoreNum)} المزيد ⏭️`;
+
             return { 
                 success: true, 
                 message: formattedMsg,
-                keywords: allKeywords
+                keywords: newKeywords,
+                totalIndex: totalIndex,
+                moreIndex: nextMoreNum
             };
         } else if (data && data.formatted_message) {
             let cleaned = data.formatted_message
@@ -734,6 +752,10 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
             return { handled: true };
         }
 
+        session.lastType = 'keywords';
+        session.lastNiche = niche;
+        session.keywordPage = 1;
+
         await replyToStaff(sock, remoteJid, `⏳ جاري تحليل مجال *"${niche}"* واقتراح أقوى الكلمات المفتاحية وزوايا الاستهداف بالذكاء الاصطناعي...`, userId, io);
         
         // إبقاء حالة "يكتب الآن..." أثناء اتصال الذكاء الاصطناعي
@@ -741,10 +763,11 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
             sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
         }
 
-        const result = await fetchSuggestedKeywords(niche);
+        const result = await fetchSuggestedKeywords(niche, 'EG', 1, 0);
 
         if (result.success) {
             session.suggestedKeywords = result.keywords || [];
+            session.moreIndex = result.moreIndex;
             session.inSession = true;
         }
 
@@ -805,6 +828,7 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
             }
         }
 
+        session.lastType = 'ads';
         session.lastKeyword = keyword;
         session.currentPage = 1;
         session.inSession = true;
@@ -832,6 +856,36 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
     // In-Session: "المزيد" / "الصفحة اللي بعدها" / "هات 5 كمان"
     // ================================================================
     if (session.inSession && (/^(\/|\s)*(المزيد|more|الصفحة\s*اللي\s*بعدها|هات\s*كمان|هات\s*5\s*كمان|التالي|next)($|\s)/i.test(trimmed))) {
+        // إذا كان آخر إجراء هو اقتراح الكلمات والزوايا
+        if (session.lastType === 'keywords') {
+            if (!session.lastNiche) {
+                await replyToStaff(sock, remoteJid, '⚠️ يرجى كتابة المجال المطلوب أولاً. مثال: */كلمات أحذية*', userId, io);
+                return { handled: true };
+            }
+
+            session.keywordPage = (session.keywordPage || 1) + 1;
+            const startIndex = (session.suggestedKeywords || []).length;
+
+            await replyToStaff(sock, remoteJid, `⏳ جاري اقتراح زوايا وكلمات جديدة للدفعة رقم (${session.keywordPage}) لمجال *"${session.lastNiche}"* بالذكاء الاصطناعي...`, userId, io);
+
+            if (typeof sock.sendPresenceUpdate === 'function') {
+                sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
+            }
+
+            const result = await fetchSuggestedKeywords(session.lastNiche, 'EG', session.keywordPage, startIndex);
+
+            if (result.success) {
+                session.suggestedKeywords = (session.suggestedKeywords || []).concat(result.keywords || []);
+                session.moreIndex = result.moreIndex;
+            } else {
+                session.keywordPage = Math.max(1, session.keywordPage - 1);
+            }
+
+            await replyToStaff(sock, remoteJid, result.message, userId, io);
+            return { handled: true };
+        }
+
+        // إذا كان فحص إعلانات المنافسين
         if (!session.lastKeyword) {
             await replyToStaff(sock, remoteJid, '⚠️ لم يتم البحث عن كلمة بعد! اكتب الكلمة التي تريد البحث عنها أولاً (مثال: ساعات رجالي).', userId, io);
             return { handled: true };
@@ -870,25 +924,58 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
             let niche = trimmed.replace(/^(كلمات|اقترحلي\s*كلمات|اقترح\s*كلمات|عايز\s*كلمات\s*لـ?|عايز\s*كلمات\s*عن|اقتراح\s*كلمات)\s*/i, '').trim();
             niche = niche.replace(/^(مجال|نشاط|شغال\s*في|ببيع|عن|لـ|في)\s+/i, '').trim() || niche;
 
+            session.lastType = 'keywords';
+            session.lastNiche = niche;
+            session.keywordPage = 1;
+
             await replyToStaff(sock, remoteJid, `⏳ جاري تحليل مجال *"${niche}"* واقتراح أقوى الكلمات المفتاحية وزوايا الاستهداف بالذكاء الاصطناعي...`, userId, io);
 
             if (typeof sock.sendPresenceUpdate === 'function') {
                 sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
             }
 
-            const result = await fetchSuggestedKeywords(niche);
+            const result = await fetchSuggestedKeywords(niche, 'EG', 1, 0);
             if (result.success) {
                 session.suggestedKeywords = result.keywords || [];
+                session.moreIndex = result.moreIndex;
             }
             await replyToStaff(sock, remoteJid, result.message, userId, io);
             return { handled: true };
         }
 
-        // اختيار الكلمة برقمها فقط مباشرة أثناء الجلسة (مثال: كتابة 1 أو 2 أو 5)
-        if (/^\d{1,2}$/.test(trimmed) && session.suggestedKeywords && session.suggestedKeywords.length > 0) {
-            const idx = parseInt(trimmed, 10) - 1;
-            if (session.suggestedKeywords[idx]) {
+        // إذا قام المستخدم بكتابة رقم (سواء كان رقم خيار المزيد أو رقم إحدى الكلمات)
+        if (/^\d{1,2}$/.test(trimmed)) {
+            const num = parseInt(trimmed, 10);
+
+            // لو ضغط على رقم "المزيد" المكتوب في نهاية الكلمات المقترحة
+            if (session.lastType === 'keywords' && session.moreIndex && num === session.moreIndex) {
+                session.keywordPage = (session.keywordPage || 1) + 1;
+                const startIndex = (session.suggestedKeywords || []).length;
+
+                await replyToStaff(sock, remoteJid, `⏳ جاري اقتراح زوايا وكلمات جديدة للدفعة رقم (${session.keywordPage}) لمجال *"${session.lastNiche}"* بالذكاء الاصطناعي...`, userId, io);
+
+                if (typeof sock.sendPresenceUpdate === 'function') {
+                    sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
+                }
+
+                const result = await fetchSuggestedKeywords(session.lastNiche, 'EG', session.keywordPage, startIndex);
+
+                if (result.success) {
+                    session.suggestedKeywords = (session.suggestedKeywords || []).concat(result.keywords || []);
+                    session.moreIndex = result.moreIndex;
+                } else {
+                    session.keywordPage = Math.max(1, session.keywordPage - 1);
+                }
+
+                await replyToStaff(sock, remoteJid, result.message, userId, io);
+                return { handled: true };
+            }
+
+            // لو اختار رقم إحدى الكلمات المقترحة لجلب إعلاناتها
+            const idx = num - 1;
+            if (session.suggestedKeywords && session.suggestedKeywords[idx]) {
                 const selectedKeyword = session.suggestedKeywords[idx];
+                session.lastType = 'ads';
                 session.lastKeyword = selectedKeyword;
                 session.currentPage = 1;
 
