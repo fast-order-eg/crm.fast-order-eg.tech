@@ -458,6 +458,15 @@ export async function toggleCompetitorStaff(rawPhone, userId = 3) {
 }
 
 /**
+ * Helper: get number badge
+ */
+function getNumberBadge(num) {
+    const badges = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
+    if (num >= 1 && num <= 10) return badges[num - 1];
+    return `*${num}.*`;
+}
+
+/**
  * Call External API 1: Suggest Keywords (Vertex AI)
  */
 export async function fetchSuggestedKeywords(niche, country = 'EG') {
@@ -472,11 +481,63 @@ export async function fetchSuggestedKeywords(niche, country = 'EG') {
         });
 
         const data = await res.json().catch(() => null);
-        if (data && data.formatted_message) {
-            return { success: true, message: data.formatted_message };
-        } else if (data && data.error) {
+        if (data && data.error) {
             return { success: false, message: `⚠️ ${data.error}` };
         }
+
+        if (data && (data.angles || data.suggested_keywords || data.keywords_list)) {
+            let totalIndex = 0;
+            const allKeywords = [];
+
+            let formattedMsg = `🎯 *الكلمات والزوايا البحثية لمجال:* ${data.query || niche}\n` +
+                               `🌍 *الدولة:* ${data.country === 'EG' ? 'مصر 🇪🇬' : (data.country || 'مصر 🇪🇬')}\n` +
+                               `══════════════════════`;
+
+            if (Array.isArray(data.angles) && data.angles.length > 0) {
+                for (const angle of data.angles) {
+                    const catName = angle.category || 'عام';
+                    const kwList = Array.isArray(angle.keywords) ? angle.keywords : [];
+                    if (kwList.length === 0) continue;
+
+                    formattedMsg += `\n\n📌 *زاوية: ${catName}*`;
+                    for (const kwItem of kwList) {
+                        totalIndex++;
+                        const kw = typeof kwItem === 'string' ? kwItem : (kwItem.keyword || String(kwItem));
+                        allKeywords.push(kw);
+                        formattedMsg += `\n${getNumberBadge(totalIndex)} ${kw}`;
+                    }
+                }
+            } else if (Array.isArray(data.suggested_keywords) && data.suggested_keywords.length > 0) {
+                formattedMsg += `\n\n💡 *أقوى الكلمات المفتاحية:*`;
+                for (const kwItem of data.suggested_keywords) {
+                    totalIndex++;
+                    const kw = typeof kwItem === 'string' ? kwItem : (kwItem.keyword || String(kwItem));
+                    allKeywords.push(kw);
+                    formattedMsg += `\n${getNumberBadge(totalIndex)} ${kw}`;
+                }
+            } else if (Array.isArray(data.keywords_list) && data.keywords_list.length > 0) {
+                formattedMsg += `\n\n💡 *أقوى الكلمات المفتاحية:*`;
+                for (const kw of data.keywords_list) {
+                    totalIndex++;
+                    allKeywords.push(kw);
+                    formattedMsg += `\n${getNumberBadge(totalIndex)} ${kw}`;
+                }
+            }
+
+            return { 
+                success: true, 
+                message: formattedMsg,
+                keywords: allKeywords
+            };
+        } else if (data && data.formatted_message) {
+            let cleaned = data.formatted_message
+                .replace(/🔗[^\n]*\n?/g, '')
+                .replace(/💡\s*\*تحليل الذكاء الاصطناعي:[\s\S]*$/i, '')
+                .replace(/👉\s*لجلب إعلانات المنافسين[\s\S]*$/i, '')
+                .trim();
+            return { success: true, message: cleaned, keywords: data.keywords_list || [] };
+        }
+
         return { success: false, message: '⚠️ تعذر جلب الكلمات المقترحة حالياً. يرجى المحاولة لاحقاً.' };
     } catch (err) {
         console.error('❌ [fetchSuggestedKeywords] Error:', err.message);
@@ -682,12 +743,12 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
 
         const result = await fetchSuggestedKeywords(niche);
 
-        let finalMsg = result.message;
         if (result.success) {
-            finalMsg += `\n\n💡 *للبحث عن إعلانات أي كلمة من دول:* اكتب */منافسين [الكلمة]*`;
+            session.suggestedKeywords = result.keywords || [];
+            session.inSession = true;
         }
-        await replyToStaff(sock, remoteJid, finalMsg, userId, io);
-        session.inSession = true;
+
+        await replyToStaff(sock, remoteJid, result.message, userId, io);
         return { handled: true };
     }
 
@@ -735,6 +796,14 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
     if (/^[\/\s]*(منافسين|المنافسين|spy|سوق|عين_السوق|عين\s*السوق)\s+(.+)$/i.test(trimmed)) {
         let keyword = trimmed.replace(/^[\/\s]*(منافسين|المنافسين|spy|سوق|عين_السوق|عين\s*السوق)\s+/i, '').trim();
         keyword = keyword.replace(/^(اعلانات|إعلانات|عن|بحث\s*عن)\s+/i, '').trim() || keyword;
+
+        // دعم اختيار الكلمة برقمها إذا سبق طلب كلمات مقترحة (مثال: /منافسين 1 أو /منافسين 4)
+        if (/^\d{1,2}$/.test(keyword) && session.suggestedKeywords && session.suggestedKeywords.length > 0) {
+            const idx = parseInt(keyword, 10) - 1;
+            if (session.suggestedKeywords[idx]) {
+                keyword = session.suggestedKeywords[idx];
+            }
+        }
 
         session.lastKeyword = keyword;
         session.currentPage = 1;
@@ -808,15 +877,41 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
             }
 
             const result = await fetchSuggestedKeywords(niche);
-            let finalMsg = result.message;
             if (result.success) {
-                finalMsg += `\n\n💡 *للبحث عن إعلانات أي كلمة من دول:* اكتب */منافسين [الكلمة]*`;
+                session.suggestedKeywords = result.keywords || [];
             }
-            await replyToStaff(sock, remoteJid, finalMsg, userId, io);
+            await replyToStaff(sock, remoteJid, result.message, userId, io);
             return { handled: true };
         }
 
-        // If it's pure numbers, user might be asking for an ad report
+        // اختيار الكلمة برقمها فقط مباشرة أثناء الجلسة (مثال: كتابة 1 أو 2 أو 5)
+        if (/^\d{1,2}$/.test(trimmed) && session.suggestedKeywords && session.suggestedKeywords.length > 0) {
+            const idx = parseInt(trimmed, 10) - 1;
+            if (session.suggestedKeywords[idx]) {
+                const selectedKeyword = session.suggestedKeywords[idx];
+                session.lastKeyword = selectedKeyword;
+                session.currentPage = 1;
+
+                await replyToStaff(sock, remoteJid, `⏳ جاري فحص مكتبة الإعلانات لكلمة *"${selectedKeyword}"*...`, userId, io);
+
+                if (typeof sock.sendPresenceUpdate === 'function') {
+                    sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
+                }
+
+                const result = await fetchCompetitorAds(selectedKeyword, 1, 5);
+
+                let finalMsg = result.message;
+                if (result.success) {
+                    finalMsg += `\n\n📄 *الدفعة 1 (عرض 5 إعلانات)*\n` +
+                                `👉 لمشاهدة الـ 5 إعلانات التالية، اكتب: *المزيد* ⏭️\n` +
+                                `🔍 للبحث عن كلمة تانية اكتبها فوراً | للخروج: */خروج*`;
+                }
+                await replyToStaff(sock, remoteJid, finalMsg, userId, io);
+                return { handled: true };
+            }
+        }
+
+        // If it's pure numbers (10+ digits), user might be asking for an ad report
         if (/^\d{10,}$/.test(trimmed)) {
             await replyToStaff(sock, remoteJid, `⏳ جاري سحب تقرير أداء الحساب الإعلاني (\`${trimmed}\`)...`, userId, io);
 
