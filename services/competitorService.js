@@ -564,9 +564,43 @@ export async function fetchSuggestedKeywords(niche, country = 'EG', page = 1, st
 }
 
 /**
+ * Helper: Extract valid Egyptian phone numbers and filter out random IDs
+ */
+function extractValidPhones(text, phoneNumbersList = []) {
+    const valid = new Set();
+    if (Array.isArray(phoneNumbersList)) {
+        for (const p of phoneNumbersList) {
+            const clean = String(p).replace(/[^0-9]/g, '');
+            let norm = clean;
+            if (norm.startsWith('20')) norm = norm.slice(2);
+            if (norm.startsWith('0')) norm = norm.slice(1);
+            if (norm.length === 10 && ['10', '11', '12', '15'].includes(norm.slice(0, 2))) {
+                valid.add('0' + norm);
+            }
+        }
+    }
+    if (text) {
+        const regex = /(?:(?:\+?20|0020)[\s.-]?)?0?1[0125][\s.-]?\d{3,4}[\s.-]?\d{4}/g;
+        const matches = text.match(regex);
+        if (matches) {
+            for (const m of matches) {
+                const clean = m.replace(/[^0-9]/g, '');
+                let norm = clean;
+                if (norm.startsWith('20')) norm = norm.slice(2);
+                if (norm.startsWith('0')) norm = norm.slice(1);
+                if (norm.length === 10 && ['10', '11', '12', '15'].includes(norm.slice(0, 2))) {
+                    valid.add('0' + norm);
+                }
+            }
+        }
+    }
+    return Array.from(valid);
+}
+
+/**
  * Call External API 2: Competitor Live Ads (Facebook Ad Library with Pagination)
  */
-export async function fetchCompetitorAds(keyword, page = 1, limit = 5, country = 'EG') {
+export async function fetchCompetitorAds(keyword, page = 1, limit = 5, country = 'EG', startIndex = 0) {
     try {
         const res = await fetch(`${COMPETITOR_API_BASE}/competitor-ads`, {
             method: 'POST',
@@ -578,17 +612,86 @@ export async function fetchCompetitorAds(keyword, page = 1, limit = 5, country =
         });
 
         const data = await res.json().catch(() => null);
-        if (data && data.formatted_message) {
-            return { 
-                success: true, 
-                message: data.formatted_message,
-                total_ads: data.total_ads || 0,
-                has_more: data.has_more !== false
-            };
-        } else if (data && data.error) {
+        if (data && data.error) {
             return { success: false, message: `⚠️ ${data.error}` };
         }
-        return { success: false, message: '⚠️ لم يتم العثور على إعلانات كافية لهذه الكلمة حالياً.' };
+
+        const ads = data?.ads || [];
+        if (ads.length === 0) {
+            return { 
+                success: false, 
+                message: page > 1 
+                    ? `🏁 انتهت جميع الإعلانات المتاحة لكلمة *"${keyword}"*.` 
+                    : `⚠️ لم يتم العثور على إعلانات لكلمة *"${keyword}"* حالياً.`
+            };
+        }
+
+        let msg = `📊 *إعلانات المنافسين من مكتبة الإعلانات*\n` +
+                  `🔍 *كلمة البحث:* "${keyword}"\n` +
+                  `🌍 *الدولة:* ${data.country === 'EG' ? 'مصر 🇪🇬' : (data.country || 'مصر 🇪🇬')}\n` +
+                  `📄 *الدفعة:* رقم ${page} (عرض ${ads.length} إعلانات)\n` +
+                  `══════════════════════`;
+
+        let currentIndex = startIndex;
+
+        for (const ad of ads) {
+            currentIndex++;
+            const badge = getNumberBadge(currentIndex);
+
+            msg += `\n\n${badge} *${ad.page_name || 'صفحة معلن'}*`;
+            if (ad.cta_label) msg += `\n• 🎯 الهدف: *${ad.cta_label}*`;
+            if (ad.duration_text) msg += `\n• ⏳ مدة التشغيل: *${ad.duration_text}*${ad.start_date ? ` (منذ ${ad.start_date})` : ''}`;
+            if (ad.media_type_label) msg += `\n• 🎬 نوع الإعلان: *${ad.media_type_label}*`;
+            if (ad.platforms_label) msg += `\n• 📱 المنصات: *${ad.platforms_label}*`;
+
+            // استخراج وتدقيق أرقام التواصل الحقيقية واستبعاد المعرفات العشوائية
+            const validPhones = extractValidPhones(ad.primary_text, ad.phone_numbers);
+            if (validPhones.length > 0) {
+                msg += `\n• 📞 رقم التواصل: \`${validPhones.join('`, `')}\``;
+                const p = validPhones[0];
+                const intl = p.startsWith('0') ? (`20${p.slice(1)}`) : p;
+                msg += `\n• 💬 مراسلة واتساب: https://wa.me/${intl}`;
+            } else if (ad.cta_type === 'WHATSAPP') {
+                msg += `\n• 💬 إعلان واتساب: (الزر مربوط بواتساب المعلن)`;
+            }
+
+            // رابط صفحة الفيسبوك ورابط مراسلة ماسنجر
+            if (ad.page_profile_url) {
+                msg += `\n• 🌐 صفحة الفيسبوك: ${ad.page_profile_url}`;
+                const m = ad.page_profile_url.match(/facebook\.com\/([^\/\?]+)/);
+                if (m && m[1] && !['profile.php', 'pages'].includes(m[1])) {
+                    msg += `\n• 📩 مراسلة ماسنجر: https://m.me/${m[1]}`;
+                }
+            }
+
+            // النص الإعلاني كاملاً بدون أي اقتطاع
+            if (ad.primary_text) {
+                msg += `\n• 📝 نص الإعلان بالكامل:\n"${ad.primary_text.trim()}"`;
+            }
+
+            // رابط الإعلان في مكتبة الإعلانات
+            if (ad.ad_library_url) {
+                msg += `\n• 🔗 رابط الإعلان بالمكتبة: ${ad.ad_library_url}`;
+            }
+        }
+
+        const hasMore = (data.pagination?.has_more !== false && ads.length >= limit);
+        const nextMoreNum = currentIndex + 1;
+
+        if (hasMore) {
+            msg += `\n\n${getNumberBadge(nextMoreNum)} المزيد ⏭️`;
+        } else {
+            msg += `\n\n🏁 *انتهت جميع الإعلانات المتاحة لهذه الكلمة.*`;
+        }
+
+        return { 
+            success: true, 
+            message: msg,
+            adsCount: ads.length,
+            has_more: hasMore,
+            totalIndex: currentIndex,
+            moreIndex: hasMore ? nextMoreNum : null
+        };
     } catch (err) {
         console.error('❌ [fetchCompetitorAds] Error:', err.message);
         return { success: false, message: `⚠️ حدث خطأ في سحب إعلانات المنافسين: ${err.message}` };
@@ -831,6 +934,7 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
         session.lastType = 'ads';
         session.lastKeyword = keyword;
         session.currentPage = 1;
+        session.adsTotalCount = 0;
         session.inSession = true;
 
         await replyToStaff(sock, remoteJid, `⏳ جاري فحص مكتبة الإعلانات وسحب إعلانات المنافسين لكلمة *"${keyword}"*...`, userId, io);
@@ -840,15 +944,14 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
             sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
         }
 
-        const result = await fetchCompetitorAds(keyword, 1, 5);
+        const result = await fetchCompetitorAds(keyword, 1, 5, 'EG', 0);
 
-        let finalMsg = result.message;
         if (result.success) {
-            finalMsg += `\n\n📄 *الدفعة 1 (عرض 5 إعلانات)*\n` +
-                        `👉 لمشاهدة الـ 5 إعلانات التالية، اكتب: *المزيد* ⏭️\n` +
-                        `🔍 للبحث عن كلمة تانية اكتبها فوراً | للخروج: */خروج*`;
+            session.adsMoreIndex = result.moreIndex;
+            session.adsTotalCount = result.totalIndex;
         }
-        await replyToStaff(sock, remoteJid, finalMsg, userId, io);
+
+        await replyToStaff(sock, remoteJid, result.message, userId, io);
         return { handled: true };
     }
 
@@ -892,25 +995,25 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
         }
 
         session.currentPage += 1;
+        const startIndex = session.adsTotalCount || ((session.currentPage - 1) * 5);
+
         await replyToStaff(sock, remoteJid, `⏳ جاري سحب الدفعة رقم (${session.currentPage}) لإعلانات *"${session.lastKeyword}"*...`, userId, io);
 
         if (typeof sock.sendPresenceUpdate === 'function') {
             sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
         }
 
-        const result = await fetchCompetitorAds(session.lastKeyword, session.currentPage, 5);
+        const result = await fetchCompetitorAds(session.lastKeyword, session.currentPage, 5, 'EG', startIndex);
 
-        let finalMsg = result.message;
         if (result.success) {
-            finalMsg += `\n\n📄 *الدفعة ${session.currentPage}*\n` +
-                        `👉 لمشاهدة الدفعة التالية، اكتب: *المزيد* ⏭️\n` +
-                        `🔍 للبحث عن كلمة تانية اكتبها فوراً | للخروج: */خروج*`;
+            session.adsMoreIndex = result.moreIndex;
+            session.adsTotalCount = result.totalIndex;
         } else {
             // Revert page increment if failed
             session.currentPage = Math.max(1, session.currentPage - 1);
         }
 
-        await replyToStaff(sock, remoteJid, finalMsg, userId, io);
+        await replyToStaff(sock, remoteJid, result.message, userId, io);
         return { handled: true };
     }
 
@@ -947,7 +1050,7 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
         if (/^\d{1,2}$/.test(trimmed)) {
             const num = parseInt(trimmed, 10);
 
-            // لو ضغط على رقم "المزيد" المكتوب في نهاية الكلمات المقترحة
+            // 1. لو ضغط على رقم "المزيد" المكتوب في نهاية الكلمات المقترحة
             if (session.lastType === 'keywords' && session.moreIndex && num === session.moreIndex) {
                 session.keywordPage = (session.keywordPage || 1) + 1;
                 const startIndex = (session.suggestedKeywords || []).length;
@@ -971,13 +1074,38 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
                 return { handled: true };
             }
 
-            // لو اختار رقم إحدى الكلمات المقترحة لجلب إعلاناتها
+            // 2. لو ضغط على رقم "المزيد" المكتوب في نهاية إعلانات المنافسين
+            if (session.lastType === 'ads' && session.adsMoreIndex && num === session.adsMoreIndex) {
+                session.currentPage += 1;
+                const startIndex = session.adsTotalCount || ((session.currentPage - 1) * 5);
+
+                await replyToStaff(sock, remoteJid, `⏳ جاري سحب الدفعة رقم (${session.currentPage}) لإعلانات *"${session.lastKeyword}"*...`, userId, io);
+
+                if (typeof sock.sendPresenceUpdate === 'function') {
+                    sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
+                }
+
+                const result = await fetchCompetitorAds(session.lastKeyword, session.currentPage, 5, 'EG', startIndex);
+
+                if (result.success) {
+                    session.adsMoreIndex = result.moreIndex;
+                    session.adsTotalCount = result.totalIndex;
+                } else {
+                    session.currentPage = Math.max(1, session.currentPage - 1);
+                }
+
+                await replyToStaff(sock, remoteJid, result.message, userId, io);
+                return { handled: true };
+            }
+
+            // 3. لو اختار رقم إحدى الكلمات المقترحة لجلب إعلاناتها
             const idx = num - 1;
             if (session.suggestedKeywords && session.suggestedKeywords[idx]) {
                 const selectedKeyword = session.suggestedKeywords[idx];
                 session.lastType = 'ads';
                 session.lastKeyword = selectedKeyword;
                 session.currentPage = 1;
+                session.adsTotalCount = 0;
 
                 await replyToStaff(sock, remoteJid, `⏳ جاري فحص مكتبة الإعلانات لكلمة *"${selectedKeyword}"*...`, userId, io);
 
@@ -985,15 +1113,13 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
                     sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
                 }
 
-                const result = await fetchCompetitorAds(selectedKeyword, 1, 5);
+                const result = await fetchCompetitorAds(selectedKeyword, 1, 5, 'EG', 0);
 
-                let finalMsg = result.message;
                 if (result.success) {
-                    finalMsg += `\n\n📄 *الدفعة 1 (عرض 5 إعلانات)*\n` +
-                                `👉 لمشاهدة الـ 5 إعلانات التالية، اكتب: *المزيد* ⏭️\n` +
-                                `🔍 للبحث عن كلمة تانية اكتبها فوراً | للخروج: */خروج*`;
+                    session.adsMoreIndex = result.moreIndex;
+                    session.adsTotalCount = result.totalIndex;
                 }
-                await replyToStaff(sock, remoteJid, finalMsg, userId, io);
+                await replyToStaff(sock, remoteJid, result.message, userId, io);
                 return { handled: true };
             }
         }
@@ -1014,8 +1140,10 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
         let searchKeyword = trimmed;
         searchKeyword = searchKeyword.replace(/^(اعلانات|إعلانات|عن|بحث\s*عن|هات\s*اعلانات)\s+/i, '').trim() || searchKeyword;
 
+        session.lastType = 'ads';
         session.lastKeyword = searchKeyword;
         session.currentPage = 1;
+        session.adsTotalCount = 0;
 
         await replyToStaff(sock, remoteJid, `⏳ جاري فحص مكتبة الإعلانات لكلمة *"${searchKeyword}"*...`, userId, io);
 
@@ -1023,15 +1151,13 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
             sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
         }
 
-        const result = await fetchCompetitorAds(searchKeyword, 1, 5);
+        const result = await fetchCompetitorAds(searchKeyword, 1, 5, 'EG', 0);
 
-        let finalMsg = result.message;
         if (result.success) {
-            finalMsg += `\n\n📄 *الدفعة 1 (عرض 5 إعلانات)*\n` +
-                        `👉 لمشاهدة الـ 5 إعلانات التالية، اكتب: *المزيد* ⏭️\n` +
-                        `🔍 للبحث عن كلمة تانية اكتبها فوراً | للخروج: */خروج*`;
+            session.adsMoreIndex = result.moreIndex;
+            session.adsTotalCount = result.totalIndex;
         }
-        await replyToStaff(sock, remoteJid, finalMsg, userId, io);
+        await replyToStaff(sock, remoteJid, result.message, userId, io);
         return { handled: true };
     }
 
