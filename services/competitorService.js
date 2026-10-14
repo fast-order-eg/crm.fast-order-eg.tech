@@ -53,19 +53,71 @@ export function isCompetitorCommand(text) {
 }
 
 /**
- * Send WhatsApp reply to staff AND permanently log it to the SQL Database (messages table)
+ * Send WhatsApp reply to staff with full human simulation (Anti-Ban):
+ * - available presence
+ * - composing ("يكتب الآن...") status with periodic refresh
+ * - proportional human delay based on text length
+ * - zero-width space jitter (anti-hash duplicate)
+ * - unavailable presence after completion
+ * - SQL and Socket.io logging
  */
 async function replyToStaff(sock, remoteJid, text, userId, io) {
     if (!sock || !remoteJid || !text) return;
 
-    // 1. Send via WhatsApp socket
+    const textLen = (text || '').length;
+
+    // 1. Send presence: available
     try {
-        await sock.sendMessage(remoteJid, { text });
+        if (typeof sock.sendPresenceUpdate === 'function') {
+            await sock.sendPresenceUpdate('available', remoteJid).catch(() => {});
+        }
+    } catch (_) {}
+
+    // 2. Simulate realistic typing duration proportional to message length (2.5s to 6.5s)
+    const typingDuration = Math.min(6500, Math.max(2500, Math.floor(textLen * 12) + Math.floor(Math.random() * 1200) + 800));
+
+    let presenceInterval = null;
+    try {
+        if (typeof sock.sendPresenceUpdate === 'function') {
+            await sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
+            presenceInterval = setInterval(() => {
+                sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
+            }, 4000);
+        }
+    } catch (_) {}
+
+    await new Promise(r => setTimeout(r, typingDuration));
+
+    if (presenceInterval) clearInterval(presenceInterval);
+
+    try {
+        if (typeof sock.sendPresenceUpdate === 'function') {
+            await sock.sendPresenceUpdate('paused', remoteJid).catch(() => {});
+        }
+    } catch (_) {}
+
+    // 3. Random Zero-Width Space to break message hash signature
+    const zeroWidthSpaces = ['\u200B', '\u200C', '\u200D', '\uFEFF'];
+    const randomJitter = zeroWidthSpaces[Math.floor(Math.random() * zeroWidthSpaces.length)];
+    const finalSendText = `${text}${randomJitter}`;
+
+    // 4. Send via WhatsApp socket
+    try {
+        await sock.sendMessage(remoteJid, { text: finalSendText });
     } catch (sendErr) {
         console.error('❌ [replyToStaff - Competitor] WhatsApp send error:', sendErr.message);
     }
 
-    // 2. Permanently log assistant reply to SQL DB
+    // 5. Send presence: unavailable after a short timeout
+    setTimeout(() => {
+        try {
+            if (typeof sock.sendPresenceUpdate === 'function') {
+                sock.sendPresenceUpdate('unavailable', remoteJid).catch(() => {});
+            }
+        } catch (_) {}
+    }, 1500);
+
+    // 6. Permanently log assistant reply to SQL DB
     try {
         if (Message) {
             const savedMsg = await Message.create({
@@ -604,14 +656,17 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
     // ================================================================
     // Command: /كلمات [المجال] or /keywords [المجال]
     // ================================================================
-    const keywordsMatch = trimmed.match(/^(\/|\s)*(كلمات|الكلمات|keywords|نوتش)\s*(.*)$/i);
-    if (keywordsMatch) {
-        const niche = (keywordsMatch[2] || '').trim();
+    if (/^[\/\s]*(كلمات|الكلمات|keywords|نوتش)($|\s)/i.test(trimmed)) {
+        let niche = trimmed.replace(/^[\/\s]*(كلمات|الكلمات|keywords|نوتش)\s*/i, '').trim();
+        if (niche) {
+            niche = niche.replace(/^(مجال|نشاط|شغال\s*في|ببيع|عايز\s*كلمات\s*لـ?|عايز\s*كلمات\s*عن)\s+/i, '').trim() || niche;
+        }
+
         if (!niche) {
             await replyToStaff(
                 sock, 
                 remoteJid, 
-                '⚠️ يرجى كتابة المجال المطلوب بعد الأمر.\nمثال: */كلمات عبايات خليجي* أو */كلمات أحذية رياضية*', 
+                '⚠️ يرجى كتابة المجال المطلوب بعد الأمر.\nمثال: */كلمات ملابس* أو */كلمات أحذية رياضية*', 
                 userId, 
                 io
             );
@@ -619,6 +674,12 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
         }
 
         await replyToStaff(sock, remoteJid, `⏳ جاري تحليل مجال *"${niche}"* واقتراح أقوى الكلمات المفتاحية وزوايا الاستهداف بالذكاء الاصطناعي...`, userId, io);
+        
+        // إبقاء حالة "يكتب الآن..." أثناء اتصال الذكاء الاصطناعي
+        if (typeof sock.sendPresenceUpdate === 'function') {
+            sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
+        }
+
         const result = await fetchSuggestedKeywords(niche);
 
         let finalMsg = result.message;
@@ -633,10 +694,11 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
     // ================================================================
     // Command: /تقرير [رقم الحساب] [الفترة]
     // ================================================================
-    const reportMatch = trimmed.match(/^(\/|\s)*(تقرير|ads|حملات)\s*([0-9a-zA-Z_]+)\s*(.*)$/i);
-    if (reportMatch) {
-        const accountId = reportMatch[2].trim();
-        let rawPeriod = (reportMatch[3] || '').trim();
+    if (/^[\/\s]*(تقرير|ads|حملات)($|\s)/i.test(trimmed)) {
+        const afterCmd = trimmed.replace(/^[\/\s]*(تقرير|ads|حملات)\s*/i, '').trim();
+        const parts = afterCmd.split(/\s+/);
+        const accountId = (parts[0] || '').replace(/[^0-9]/g, '');
+        const rawPeriod = parts.slice(1).join(' ').trim();
         let period = 'lifetime';
 
         if (/نهاردة|اليوم|today/i.test(rawPeriod)) period = 'today';
@@ -644,7 +706,24 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
         else if (/اسبوع|أسبوع|7/i.test(rawPeriod)) period = 'last_7d';
         else if (/شهر|this_month/i.test(rawPeriod)) period = 'this_month';
 
+        if (!accountId) {
+            await replyToStaff(
+                sock, 
+                remoteJid, 
+                '⚠️ يرجى كتابة رقم الحساب الإعلاني بعد الأمر.\nمثال: */تقرير 165453869752274*', 
+                userId, 
+                io
+            );
+            return { handled: true };
+        }
+
         await replyToStaff(sock, remoteJid, `⏳ جاري سحب تقرير أداء الحساب الإعلاني (\`${accountId}\`)...`, userId, io);
+
+        // إبقاء حالة "يكتب الآن..." أثناء الاتصال بالـ API
+        if (typeof sock.sendPresenceUpdate === 'function') {
+            sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
+        }
+
         const result = await fetchCampaignSummary(accountId, period);
         await replyToStaff(sock, remoteJid, result.message, userId, io);
         return { handled: true };
@@ -653,14 +732,21 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
     // ================================================================
     // Command: /منافسين [الكلمة] or /spy [الكلمة]
     // ================================================================
-    const competitorMatch = trimmed.match(/^(\/|\s)*(منافسين|المنافسين|spy|سوق|عين_السوق|عين\s*السوق)\s+(.+)$/i);
-    if (competitorMatch) {
-        const keyword = competitorMatch[3].trim();
+    if (/^[\/\s]*(منافسين|المنافسين|spy|سوق|عين_السوق|عين\s*السوق)\s+(.+)$/i.test(trimmed)) {
+        let keyword = trimmed.replace(/^[\/\s]*(منافسين|المنافسين|spy|سوق|عين_السوق|عين\s*السوق)\s+/i, '').trim();
+        keyword = keyword.replace(/^(اعلانات|إعلانات|عن|بحث\s*عن)\s+/i, '').trim() || keyword;
+
         session.lastKeyword = keyword;
         session.currentPage = 1;
         session.inSession = true;
 
         await replyToStaff(sock, remoteJid, `⏳ جاري فحص مكتبة الإعلانات وسحب إعلانات المنافسين لكلمة *"${keyword}"*...`, userId, io);
+
+        // إبقاء حالة "يكتب الآن..." أثناء سحب الإعلانات من فيسبوك
+        if (typeof sock.sendPresenceUpdate === 'function') {
+            sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
+        }
+
         const result = await fetchCompetitorAds(keyword, 1, 5);
 
         let finalMsg = result.message;
@@ -676,7 +762,7 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
     // ================================================================
     // In-Session: "المزيد" / "الصفحة اللي بعدها" / "هات 5 كمان"
     // ================================================================
-    if (session.inSession && (/^(\/|\s)*(المزيد|more|الصفحة\s*اللي\s*بعدها|هات\s*كمان|هات\s*5\s*كمان|التالي|next)$/i.test(trimmed))) {
+    if (session.inSession && (/^(\/|\s)*(المزيد|more|الصفحة\s*اللي\s*بعدها|هات\s*كمان|هات\s*5\s*كمان|التالي|next)($|\s)/i.test(trimmed))) {
         if (!session.lastKeyword) {
             await replyToStaff(sock, remoteJid, '⚠️ لم يتم البحث عن كلمة بعد! اكتب الكلمة التي تريد البحث عنها أولاً (مثال: ساعات رجالي).', userId, io);
             return { handled: true };
@@ -684,6 +770,11 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
 
         session.currentPage += 1;
         await replyToStaff(sock, remoteJid, `⏳ جاري سحب الدفعة رقم (${session.currentPage}) لإعلانات *"${session.lastKeyword}"*...`, userId, io);
+
+        if (typeof sock.sendPresenceUpdate === 'function') {
+            sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
+        }
+
         const result = await fetchCompetitorAds(session.lastKeyword, session.currentPage, 5);
 
         let finalMsg = result.message;
@@ -701,23 +792,56 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
     }
 
     // ================================================================
-    // In-Session: Any regular text treated as new competitor keyword search
+    // In-Session: Any regular text treated intelligently
     // (Skip if user typed Fast Order store commands like /store, /status, etc.)
     // ================================================================
     if (session.inSession && !trimmed.startsWith('/store') && !trimmed.startsWith('/status')) {
+        // If it's asking for keywords inside active session
+        if (/^(كلمات|اقترح|اقترحلي|عايز\s*كلمات|اقتراح)\b/i.test(trimmed)) {
+            let niche = trimmed.replace(/^(كلمات|اقترحلي\s*كلمات|اقترح\s*كلمات|عايز\s*كلمات\s*لـ?|عايز\s*كلمات\s*عن|اقتراح\s*كلمات)\s*/i, '').trim();
+            niche = niche.replace(/^(مجال|نشاط|شغال\s*في|ببيع|عن|لـ|في)\s+/i, '').trim() || niche;
+
+            await replyToStaff(sock, remoteJid, `⏳ جاري تحليل مجال *"${niche}"* واقتراح أقوى الكلمات المفتاحية وزوايا الاستهداف بالذكاء الاصطناعي...`, userId, io);
+
+            if (typeof sock.sendPresenceUpdate === 'function') {
+                sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
+            }
+
+            const result = await fetchSuggestedKeywords(niche);
+            let finalMsg = result.message;
+            if (result.success) {
+                finalMsg += `\n\n💡 *للبحث عن إعلانات أي كلمة من دول:* اكتب */منافسين [الكلمة]*`;
+            }
+            await replyToStaff(sock, remoteJid, finalMsg, userId, io);
+            return { handled: true };
+        }
+
         // If it's pure numbers, user might be asking for an ad report
         if (/^\d{10,}$/.test(trimmed)) {
             await replyToStaff(sock, remoteJid, `⏳ جاري سحب تقرير أداء الحساب الإعلاني (\`${trimmed}\`)...`, userId, io);
+
+            if (typeof sock.sendPresenceUpdate === 'function') {
+                sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
+            }
+
             const result = await fetchCampaignSummary(trimmed, 'lifetime');
             await replyToStaff(sock, remoteJid, result.message, userId, io);
             return { handled: true };
         }
 
-        session.lastKeyword = trimmed;
+        let searchKeyword = trimmed;
+        searchKeyword = searchKeyword.replace(/^(اعلانات|إعلانات|عن|بحث\s*عن|هات\s*اعلانات)\s+/i, '').trim() || searchKeyword;
+
+        session.lastKeyword = searchKeyword;
         session.currentPage = 1;
 
-        await replyToStaff(sock, remoteJid, `⏳ جاري فحص مكتبة الإعلانات لكلمة *"${trimmed}"*...`, userId, io);
-        const result = await fetchCompetitorAds(trimmed, 1, 5);
+        await replyToStaff(sock, remoteJid, `⏳ جاري فحص مكتبة الإعلانات لكلمة *"${searchKeyword}"*...`, userId, io);
+
+        if (typeof sock.sendPresenceUpdate === 'function') {
+            sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
+        }
+
+        const result = await fetchCompetitorAds(searchKeyword, 1, 5);
 
         let finalMsg = result.message;
         if (result.success) {

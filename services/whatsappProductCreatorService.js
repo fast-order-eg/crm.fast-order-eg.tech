@@ -15,19 +15,71 @@ const FAST_ORDER_API_URL = process.env.FAST_ORDER_INTERNAL_API_URL || 'https://f
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || 'fastorder_secret_api_key_2026';
 
 /**
- * Send WhatsApp reply to staff AND permanently log it to the SQL Database (messages table)
+ * Send WhatsApp reply to staff with full human simulation (Anti-Ban):
+ * - available presence
+ * - composing ("يكتب الآن...") status with periodic refresh
+ * - proportional human delay based on text length
+ * - zero-width space jitter (anti-hash duplicate)
+ * - unavailable presence after completion
+ * - SQL and Socket.io logging
  */
 async function replyToStaff(sock, remoteJid, text, userId, io) {
     if (!sock || !remoteJid || !text) return;
 
-    // 1. Send via WhatsApp socket
+    const textLen = (text || '').length;
+
+    // 1. Send presence: available
     try {
-        await sock.sendMessage(remoteJid, { text });
+        if (typeof sock.sendPresenceUpdate === 'function') {
+            await sock.sendPresenceUpdate('available', remoteJid).catch(() => {});
+        }
+    } catch (_) {}
+
+    // 2. Simulate realistic typing duration proportional to message length (2.5s to 6.5s)
+    const typingDuration = Math.min(6500, Math.max(2500, Math.floor(textLen * 12) + Math.floor(Math.random() * 1200) + 800));
+
+    let presenceInterval = null;
+    try {
+        if (typeof sock.sendPresenceUpdate === 'function') {
+            await sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
+            presenceInterval = setInterval(() => {
+                sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
+            }, 4000);
+        }
+    } catch (_) {}
+
+    await new Promise(r => setTimeout(r, typingDuration));
+
+    if (presenceInterval) clearInterval(presenceInterval);
+
+    try {
+        if (typeof sock.sendPresenceUpdate === 'function') {
+            await sock.sendPresenceUpdate('paused', remoteJid).catch(() => {});
+        }
+    } catch (_) {}
+
+    // 3. Random Zero-Width Space to break message hash signature
+    const zeroWidthSpaces = ['\u200B', '\u200C', '\u200D', '\uFEFF'];
+    const randomJitter = zeroWidthSpaces[Math.floor(Math.random() * zeroWidthSpaces.length)];
+    const finalSendText = `${text}${randomJitter}`;
+
+    // 4. Send via WhatsApp socket
+    try {
+        await sock.sendMessage(remoteJid, { text: finalSendText });
     } catch (sendErr) {
         console.error('❌ [replyToStaff] WhatsApp send error:', sendErr.message);
     }
 
-    // 2. Permanently log assistant reply to SQL DB
+    // 5. Send presence: unavailable after a short timeout
+    setTimeout(() => {
+        try {
+            if (typeof sock.sendPresenceUpdate === 'function') {
+                sock.sendPresenceUpdate('unavailable', remoteJid).catch(() => {});
+            }
+        } catch (_) {}
+    }, 1500);
+
+    // 6. Permanently log assistant reply to SQL DB
     try {
         if (Message) {
             const savedMsg = await Message.create({
