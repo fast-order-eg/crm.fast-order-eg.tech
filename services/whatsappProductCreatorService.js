@@ -4,6 +4,7 @@ import User from '../models/User.js';
 import Message from '../models/Message.js';
 import path from 'path';
 import { getSetting, setSetting } from './settingsService.js';
+import { isCompetitorCommand, isUserInCompetitorSession } from './competitorService.js';
 
 // Active in-memory sessions for staff members
 // Key: clean staff phone (e.g. '01092308465') or LID
@@ -680,6 +681,11 @@ export async function handleStaffMessage({ sock, msg, remoteJid, phoneNumber, te
     const session = getStaffSession(sessionKey);
     const trimmedText = (text || '').trim();
 
+    // Prevent any conflict with Competitor Spy (عين السوق)
+    if (isCompetitorCommand(trimmedText) || isUserInCompetitorSession(cleanPhone)) {
+        return { handled: false };
+    }
+
     // ================================================================
     // Command 1: /store <slug_or_phone> (Open / Switch Store Session)
     // ================================================================
@@ -764,9 +770,11 @@ export async function handleStaffMessage({ sock, msg, remoteJid, phoneNumber, te
 
     // If staff has NO active store session and sent something else
     if (!session.activeStore) {
-        if (mediaBuffer || (trimmedText && trimmedText.length > 10)) {
-            await replyToStaff(sock, remoteJid, '⚠️ يرجى تفعيل متجر التاجر أولاً قبل إرسال المنتجات.\nاكتب: */store كود_المتجر* أو */store رقم_التاجر*', userId, io);
-            return { handled: true };
+        if (!isCompetitorCommand(trimmedText) && !isUserInCompetitorSession(cleanPhone)) {
+            if (mediaBuffer || (trimmedText && trimmedText.length > 10 && !trimmedText.startsWith('/'))) {
+                await replyToStaff(sock, remoteJid, '⚠️ يرجى تفعيل متجر التاجر أولاً قبل إرسال المنتجات.\nاكتب: */store كود_المتجر* أو */store رقم_التاجر*', userId, io);
+                return { handled: true };
+            }
         }
         return { handled: false };
     }

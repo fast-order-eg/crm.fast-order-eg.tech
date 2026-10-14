@@ -26,6 +26,7 @@ import ChangeLog from '../models/ChangeLog.js';
 import Campaign from '../models/Campaign.js';
 import * as notificationService from '../services/notificationService.js';
 import { handleStaffMessage } from '../services/whatsappProductCreatorService.js';
+import { handleCompetitorMessage } from '../services/competitorService.js';
 import { handleReminderGroupMessage } from '../services/reminderService.js';
 import { handleAdsReportGroupMessage } from '../services/adsReportService.js';
 
@@ -2138,6 +2139,22 @@ export const startSession = async (userId, io, phoneNumber = null) => {
                 || text 
                 || '';
 
+            // 1.1 Check Competitor Spy (عين السوق 🦅)
+            const competitorResult = await handleCompetitorMessage({
+                sock,
+                remoteJid,
+                phoneNumber: staffSenderPhone,
+                text: rawStaffText,
+                userId,
+                io
+            });
+
+            if (competitorResult && competitorResult.handled) {
+                console.log(`🦅 [Competitor Spy - عين السوق] Handled action from staff ${staffSenderPhone} for user ${userId}`);
+                return;
+            }
+
+            // 1.2 Check Staff AI Product Creator (Fast Order)
             const staffResult = await handleStaffMessage({
                 sock,
                 msg,
@@ -2155,7 +2172,7 @@ export const startSession = async (userId, io, phoneNumber = null) => {
                 return;
             }
         } catch (staffErr) {
-            console.error('❌ [Staff AI Product Creator] Error:', staffErr);
+            console.error('❌ [Staff Handler Error]:', staffErr);
         }
 
 

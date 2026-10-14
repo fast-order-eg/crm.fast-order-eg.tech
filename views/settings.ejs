@@ -182,6 +182,12 @@
                         فاست اوردر
                     </button>
                 </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="competitors-tab" data-bs-toggle="pill" data-bs-target="#competitors-pane" type="button" role="tab" aria-controls="competitors-pane" aria-selected="false">
+                        <i class="bi bi-binoculars-fill text-info"></i>
+                        المنافسين
+                    </button>
+                </li>
             </ul>
 
             <!-- Unified Form for all settings -->
@@ -1103,6 +1109,285 @@
                         </div>
                     </div>
 
+                    <!-- 6. Competitors Spy Tab (عين السوق 🦅) -->
+                    <div class="tab-pane fade" id="competitors-pane" role="tabpanel" aria-labelledby="competitors-tab">
+                        <div class="d-flex align-items-center justify-content-between mb-4 pb-2 border-bottom flex-wrap gap-2">
+                            <div>
+                                <h5 class="fw-bold mb-1 text-dark d-flex align-items-center">
+                                    <i class="bi bi-binoculars-fill text-info me-2"></i>
+                                    نظام مراقبة المنافسين وتحليل الإعلانات (عين السوق 🦅)
+                                </h5>
+                                <p class="text-muted small mb-0">إدارة صلاحيات الموظفين، فحص إعلانات المنافسين الحية، واقتراح الكلمات المفتاحية وتحليل أداء الحسابات الممولة عبر الواتساب.</p>
+                            </div>
+                            <div>
+                                <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 px-3 py-2 rounded-pill fw-medium">
+                                    <i class="bi bi-radar me-1"></i>
+                                    متصل بـ API عين السوق 🟢
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="row g-4">
+                            <!-- Left Column: Authorized Staff Management & Numbers -->
+                            <div class="col-lg-7">
+                                <div class="card border-0 shadow-sm rounded-4 p-4 mb-4">
+                                    <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom flex-wrap gap-2">
+                                        <div class="d-flex align-items-center">
+                                            <div class="bg-info bg-opacity-10 text-info p-2 rounded-3 me-3">
+                                                <i class="bi bi-people-fill fs-5"></i>
+                                            </div>
+                                            <div>
+                                                <h6 class="fw-bold mb-0 text-dark">الموظفون والأرقام المصرح لها</h6>
+                                                <small class="text-muted">الأرقام التي يحق لها فحص المنافسين وطلب تقارير الإعلانات عبر الواتساب</small>
+                                            </div>
+                                        </div>
+                                        <span id="competitorStaffCountBadge" class="badge bg-primary rounded-pill px-3 py-1.5 fs-7">
+                                            <%= (typeof competitorStaff !== 'undefined' && competitorStaff ? competitorStaff.filter(s => s.isActive !== false).length : 0) %> نشط / <%= (typeof competitorStaff !== 'undefined' && competitorStaff ? competitorStaff.length : 0) %> إجمالي
+                                        </span>
+                                    </div>
+
+                                    <!-- Quick Add Number Box -->
+                                    <div class="bg-light p-3 rounded-3 mb-4 border">
+                                        <div class="d-flex align-items-center mb-2">
+                                            <i class="bi bi-person-plus-fill text-info me-2"></i>
+                                            <strong class="text-dark small">إضافة رقم مصرح له جديد:</strong>
+                                        </div>
+                                        <div class="row g-2 align-items-end">
+                                            <div class="col-12 col-sm-5">
+                                                <label class="form-label small text-muted mb-1">الاسم</label>
+                                                <input type="text" id="newCompetitorName" class="form-control form-control-sm rounded-3 py-2" placeholder="مثال: أحمد">
+                                            </div>
+                                            <div class="col-12 col-sm-5">
+                                                <label class="form-label small text-muted mb-1">رقم الواتساب <span class="text-danger">*</span></label>
+                                                <input type="text" id="newCompetitorPhone" class="form-control form-control-sm rounded-3 py-2 font-monospace" placeholder="01012345678" dir="ltr">
+                                            </div>
+                                            <div class="col-12 col-sm-2 d-grid">
+                                                <button type="button" id="addNewCompetitorStaffBtn" class="btn btn-info text-white btn-sm rounded-3 py-2 fw-bold shadow-sm">
+                                                    <i class="bi bi-plus-lg me-1"></i> إضافة
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div id="competitorStaffAlert" class="mt-2 small" style="display: none;"></div>
+                                    </div>
+
+                                    <!-- Authorized Staff Table -->
+                                    <div class="table-responsive">
+                                        <table class="table table-hover align-middle mb-0">
+                                            <thead class="table-light">
+                                                <tr class="small text-muted">
+                                                    <th class="border-0 rounded-start">الاسم</th>
+                                                    <th class="border-0">الصلاحية</th>
+                                                    <th class="border-0">رقم الواتساب</th>
+                                                    <th class="border-0 text-center">الحالة</th>
+                                                    <th class="border-0 text-center rounded-end">إجراء</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="competitorStaffTableBody">
+                                                <% if (typeof competitorStaff !== 'undefined' && competitorStaff && competitorStaff.length > 0) { %>
+                                                    <% competitorStaff.forEach((staff) => { 
+                                                        const cleanRoleLabel = (staff.roleLabel || 'مسؤول مبيعات').replace(/\s*\(.*?\)/g, '').trim() || 'مسؤول مبيعات';
+                                                        const isAdmin = staff.role === 'super_admin' || staff.role === 'admin' || cleanRoleLabel.includes('مدير');
+                                                        const isActive = staff.isActive !== false;
+                                                    %>
+                                                        <tr id="competitor-row-<%= staff.phone %>">
+                                                            <td>
+                                                                <span class="fw-bold text-dark fs-7"><%= staff.name %></span>
+                                                            </td>
+                                                            <td>
+                                                                <% if (isAdmin) { %>
+                                                                    <span class="badge bg-warning bg-opacity-15 text-dark border border-warning border-opacity-25 rounded-pill px-2.5 py-1 fs-8">
+                                                                        <i class="bi bi-shield-check me-1"></i><%= cleanRoleLabel %>
+                                                                    </span>
+                                                                <% } else { %>
+                                                                    <span class="badge bg-info bg-opacity-10 text-primary border border-info border-opacity-25 rounded-pill px-2.5 py-1 fs-8">
+                                                                        <i class="bi bi-person-badge me-1"></i><%= cleanRoleLabel %>
+                                                                    </span>
+                                                                <% } %>
+                                                            </td>
+                                                            <td>
+                                                                <div class="d-flex align-items-center">
+                                                                    <i class="bi bi-whatsapp text-success me-1.5 fs-6"></i>
+                                                                    <span class="font-monospace fw-bold text-dark fs-7"><%= staff.phone %></span>
+                                                                </div>
+                                                            </td>
+                                                            <td class="text-center">
+                                                                <% if (isActive) { %>
+                                                                    <span class="badge bg-success bg-opacity-15 text-success border border-success border-opacity-25 rounded-pill px-2.5 py-1 fs-8">
+                                                                        <i class="bi bi-check-circle-fill me-1"></i>مفعل
+                                                                    </span>
+                                                                <% } else { %>
+                                                                    <span class="badge bg-danger bg-opacity-15 text-danger border border-danger border-opacity-25 rounded-pill px-2.5 py-1 fs-8">
+                                                                        <i class="bi bi-pause-circle-fill me-1"></i>معطل
+                                                                    </span>
+                                                                <% } %>
+                                                            </td>
+                                                            <td class="text-center">
+                                                                <% if (staff.isPrimary) { %>
+                                                                    <span class="badge bg-secondary bg-opacity-15 text-muted px-2 py-1 fs-8" title="الأدمن الأساسي للنظام">
+                                                                        <i class="bi bi-lock-fill"></i>
+                                                                    </span>
+                                                                <% } else { %>
+                                                                    <div class="d-inline-flex align-items-center gap-1">
+                                                                        <% if (isActive) { %>
+                                                                            <button type="button" class="btn btn-sm btn-outline-warning p-1 px-2 rounded-2 fs-7" onclick="toggleCompetitorStaff('<%= staff.phone %>')" title="إيقاف الصلاحية">
+                                                                                <i class="bi bi-pause-fill me-1"></i>إيقاف
+                                                                            </button>
+                                                                        <% } else { %>
+                                                                            <button type="button" class="btn btn-sm btn-outline-success p-1 px-2 rounded-2 fs-7" onclick="toggleCompetitorStaff('<%= staff.phone %>')" title="تشغيل الصلاحية">
+                                                                                <i class="bi bi-play-fill me-1"></i>تشغيل
+                                                                            </button>
+                                                                        <% } %>
+                                                                        <button type="button" class="btn btn-sm btn-outline-danger p-1 px-2 rounded-2 fs-7" onclick="deleteCompetitorStaff('<%= staff.phone %>', '<%= staff.name %>')" title="حذف نهائي">
+                                                                            <i class="bi bi-trash3-fill"></i>
+                                                                        </button>
+                                                                    </div>
+                                                                <% } %>
+                                                            </td>
+                                                        </tr>
+                                                    <% }); %>
+                                                <% } else { %>
+                                                    <tr>
+                                                        <td colspan="5" class="text-center py-4 text-muted">
+                                                            <i class="bi bi-info-circle me-1"></i> لا يوجد موظفين مسجلين حالياً.
+                                                        </td>
+                                                    </tr>
+                                                <% } %>
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    <div class="mt-3 p-3 bg-light rounded-3 border small text-muted">
+                                        <i class="bi bi-info-circle-fill text-info me-1"></i>
+                                        <strong>ملاحظة:</strong> جميع الموظفين مفعلون تلقائياً، ويمكنك تشغيل أو إيقاف أو حذف أي رقم في أي وقت بضغطة زر.
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Right Column: Interactive Guide -->
+                            <div class="col-lg-5">
+                                <div class="card border-0 shadow-sm rounded-4 p-4 h-100">
+                                    <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom flex-wrap gap-2">
+                                        <div class="d-flex align-items-center">
+                                            <div class="bg-info bg-opacity-10 text-info p-2 rounded-3 me-3">
+                                                <i class="bi bi-binoculars-fill fs-5"></i>
+                                            </div>
+                                            <div>
+                                                <h6 class="fw-bold mb-0 text-dark">دليل استخدام عين السوق 🦅</h6>
+                                                <small class="text-muted">الأوامر السريعة وطريقة التفاعل عبر الواتساب</small>
+                                            </div>
+                                        </div>
+                                        <span class="badge bg-primary bg-opacity-10 text-primary rounded-pill px-2.5 py-1 fs-8">
+                                            <i class="bi bi-magic me-1"></i>مساعد تسويقي ذكي
+                                        </span>
+                                    </div>
+
+                                    <!-- Stepper Container -->
+                                    <div class="d-flex flex-column gap-3">
+                                        
+                                        <!-- Step 1 -->
+                                        <div class="p-3 rounded-3 border bg-white shadow-sm position-relative">
+                                            <div class="d-flex align-items-center mb-1">
+                                                <span class="badge bg-info rounded-circle p-2 me-2 d-inline-flex align-items-center justify-content-center text-white" style="width: 24px; height: 24px; font-size: 11px;">1</span>
+                                                <strong class="text-dark fs-7">بدء الجلسة وعرض القائمة:</strong>
+                                            </div>
+                                            <p class="text-muted small mb-2 ps-4">أرسل الأمر التالي من واتساب لفتح جلسة المراقبة التفاعلية:</p>
+                                            <div class="ps-4">
+                                                <div class="d-flex align-items-center justify-content-between p-2 px-3 rounded-3 font-monospace fs-7 border" dir="ltr" style="background-color: #f8fafc; border-color: #cbd5e1 !important;">
+                                                    <span class="text-info fw-bold">/منافسين</span>
+                                                    <button type="button" class="btn btn-outline-info btn-sm py-0.5 px-2.5 rounded-pill fs-8 fw-semibold" onclick="copyCompetitorCmd('/منافسين', this)">
+                                                        <i class="bi bi-clipboard me-1"></i>نسخ
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Step 2 -->
+                                        <div class="p-3 rounded-3 border bg-white shadow-sm position-relative">
+                                            <div class="d-flex align-items-center mb-1">
+                                                <span class="badge bg-info rounded-circle p-2 me-2 d-inline-flex align-items-center justify-content-center text-white" style="width: 24px; height: 24px; font-size: 11px;">2</span>
+                                                <strong class="text-dark fs-7">سحب إعلانات المنافسين الحية:</strong>
+                                            </div>
+                                            <p class="text-muted small mb-2 ps-4">أرسل الكلمة البحثية لجلب 5 إعلانات حية مع نصوصها وروابطها:</p>
+                                            <div class="ps-4">
+                                                <div class="d-flex align-items-center justify-content-between p-2 px-3 rounded-3 font-monospace fs-7 border" dir="ltr" style="background-color: #f8fafc; border-color: #cbd5e1 !important;">
+                                                    <span class="text-dark fw-bold">/منافسين ساعات رجالي</span>
+                                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0.5 px-2.5 rounded-pill fs-8 fw-semibold" onclick="copyCompetitorCmd('/منافسين ساعات رجالي', this)">
+                                                        <i class="bi bi-clipboard me-1"></i>نسخ
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Step 3 -->
+                                        <div class="p-3 rounded-3 border bg-white shadow-sm position-relative">
+                                            <div class="d-flex align-items-center mb-1">
+                                                <span class="badge bg-info rounded-circle p-2 me-2 d-inline-flex align-items-center justify-content-center text-white" style="width: 24px; height: 24px; font-size: 11px;">3</span>
+                                                <strong class="text-dark fs-7">التصفح بالدفعات (Pagination):</strong>
+                                            </div>
+                                            <p class="text-muted small mb-2 ps-4">بعد ظهور أول 5 إعلانات، يمكنك طلب الدفعة التالية بسهولة:</p>
+                                            <div class="ps-4">
+                                                <div class="p-2.5 rounded-3 small font-monospace border text-dark" style="background-color: #f8fafc; border-color: #cbd5e1 !important;">
+                                                    <strong class="text-info">💬 أرسل كلمة:</strong> "المزيد" أو "الصفحة اللي بعدها"
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Step 4 -->
+                                        <div class="p-3 rounded-3 border bg-white shadow-sm position-relative">
+                                            <div class="d-flex align-items-center mb-1">
+                                                <span class="badge bg-info rounded-circle p-2 me-2 d-inline-flex align-items-center justify-content-center text-white" style="width: 24px; height: 24px; font-size: 11px;">4</span>
+                                                <strong class="text-dark fs-7">اقتراح الكلمات والزوايا الإعلانية:</strong>
+                                            </div>
+                                            <p class="text-muted small mb-2 ps-4">تحليل المجال واقتراح أقوى الكلمات وروابط البحث المباشرة بالذكاء الاصطناعي (Vertex AI):</p>
+                                            <div class="ps-4">
+                                                <div class="d-flex align-items-center justify-content-between p-2 px-3 rounded-3 font-monospace fs-7 border" dir="ltr" style="background-color: #f8fafc; border-color: #cbd5e1 !important;">
+                                                    <span class="text-dark fw-bold">/كلمات ملابس حريمي</span>
+                                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0.5 px-2.5 rounded-pill fs-8 fw-semibold" onclick="copyCompetitorCmd('/كلمات ملابس حريمي', this)">
+                                                        <i class="bi bi-clipboard me-1"></i>نسخ
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Step 5 -->
+                                        <div class="p-3 rounded-3 border bg-white shadow-sm position-relative">
+                                            <div class="d-flex align-items-center mb-1">
+                                                <span class="badge bg-info rounded-circle p-2 me-2 d-inline-flex align-items-center justify-content-center text-white" style="width: 24px; height: 24px; font-size: 11px;">5</span>
+                                                <strong class="text-dark fs-7">تقارير أداء الحساب الإعلاني:</strong>
+                                            </div>
+                                            <p class="text-muted small mb-2 ps-4">سحب تقرير الصرف والنتائج وتكلفة الرسالة لأي حساب إعلاني ممول:</p>
+                                            <div class="ps-4">
+                                                <div class="d-flex align-items-center justify-content-between p-2 px-3 rounded-3 font-monospace fs-7 border" dir="ltr" style="background-color: #f8fafc; border-color: #cbd5e1 !important;">
+                                                    <span class="text-dark fw-bold">/تقرير 165453869752274</span>
+                                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0.5 px-2.5 rounded-pill fs-8 fw-semibold" onclick="copyCompetitorCmd('/تقرير 165453869752274', this)">
+                                                        <i class="bi bi-clipboard me-1"></i>نسخ
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Step 6 -->
+                                        <div class="p-3 rounded-3 border bg-white shadow-sm position-relative">
+                                            <div class="d-flex align-items-center mb-1">
+                                                <span class="badge bg-secondary rounded-circle p-2 me-2 d-inline-flex align-items-center justify-content-center text-white" style="width: 24px; height: 24px; font-size: 11px;">6</span>
+                                                <strong class="text-dark fs-7">إنهاء الجلسة والخروج:</strong>
+                                            </div>
+                                            <div class="ps-4">
+                                                <div class="d-flex align-items-center justify-content-between p-2 px-3 rounded-3 font-monospace fs-7 border" dir="ltr" style="background-color: #f8fafc; border-color: #cbd5e1 !important;">
+                                                    <span class="text-danger fw-bold">/خروج</span>
+                                                    <button type="button" class="btn btn-outline-danger btn-sm py-0.5 px-2.5 rounded-pill fs-8 fw-semibold" onclick="copyCompetitorCmd('/خروج', this)">
+                                                        <i class="bi bi-clipboard me-1"></i>نسخ
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
 
                 <!-- Unified Save Button -->
@@ -1888,6 +2173,185 @@
             };
 
             window.copyFastOrderCmd = function(cmd, btn) {
+                navigator.clipboard.writeText(cmd).then(() => {
+                    const origHtml = btn.innerHTML;
+                    btn.innerHTML = '<i class="bi bi-check2 text-success me-1"></i>تم النسخ';
+                    setTimeout(() => { btn.innerHTML = origHtml; }, 2000);
+                }).catch(() => {
+                    prompt('انسخ الأمر التالي:', cmd);
+                });
+            };
+
+            // ========================================================
+            // Competitors Spy (عين السوق) Staff Management
+            // ========================================================
+            function updateCompetitorStaffUI(staffList) {
+                const tbody = document.getElementById('competitorStaffTableBody');
+                const badge = document.getElementById('competitorStaffCountBadge');
+                if (!tbody) return;
+
+                if (badge && Array.isArray(staffList)) {
+                    const activeCount = staffList.filter(s => s.isActive !== false).length;
+                    badge.textContent = `${activeCount} نشط / ${staffList.length} إجمالي`;
+                }
+
+                if (!staffList || staffList.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="5" class="text-center py-4 text-muted">
+                                <i class="bi bi-info-circle me-1"></i> لا يوجد موظفين مسجلين حالياً.
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                tbody.innerHTML = staffList.map((staff) => {
+                    const cleanRole = (staff.roleLabel || 'مسؤول مبيعات').replace(/\s*\(.*?\)/g, '').trim() || 'مسؤول مبيعات';
+                    const isAdmin = staff.role === 'super_admin' || staff.role === 'admin' || cleanRole.includes('مدير');
+                    const isActive = staff.isActive !== false;
+                    
+                    const roleBadge = isAdmin
+                        ? `<span class="badge bg-warning bg-opacity-15 text-dark border border-warning border-opacity-25 rounded-pill px-2.5 py-1 fs-8"><i class="bi bi-shield-check me-1"></i>${cleanRole}</span>`
+                        : `<span class="badge bg-info bg-opacity-10 text-primary border border-info border-opacity-25 rounded-pill px-2.5 py-1 fs-8"><i class="bi bi-person-badge me-1"></i>${cleanRole}</span>`;
+                    
+                    const statusBadge = isActive
+                        ? `<span class="badge bg-success bg-opacity-15 text-success border border-success border-opacity-25 rounded-pill px-2.5 py-1 fs-8"><i class="bi bi-check-circle-fill me-1"></i>مفعل</span>`
+                        : `<span class="badge bg-danger bg-opacity-15 text-danger border border-danger border-opacity-25 rounded-pill px-2.5 py-1 fs-8"><i class="bi bi-pause-circle-fill me-1"></i>معطل</span>`;
+
+                    let actionHtml = '';
+                    if (staff.isPrimary) {
+                        actionHtml = `<span class="badge bg-secondary bg-opacity-15 text-muted px-2 py-1 fs-8" title="الأدمن الأساسي للنظام"><i class="bi bi-lock-fill"></i></span>`;
+                    } else {
+                        const toggleBtn = isActive
+                            ? `<button type="button" class="btn btn-sm btn-outline-warning p-1 px-2 rounded-2 fs-7 me-1" onclick="toggleCompetitorStaff('${staff.phone}')" title="إيقاف الصلاحية"><i class="bi bi-pause-fill me-1"></i>إيقاف</button>`
+                            : `<button type="button" class="btn btn-sm btn-outline-success p-1 px-2 rounded-2 fs-7 me-1" onclick="toggleCompetitorStaff('${staff.phone}')" title="تشغيل الصلاحية"><i class="bi bi-play-fill me-1"></i>تشغيل</button>`;
+                        
+                        const deleteBtn = `<button type="button" class="btn btn-sm btn-outline-danger p-1 px-2 rounded-2 fs-7" onclick="deleteCompetitorStaff('${staff.phone}', '${staff.name}')" title="حذف نهائي"><i class="bi bi-trash3-fill"></i></button>`;
+                        actionHtml = `<div class="d-inline-flex align-items-center gap-1">${toggleBtn}${deleteBtn}</div>`;
+                    }
+
+                    return `
+                        <tr id="competitor-row-${staff.phone}">
+                            <td>
+                                <span class="fw-bold text-dark fs-7">${staff.name}</span>
+                            </td>
+                            <td>${roleBadge}</td>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <i class="bi bi-whatsapp text-success me-1.5 fs-6"></i>
+                                    <span class="font-monospace fw-bold text-dark fs-7">${staff.phone}</span>
+                                </div>
+                            </td>
+                            <td class="text-center">${statusBadge}</td>
+                            <td class="text-center">${actionHtml}</td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+
+            const addNewCompetitorStaffBtn = document.getElementById('addNewCompetitorStaffBtn');
+            const newCompetitorNameInput = document.getElementById('newCompetitorName');
+            const newCompetitorPhoneInput = document.getElementById('newCompetitorPhone');
+            const competitorStaffAlert = document.getElementById('competitorStaffAlert');
+
+            if (addNewCompetitorStaffBtn) {
+                addNewCompetitorStaffBtn.addEventListener('click', async () => {
+                    const name = (newCompetitorNameInput?.value || '').trim();
+                    const phone = (newCompetitorPhoneInput?.value || '').trim();
+                    const role = 'مسؤول مبيعات';
+
+                    if (!phone) {
+                        competitorStaffAlert.style.display = 'block';
+                        competitorStaffAlert.className = 'mt-2 small text-danger fw-bold';
+                        competitorStaffAlert.innerHTML = '<i class="bi bi-exclamation-circle me-1"></i> يرجى إدخال رقم الهاتف أولاً.';
+                        return;
+                    }
+
+                    addNewCompetitorStaffBtn.disabled = true;
+                    addNewCompetitorStaffBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> جاري الإضافة...';
+                    competitorStaffAlert.style.display = 'none';
+
+                    try {
+                        const res = await fetch('/dashboard/settings/competitor-staff/add', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ name, phone, role })
+                        });
+                        const data = await res.json();
+
+                        if (data.success) {
+                            competitorStaffAlert.style.display = 'block';
+                            competitorStaffAlert.className = 'mt-2 small text-success fw-bold';
+                            competitorStaffAlert.innerHTML = `<i class="bi bi-check-circle me-1"></i> ${data.message}`;
+                            newCompetitorNameInput.value = '';
+                            newCompetitorPhoneInput.value = '';
+                            if (data.staff) updateCompetitorStaffUI(data.staff);
+                            setTimeout(() => { competitorStaffAlert.style.display = 'none'; }, 4000);
+                        } else {
+                            competitorStaffAlert.style.display = 'block';
+                            competitorStaffAlert.className = 'mt-2 small text-danger fw-bold';
+                            competitorStaffAlert.innerHTML = `<i class="bi bi-exclamation-circle me-1"></i> ${data.error || 'تعذر إضافة الرقم'}`;
+                        }
+                    } catch (e) {
+                        competitorStaffAlert.style.display = 'block';
+                        competitorStaffAlert.className = 'mt-2 small text-danger fw-bold';
+                        competitorStaffAlert.innerHTML = 'حدث خطأ: ' + e.message;
+                    } finally {
+                        addNewCompetitorStaffBtn.disabled = false;
+                        addNewCompetitorStaffBtn.innerHTML = '<i class="bi bi-plus-lg me-1"></i> إضافة';
+                    }
+                });
+            }
+
+            window.deleteCompetitorStaff = async function(phone, name) {
+                if (!confirm(`هل أنت متأكد من إزالة صلاحية "${name}" (${phone}) من خدمة المنافسين؟`)) {
+                    return;
+                }
+
+                try {
+                    const res = await fetch('/dashboard/settings/competitor-staff/delete', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ phone })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        if (data.staff) {
+                            updateCompetitorStaffUI(data.staff);
+                        } else {
+                            const row = document.getElementById(`competitor-row-${phone}`);
+                            if (row) row.remove();
+                        }
+                    } else {
+                        alert(data.error || 'تعذر حذف الرقم');
+                    }
+                } catch (e) {
+                    alert('حدث خطأ أثناء الحذف: ' + e.message);
+                }
+            };
+
+            window.toggleCompetitorStaff = async function(phone) {
+                try {
+                    const res = await fetch('/dashboard/settings/competitor-staff/toggle', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ phone })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        if (data.staff) {
+                            updateCompetitorStaffUI(data.staff);
+                        }
+                    } else {
+                        alert(data.error || 'تعذر تعديل الحالة');
+                    }
+                } catch (e) {
+                    alert('حدث خطأ أثناء تعديل الحالة: ' + e.message);
+                }
+            };
+
+            window.copyCompetitorCmd = function(cmd, btn) {
                 navigator.clipboard.writeText(cmd).then(() => {
                     const origHtml = btn.innerHTML;
                     btn.innerHTML = '<i class="bi bi-check2 text-success me-1"></i>تم النسخ';

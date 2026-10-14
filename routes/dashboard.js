@@ -28,6 +28,7 @@ import CommissionService from '../models/CommissionService.js';
 import { getAuthorizedAdmins, addAuthorizedAdmin, removeAuthorizedAdmin } from '../services/reminderService.js';
 import { getAdsAuthorizedAdmins, addAdsAuthorizedAdmin, removeAdsAuthorizedAdmin } from '../services/adsReportService.js';
 import { getFastOrderAuthorizedStaff, addFastOrderStaff, removeFastOrderStaff } from '../services/whatsappProductCreatorService.js';
+import { getCompetitorAuthorizedStaff, addCompetitorStaff, removeCompetitorStaff, toggleCompetitorStaff } from '../services/competitorService.js';
 
 const router = express.Router();
 
@@ -2430,6 +2431,7 @@ router.get('/settings', async (req, res) => {
         const reminderAdmins = await getAuthorizedAdmins(userId);
         const adsReportAdmins = await getAdsAuthorizedAdmins(userId);
         const fastOrderStaff = await getFastOrderAuthorizedStaff();
+        const competitorStaff = await getCompetitorAuthorizedStaff(userId);
 
         res.render('settings', {
             user: req.user,
@@ -2442,6 +2444,7 @@ router.get('/settings', async (req, res) => {
             reminderAdmins,
             adsReportAdmins,
             fastOrderStaff,
+            competitorStaff,
             success_msg: req.flash('success_msg'),
             error_msg: req.flash('error_msg')
         });
@@ -2758,6 +2761,61 @@ router.post('/settings/fastorder-staff/delete', async (req, res) => {
     } catch (err) {
         console.error('Error removing fast order staff:', err);
         res.status(500).json({ success: false, error: 'حدث خطأ أثناء حذف الرقم' });
+    }
+});
+
+// إدارة الأرقام والموظفين المصرح لهم بالمنافسين (عين السوق) (AJAX)
+router.post('/settings/competitor-staff/add', async (req, res) => {
+    try {
+        const { name, phone, role } = req.body;
+        if (!phone) {
+            return res.status(400).json({ success: false, error: 'يرجى إدخال رقم الهاتف' });
+        }
+        const result = await addCompetitorStaff(phone, name, role, req.user.id);
+        if (!result.success) {
+            return res.status(400).json({ success: false, error: result.message });
+        }
+        const updatedStaff = await getCompetitorAuthorizedStaff(req.user.id);
+        res.json({ success: true, message: result.message, staff: updatedStaff });
+    } catch (err) {
+        console.error('Error adding competitor staff:', err);
+        res.status(500).json({ success: false, error: 'حدث خطأ أثناء إضافة الرقم' });
+    }
+});
+
+router.post('/settings/competitor-staff/delete', async (req, res) => {
+    try {
+        const { phone } = req.body;
+        if (!phone) {
+            return res.status(400).json({ success: false, error: 'يرجى تحديد رقم الهاتف المراد حذفه' });
+        }
+        const result = await removeCompetitorStaff(phone, req.user.id);
+        if (!result.success) {
+            return res.status(400).json({ success: false, error: result.message });
+        }
+        const updatedStaff = await getCompetitorAuthorizedStaff(req.user.id);
+        res.json({ success: true, message: result.message, staff: updatedStaff });
+    } catch (err) {
+        console.error('Error removing competitor staff:', err);
+        res.status(500).json({ success: false, error: 'حدث خطأ أثناء حذف الرقم' });
+    }
+});
+
+router.post('/settings/competitor-staff/toggle', async (req, res) => {
+    try {
+        const { phone } = req.body;
+        if (!phone) {
+            return res.status(400).json({ success: false, error: 'يرجى تحديد رقم الهاتف' });
+        }
+        const result = await toggleCompetitorStaff(phone, req.user.id);
+        if (!result.success) {
+            return res.status(400).json({ success: false, error: result.message });
+        }
+        const updatedStaff = await getCompetitorAuthorizedStaff(req.user.id);
+        res.json({ success: true, message: result.message, isActive: result.isActive, staff: updatedStaff });
+    } catch (err) {
+        console.error('Error toggling competitor staff:', err);
+        res.status(500).json({ success: false, error: 'حدث خطأ أثناء تعديل حالة الرقم' });
     }
 });
 
