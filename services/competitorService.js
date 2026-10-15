@@ -1,7 +1,10 @@
 import fetch from 'node-fetch';
+import { Op } from 'sequelize';
 import User from '../models/User.js';
+import Customer from '../models/Customer.js';
 import Message from '../models/Message.js';
 import { getSetting, setSetting } from './settingsService.js';
+import { sendSystemNotification, normalizePhoneToJid } from './notificationDispatcher.js';
 
 /**
  * Normalize phone number to standard Egyptian digits (e.g. '01092308465')
@@ -49,7 +52,31 @@ export function isUserInCompetitorSession(phone) {
 export function isCompetitorCommand(text) {
     if (!text || typeof text !== 'string') return false;
     const trimmed = text.trim();
-    return /^(\/|\s)*(منافسين|المنافسين|spy|سوق|عين_السوق|عين\s*السوق|كلمات|الكلمات|keywords|نوتش|تقرير|ads|حملات|المزيد|more|خروج|close)($|\s)/i.test(trimmed);
+    return /^(\/|\s)*(منافسين|المنافسين|spy|سوق|عين_السوق|عين\s*السوق|كلمات|الكلمات|keywords|نوتش|تقرير|ads|حملات|المزيد|more|خروج|close|حفظ|استخراج|crm|سجل|تسجيل)($|\s)/i.test(trimmed);
+}
+
+/**
+ * Helper: Start continuous typing presence ("يكتب الآن...") while waiting for async work.
+ * Sends 'composing' every 3.5 seconds until returned cleanup function is called.
+ */
+function startContinuousComposing(sock, remoteJid) {
+    if (!sock || !remoteJid || typeof sock.sendPresenceUpdate !== 'function') {
+        return () => {};
+    }
+    try {
+        sock.sendPresenceUpdate('available', remoteJid).catch(() => {});
+        sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
+    } catch (_) {}
+
+    const interval = setInterval(() => {
+        try {
+            sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
+        } catch (_) {}
+    }, 3500);
+
+    return () => {
+        clearInterval(interval);
+    };
 }
 
 /**
@@ -676,21 +703,29 @@ export async function fetchCompetitorAds(keyword, page = 1, limit = 5, country =
         }
 
         const hasMore = (data.pagination?.has_more !== false && ads.length >= limit);
-        const nextMoreNum = currentIndex + 1;
+        let moreIndex = null;
+        let saveIndex = null;
 
         if (hasMore) {
-            msg += `\n\n${getNumberBadge(nextMoreNum)} المزيد ⏭️`;
+            moreIndex = currentIndex + 1;
+            saveIndex = currentIndex + 2;
+            msg += `\n\n${getNumberBadge(moreIndex)} المزيد ⏭️`;
+            msg += `\n${getNumberBadge(saveIndex)} استخراج الأرقام وحفظ في الـ CRM 📥`;
         } else {
-            msg += `\n\n🏁 *انتهت جميع الإعلانات المتاحة لهذه الكلمة.*`;
+            saveIndex = currentIndex + 1;
+            msg += `\n\n${getNumberBadge(saveIndex)} استخراج الأرقام وحفظ في الـ CRM 📥`;
+            msg += `\n🏁 *انتهت جميع الإعلانات المتاحة لهذه الكلمة.*`;
         }
 
         return { 
             success: true, 
             message: msg,
+            ads: ads,
             adsCount: ads.length,
             has_more: hasMore,
             totalIndex: currentIndex,
-            moreIndex: hasMore ? nextMoreNum : null
+            moreIndex: moreIndex,
+            saveIndex: saveIndex
         };
     } catch (err) {
         console.error('❌ [fetchCompetitorAds] Error:', err.message);
@@ -760,6 +795,267 @@ export async function fetchCampaignSummary(accountId, period = 'lifetime') {
     } catch (err) {
         console.error('❌ [fetchCampaignSummary] Error:', err.message);
         return { success: false, message: `⚠️ حدث خطأ أثناء سحب تقرير الحساب: ${err.message}` };
+    }
+}
+
+/**
+ * Extract phone numbers from current batch of competitor ads and save them to CRM (customers table)
+ */
+export async function saveCompetitorLeadsToCrm({ sock, remoteJid, phoneNumber, userId = 3, io, session }) {
+    if (!session || !session.currentAds || session.currentAds.length === 0) {
+        await replyToStaff(
+            sock,
+            remoteJid,
+            '⚠️ لا توجد إعلانات معروضة حالياً لاستخراج أرقامها!\nابدأ بالبحث عن إعلانات منافسين أولاً بكتابة: */منافسين [الكلمة]*',
+            userId,
+            io
+        );
+        return { handled: true };
+    }
+
+    // إرسال رسالة انتظار ومحاكاة الكتابة المستمرة
+    await replyToStaff(sock, remoteJid, '⏳ جاري استخراج وتدقيق أرقام الهواتف وحفظها في الـ CRM...', userId, io);
+    const stopComposing = startContinuousComposing(sock, remoteJid);
+
+    try {
+        // 1. تصفية الإعلانات التي تحتوي على أرقام هواتف صالحة فقط
+        const adsWithPhones = [];
+        for (const ad of session.currentAds) {
+            const validPhones = extractValidPhones(ad.primary_text, ad.phone_numbers);
+            if (validPhones.length > 0) {
+                adsWithPhones.push({
+                    ad,
+                    validPhones,
+                    primaryPhone: validPhones[0],
+                    secondPhone: validPhones.length > 1 ? validPhones[1] : null
+                });
+            }
+        }
+
+        if (adsWithPhones.length === 0) {
+            stopComposing();
+            let emptyMsg = `⚠️ لم يتم العثور على أرقام هواتف في هذه الدفعة من الإعلانات.\n` +
+                           `• أغلب هذه الإعلانات تعتمد على المراسلة المباشرة عبر ماسنجر أو التحويل إلى متجر إلكتروني.\n` +
+                           `• يمكنك الضغط على روابط ماسنجر المرفقة بكل إعلان للتواصل معهم مباشرة.`;
+            if (session.adsMoreIndex) {
+                emptyMsg += `\n\n${getNumberBadge(session.adsMoreIndex)} المزيد ⏭️`;
+            }
+            await replyToStaff(sock, remoteJid, emptyMsg, userId, io);
+            return { handled: true };
+        }
+
+        // 2. البحث عن موظف السيلز المسؤول بناءً على رقم المرسل
+        let assignedToUserId = null;
+        let salesName = 'بدون تعيين (غير محدد)';
+
+        const cleanPhone = normalizePhone(phoneNumber);
+        const cleanNoZero = cleanPhone.startsWith('0') ? cleanPhone.substring(1) : cleanPhone;
+
+        try {
+            const user = await User.findOne({
+                where: {
+                    [Op.or]: [
+                        { phone: cleanPhone },
+                        { phone: '2' + cleanPhone },
+                        { phone: '20' + cleanNoZero },
+                        { phone: cleanNoZero },
+                        { phone: '0' + cleanNoZero },
+                        { notificationPhone: cleanPhone },
+                        { notificationPhone: '20' + cleanNoZero }
+                    ]
+                }
+            });
+
+            if (user) {
+                assignedToUserId = user.id;
+                salesName = user.fullName || user.username || `موظف #${user.id}`;
+            } else if (cleanPhone === '01092308465' || cleanPhone.endsWith('1092308465')) {
+                // الحساب الإداري لأ. راضي
+                const radyUser = await User.findOne({
+                    where: {
+                        [Op.or]: [
+                            { username: 'rady' },
+                            { role: 'super_admin' },
+                            { id: userId }
+                        ]
+                    }
+                });
+                if (radyUser) {
+                    assignedToUserId = radyUser.id;
+                    salesName = radyUser.fullName || radyUser.username || 'أ. راضي';
+                } else {
+                    salesName = 'أ. راضي (إدارة)';
+                }
+            }
+        } catch (uErr) {
+            console.error('❌ [saveCompetitorLeadsToCrm] Error finding sales user:', uErr.message);
+        }
+
+        // 3. حفظ كل عميل في قاعدة البيانات في جدول customers
+        const targetUserId = userId || 3;
+        const savedLeads = [];
+        let alreadyExistingCount = 0;
+
+        for (const item of adsWithPhones) {
+            const { ad, primaryPhone, secondPhone } = item;
+
+            // التحقق من وجود العميل مسبقاً لمنع خطأ التكرار (Unique Constraint)
+            let existing = null;
+            try {
+                existing = await Customer.findOne({
+                    where: {
+                        UserId: targetUserId,
+                        phoneNumber: primaryPhone
+                    }
+                });
+            } catch (findErr) {
+                console.error('❌ [saveCompetitorLeadsToCrm] Error finding customer:', findErr.message);
+            }
+
+            // إعداد الملاحظات
+            let noteParts = ['عميل من عين السوق'];
+            if (secondPhone) {
+                noteParts[0] = `عميل من عين السوق (رقم إضافي: ${secondPhone})`;
+            }
+            if (ad.page_profile_url) {
+                noteParts.push(`صفحة الفيسبوك: ${ad.page_profile_url}`);
+            }
+            if (session.lastKeyword) {
+                noteParts.push(`كلمة البحث: ${session.lastKeyword}`);
+            }
+            if (ad.cta_label) {
+                noteParts.push(`الهدف: ${ad.cta_label}`);
+            }
+            const fullNotes = noteParts.join('\n');
+
+            const intlPhone = primaryPhone.startsWith('0') ? `20${primaryPhone.slice(1)}` : primaryPhone;
+            const pageName = (ad.page_name || 'صفحة معلن').trim();
+
+            if (existing) {
+                alreadyExistingCount++;
+                // تحديث مسؤول المبيعات والملاحظات إن لم تكن معينة
+                if (!existing.assignedToUserId && assignedToUserId) {
+                    await existing.update({ assignedToUserId }).catch(() => {});
+                }
+                savedLeads.push({
+                    name: existing.customerName || pageName,
+                    phone: primaryPhone,
+                    secondPhone,
+                    intlPhone,
+                    pageUrl: ad.page_profile_url || '',
+                    isNew: false
+                });
+            } else {
+                try {
+                    const newCust = await Customer.create({
+                        UserId: targetUserId,
+                        customerName: pageName,
+                        phoneNumber: primaryPhone,
+                        remoteJid: normalizePhoneToJid(primaryPhone),
+                        status: 'new',
+                        source: 'عين السوق',
+                        leadTemperature: 'warm',
+                        assignedToUserId: assignedToUserId,
+                        notes: fullNotes,
+                        firstContactAt: new Date()
+                    });
+
+                    savedLeads.push({
+                        name: newCust.customerName || pageName,
+                        phone: primaryPhone,
+                        secondPhone,
+                        intlPhone,
+                        pageUrl: ad.page_profile_url || '',
+                        isNew: true
+                    });
+
+                    if (io && targetUserId) {
+                        io.to(`user_${targetUserId}`).emit('customer_created', newCust);
+                    }
+                } catch (createErr) {
+                    console.error(`❌ [saveCompetitorLeadsToCrm] Error creating customer ${primaryPhone}:`, createErr.message);
+                }
+            }
+        }
+
+        stopComposing();
+
+        if (savedLeads.length === 0) {
+            await replyToStaff(sock, remoteJid, '⚠️ تعذر حفظ العملاء في قاعدة البيانات. يرجى المحاولة مرة أخرى.', userId, io);
+            return { handled: true };
+        }
+
+        // 4. إرسال إشعار فوري لجروب إشعارات Bird CRM (120363428750785329@g.us)
+        const newLeadsCount = savedLeads.filter(l => l.isNew).length;
+        const groupNotice = 
+            `📥 *استخراج عملاء جدد من عين السوق (المنافسين)* 🦅\n` +
+            `══════════════════════\n` +
+            `👤 *الموظف المسؤول:* ${salesName}\n` +
+            `🔍 *كلمة البحث:* "${session.lastKeyword || 'غير محدد'}"\n` +
+            `📊 *إجمالي المستخرج:* ${savedLeads.length} عميل (${newLeadsCount} جديد)\n` +
+            `📂 *حالة العملاء:* عميل جديد (new)\n` +
+            `══════════════════════\n` +
+            savedLeads.map((lead, i) => {
+                let it = `${getNumberBadge(i + 1)} *${lead.name}*` +
+                         `\n• 📞 الهاتف: \`${lead.phone}\``;
+                if (lead.secondPhone) it += `\n• 📱 هاتف إضافي: \`${lead.secondPhone}\``;
+                if (lead.pageUrl) it += `\n• 🌐 الصفحة: ${lead.pageUrl}`;
+                it += `\n• 💬 واتساب: https://wa.me/${lead.intlPhone}`;
+                return it;
+            }).join('\n\n') +
+            `\n══════════════════════\n` +
+            `🦅 *نظام عين السوق - إدارة المبيعات CRM*`;
+
+        try {
+            const groupJid = '120363428750785329@g.us';
+            if (typeof sock.sendPresenceUpdate === 'function') {
+                sock.sendPresenceUpdate('available', groupJid).catch(() => {});
+                sock.sendPresenceUpdate('composing', groupJid).catch(() => {});
+            }
+            await sock.sendMessage(groupJid, { text: groupNotice });
+            console.log(`✅ [Competitor] Sent lead notice directly to Bird CRM group (${groupJid})`);
+        } catch (gErr) {
+            console.warn(`⚠️ [Competitor] Direct send to group failed, using notification dispatcher:`, gErr.message);
+            await sendSystemNotification({ userId: targetUserId, message: groupNotice, type: 'competitor_leads' }).catch(() => {});
+        }
+
+        // 5. الرد على الموظف بتأكيد الحفظ وإعادة إظهار رقم المزيد
+        let staffReply = 
+            `✅ *تم استخراج وحفظ (${savedLeads.length}) عميل في الـ CRM بنجاح!* 📥\n` +
+            `══════════════════════\n` +
+            `👤 *مسؤول المبيعات:* ${salesName}\n` +
+            `📂 *حالة العملاء:* عميل جديد (new)\n` +
+            `🔍 *كلمة البحث:* "${session.lastKeyword || ''}"\n` +
+            `══════════════════════\n` +
+            savedLeads.map((lead, i) => {
+                let it = `${getNumberBadge(i + 1)} *${lead.name}*` +
+                         `\n• 📞 رقم التواصل: \`${lead.phone}\``;
+                if (lead.secondPhone) it += `\n• 📱 هاتف إضافي: \`${lead.secondPhone}\``;
+                it += `\n• 💬 مراسلة واتساب: https://wa.me/${lead.intlPhone}`;
+                if (lead.pageUrl) it += `\n• 🌐 رابط الصفحة: ${lead.pageUrl}`;
+                return it;
+            }).join('\n\n');
+
+        if (alreadyExistingCount > 0) {
+            staffReply += `\n\nℹ️ ملاحظة: تم تحديث بيانات ${alreadyExistingCount} عميل لأنهم مسجلين بالفعل مسبقاً.`;
+        }
+
+        staffReply += `\n══════════════════════\n` +
+                      `📢 *تم إرسال إشعار فوري لجروب إشعارات Bird CRM.*\n\n`;
+
+        if (session.adsMoreIndex) {
+            staffReply += `${getNumberBadge(session.adsMoreIndex)} المزيد ⏭️`;
+        } else {
+            staffReply += `🏁 انتهت جميع الإعلانات المتاحة لهذه الكلمة.`;
+        }
+
+        await replyToStaff(sock, remoteJid, staffReply, userId, io);
+        return { handled: true };
+    } catch (saveError) {
+        stopComposing();
+        console.error('❌ [saveCompetitorLeadsToCrm] Fatal error:', saveError);
+        await replyToStaff(sock, remoteJid, `⚠️ حدث خطأ أثناء حفظ العملاء: ${saveError.message}`, userId, io);
+        return { handled: true };
     }
 }
 
@@ -861,12 +1157,13 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
 
         await replyToStaff(sock, remoteJid, `⏳ جاري تحليل مجال *"${niche}"* واقتراح أقوى الكلمات المفتاحية وزوايا الاستهداف بالذكاء الاصطناعي...`, userId, io);
         
-        // إبقاء حالة "يكتب الآن..." أثناء اتصال الذكاء الاصطناعي
-        if (typeof sock.sendPresenceUpdate === 'function') {
-            sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
+        const stopComposing = startContinuousComposing(sock, remoteJid);
+        let result;
+        try {
+            result = await fetchSuggestedKeywords(niche, 'EG', 1, 0);
+        } finally {
+            stopComposing();
         }
-
-        const result = await fetchSuggestedKeywords(niche, 'EG', 1, 0);
 
         if (result.success) {
             session.suggestedKeywords = result.keywords || [];
@@ -906,14 +1203,23 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
 
         await replyToStaff(sock, remoteJid, `⏳ جاري سحب تقرير أداء الحساب الإعلاني (\`${accountId}\`)...`, userId, io);
 
-        // إبقاء حالة "يكتب الآن..." أثناء الاتصال بالـ API
-        if (typeof sock.sendPresenceUpdate === 'function') {
-            sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
+        const stopComposing = startContinuousComposing(sock, remoteJid);
+        let result;
+        try {
+            result = await fetchCampaignSummary(accountId, period);
+        } finally {
+            stopComposing();
         }
 
-        const result = await fetchCampaignSummary(accountId, period);
         await replyToStaff(sock, remoteJid, result.message, userId, io);
         return { handled: true };
+    }
+
+    // ================================================================
+    // Command: /حفظ or حفظ or /استخراج or استخراج or CRM
+    // ================================================================
+    if (/^(\/|\s)*(حفظ|استخراج|crm|سجل|تسجيل|احفظ|استخرج|حفظ\s*في\s*(الـ\s*)?crm|استخراج\s*(الـ\s*)?(ارقام|أرقام|الارقام|الأرقام))($|\s)/i.test(trimmed)) {
+        return await saveCompetitorLeadsToCrm({ sock, remoteJid, phoneNumber, userId, io, session });
     }
 
     // ================================================================
@@ -939,15 +1245,18 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
 
         await replyToStaff(sock, remoteJid, `⏳ جاري فحص مكتبة الإعلانات وسحب إعلانات المنافسين لكلمة *"${keyword}"*...`, userId, io);
 
-        // إبقاء حالة "يكتب الآن..." أثناء سحب الإعلانات من فيسبوك
-        if (typeof sock.sendPresenceUpdate === 'function') {
-            sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
+        const stopComposing = startContinuousComposing(sock, remoteJid);
+        let result;
+        try {
+            result = await fetchCompetitorAds(keyword, 1, 5, 'EG', 0);
+        } finally {
+            stopComposing();
         }
 
-        const result = await fetchCompetitorAds(keyword, 1, 5, 'EG', 0);
-
         if (result.success) {
+            session.currentAds = result.ads || [];
             session.adsMoreIndex = result.moreIndex;
+            session.adsSaveIndex = result.saveIndex;
             session.adsTotalCount = result.totalIndex;
         }
 
@@ -971,11 +1280,13 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
 
             await replyToStaff(sock, remoteJid, `⏳ جاري اقتراح زوايا وكلمات جديدة للدفعة رقم (${session.keywordPage}) لمجال *"${session.lastNiche}"* بالذكاء الاصطناعي...`, userId, io);
 
-            if (typeof sock.sendPresenceUpdate === 'function') {
-                sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
+            const stopComposing = startContinuousComposing(sock, remoteJid);
+            let result;
+            try {
+                result = await fetchSuggestedKeywords(session.lastNiche, 'EG', session.keywordPage, startIndex);
+            } finally {
+                stopComposing();
             }
-
-            const result = await fetchSuggestedKeywords(session.lastNiche, 'EG', session.keywordPage, startIndex);
 
             if (result.success) {
                 session.suggestedKeywords = (session.suggestedKeywords || []).concat(result.keywords || []);
@@ -999,14 +1310,18 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
 
         await replyToStaff(sock, remoteJid, `⏳ جاري سحب الدفعة رقم (${session.currentPage}) لإعلانات *"${session.lastKeyword}"*...`, userId, io);
 
-        if (typeof sock.sendPresenceUpdate === 'function') {
-            sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
+        const stopComposing = startContinuousComposing(sock, remoteJid);
+        let result;
+        try {
+            result = await fetchCompetitorAds(session.lastKeyword, session.currentPage, 5, 'EG', startIndex);
+        } finally {
+            stopComposing();
         }
 
-        const result = await fetchCompetitorAds(session.lastKeyword, session.currentPage, 5, 'EG', startIndex);
-
         if (result.success) {
+            session.currentAds = result.ads || [];
             session.adsMoreIndex = result.moreIndex;
+            session.adsSaveIndex = result.saveIndex;
             session.adsTotalCount = result.totalIndex;
         } else {
             // Revert page increment if failed
@@ -1033,11 +1348,14 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
 
             await replyToStaff(sock, remoteJid, `⏳ جاري تحليل مجال *"${niche}"* واقتراح أقوى الكلمات المفتاحية وزوايا الاستهداف بالذكاء الاصطناعي...`, userId, io);
 
-            if (typeof sock.sendPresenceUpdate === 'function') {
-                sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
+            const stopComposing = startContinuousComposing(sock, remoteJid);
+            let result;
+            try {
+                result = await fetchSuggestedKeywords(niche, 'EG', 1, 0);
+            } finally {
+                stopComposing();
             }
 
-            const result = await fetchSuggestedKeywords(niche, 'EG', 1, 0);
             if (result.success) {
                 session.suggestedKeywords = result.keywords || [];
                 session.moreIndex = result.moreIndex;
@@ -1046,7 +1364,7 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
             return { handled: true };
         }
 
-        // إذا قام المستخدم بكتابة رقم (سواء كان رقم خيار المزيد أو رقم إحدى الكلمات)
+        // إذا قام المستخدم بكتابة رقم (سواء كان رقم خيار المزيد أو رقم استخراج الـ CRM أو رقم إحدى الكلمات)
         if (/^\d{1,2}$/.test(trimmed)) {
             const num = parseInt(trimmed, 10);
 
@@ -1057,11 +1375,13 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
 
                 await replyToStaff(sock, remoteJid, `⏳ جاري اقتراح زوايا وكلمات جديدة للدفعة رقم (${session.keywordPage}) لمجال *"${session.lastNiche}"* بالذكاء الاصطناعي...`, userId, io);
 
-                if (typeof sock.sendPresenceUpdate === 'function') {
-                    sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
+                const stopComposing = startContinuousComposing(sock, remoteJid);
+                let result;
+                try {
+                    result = await fetchSuggestedKeywords(session.lastNiche, 'EG', session.keywordPage, startIndex);
+                } finally {
+                    stopComposing();
                 }
-
-                const result = await fetchSuggestedKeywords(session.lastNiche, 'EG', session.keywordPage, startIndex);
 
                 if (result.success) {
                     session.suggestedKeywords = (session.suggestedKeywords || []).concat(result.keywords || []);
@@ -1081,14 +1401,18 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
 
                 await replyToStaff(sock, remoteJid, `⏳ جاري سحب الدفعة رقم (${session.currentPage}) لإعلانات *"${session.lastKeyword}"*...`, userId, io);
 
-                if (typeof sock.sendPresenceUpdate === 'function') {
-                    sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
+                const stopComposing = startContinuousComposing(sock, remoteJid);
+                let result;
+                try {
+                    result = await fetchCompetitorAds(session.lastKeyword, session.currentPage, 5, 'EG', startIndex);
+                } finally {
+                    stopComposing();
                 }
 
-                const result = await fetchCompetitorAds(session.lastKeyword, session.currentPage, 5, 'EG', startIndex);
-
                 if (result.success) {
+                    session.currentAds = result.ads || [];
                     session.adsMoreIndex = result.moreIndex;
+                    session.adsSaveIndex = result.saveIndex;
                     session.adsTotalCount = result.totalIndex;
                 } else {
                     session.currentPage = Math.max(1, session.currentPage - 1);
@@ -1098,7 +1422,12 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
                 return { handled: true };
             }
 
-            // 3. لو اختار رقم إحدى الكلمات المقترحة لجلب إعلاناتها
+            // 3. لو ضغط على رقم "استخراج الأرقام وحفظ في الـ CRM"
+            if (session.lastType === 'ads' && session.adsSaveIndex && num === session.adsSaveIndex) {
+                return await saveCompetitorLeadsToCrm({ sock, remoteJid, phoneNumber, userId, io, session });
+            }
+
+            // 4. لو اختار رقم إحدى الكلمات المقترحة لجلب إعلاناتها
             const idx = num - 1;
             if (session.suggestedKeywords && session.suggestedKeywords[idx]) {
                 const selectedKeyword = session.suggestedKeywords[idx];
@@ -1109,14 +1438,18 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
 
                 await replyToStaff(sock, remoteJid, `⏳ جاري فحص مكتبة الإعلانات لكلمة *"${selectedKeyword}"*...`, userId, io);
 
-                if (typeof sock.sendPresenceUpdate === 'function') {
-                    sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
+                const stopComposing = startContinuousComposing(sock, remoteJid);
+                let result;
+                try {
+                    result = await fetchCompetitorAds(selectedKeyword, 1, 5, 'EG', 0);
+                } finally {
+                    stopComposing();
                 }
 
-                const result = await fetchCompetitorAds(selectedKeyword, 1, 5, 'EG', 0);
-
                 if (result.success) {
+                    session.currentAds = result.ads || [];
                     session.adsMoreIndex = result.moreIndex;
+                    session.adsSaveIndex = result.saveIndex;
                     session.adsTotalCount = result.totalIndex;
                 }
                 await replyToStaff(sock, remoteJid, result.message, userId, io);
@@ -1128,11 +1461,14 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
         if (/^\d{10,}$/.test(trimmed)) {
             await replyToStaff(sock, remoteJid, `⏳ جاري سحب تقرير أداء الحساب الإعلاني (\`${trimmed}\`)...`, userId, io);
 
-            if (typeof sock.sendPresenceUpdate === 'function') {
-                sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
+            const stopComposing = startContinuousComposing(sock, remoteJid);
+            let result;
+            try {
+                result = await fetchCampaignSummary(trimmed, 'lifetime');
+            } finally {
+                stopComposing();
             }
 
-            const result = await fetchCampaignSummary(trimmed, 'lifetime');
             await replyToStaff(sock, remoteJid, result.message, userId, io);
             return { handled: true };
         }
@@ -1147,14 +1483,18 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
 
         await replyToStaff(sock, remoteJid, `⏳ جاري فحص مكتبة الإعلانات لكلمة *"${searchKeyword}"*...`, userId, io);
 
-        if (typeof sock.sendPresenceUpdate === 'function') {
-            sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
+        const stopComposing = startContinuousComposing(sock, remoteJid);
+        let result;
+        try {
+            result = await fetchCompetitorAds(searchKeyword, 1, 5, 'EG', 0);
+        } finally {
+            stopComposing();
         }
 
-        const result = await fetchCompetitorAds(searchKeyword, 1, 5, 'EG', 0);
-
         if (result.success) {
+            session.currentAds = result.ads || [];
             session.adsMoreIndex = result.moreIndex;
+            session.adsSaveIndex = result.saveIndex;
             session.adsTotalCount = result.totalIndex;
         }
         await replyToStaff(sock, remoteJid, result.message, userId, io);
