@@ -497,6 +497,132 @@ export async function fetchCampaignsSummary({
 
 /**
  * صياغة رد الواتساب الاحترافي وفق التعليمات:
+/**
+ * تنسيق تقرير حملة إعلانية مخصص للعميل مباشرة:
+ * 1. حذف رصيد الحساب المتاح نهائياً.
+ * 2. حذف المعرف واسم الحساب من أعلى الرسالة.
+ * 3. حذف تعليمات تغيير الفترة من الأسفل.
+ * 4. عدم كتابة الفترة في الأعلى، وتضمين تقرير اليوم وتحته تقرير أمس.
+ * 5. عدم تكرار معرف الحملة إطلاقاً في الرسالة.
+ */
+export function formatCampaignAdsReportMessage(todayData, yesterdayData, requestedId = '') {
+    const todayCampaigns = todayData?.campaigns || [];
+    const yesterdayCampaigns = yesterdayData?.campaigns || [];
+
+    // دمج معرفات الحملات بدون تكرار
+    const allCampaignIds = Array.from(new Set([
+        ...todayCampaigns.map(c => c.id),
+        ...yesterdayCampaigns.map(c => c.id)
+    ]));
+
+    if (allCampaignIds.length === 0) {
+        return `ℹ️ لم يتم العثور على بيانات لهذه الحملة الإعلانية (المعرف: ${requestedId}).`;
+    }
+
+    let msg = `📊 *تقرير أداء الإعلانات الممولة*\n══════════════\n`;
+
+    allCampaignIds.forEach((campId, idx) => {
+        const todayCamp = todayCampaigns.find(c => c.id === campId);
+        const yestCamp = yesterdayCampaigns.find(c => c.id === campId);
+        const camp = todayCamp || yestCamp;
+
+        // 1. البيانات العامة للحملة (تظهر مرة واحدة فقط)
+        const cStatus = camp.status_label || (camp.status === 'ACTIVE' ? '🟢 نشطة' : '⏸️ متوقفة');
+        const ctaType = camp.ads?.[0]?.creative?.cta_type || camp.primary_ad?.cta_type || '';
+        const cObj = classifyObjective(camp.objective, ctaType);
+        const budgetStr = formatCampaignBudget(camp);
+        const stopInfo = getStopTimeDetails(camp.stop_time);
+        const linksText = formatCampaignPostLinks(camp);
+
+        const numPrefix = allCampaignIds.length > 1 ? `${idx + 1}️⃣ ` : '📌 ';
+        msg += `${numPrefix}*${camp.name || 'حملة بدون اسم'}*\n`;
+        msg += `• معرف الحملة: \`${camp.id}\`\n`;
+        msg += `• الحالة: ${cStatus}\n`;
+        msg += `• النوع: *${cObj}*\n`;
+        if (budgetStr) {
+            msg += `• 💵 الميزانية: *${budgetStr}*\n`;
+        }
+        if (stopInfo?.endDate) {
+            msg += `• ⏳ الانتهاء: ${stopInfo.endDate}\n`;
+        }
+        if (stopInfo?.remainingText) {
+            msg += `• ⏳ المتبقي: ${stopInfo.remainingText}\n`;
+        }
+        if (linksText) {
+            msg += linksText;
+        }
+
+        msg += `══════════════\n`;
+
+        // 2. تقرير اليوم
+        if (todayCamp) {
+            const tSpend = Math.round(Number(todayCamp.spend || 0)).toLocaleString('en-US');
+            const tResults = Number(todayCamp.results || 0).toLocaleString('en-US');
+            const tLabel = todayCamp.result_label || 'رسائل';
+            const tCpa = Number(todayCamp.cpa || 0).toFixed(2);
+            const tRoas = todayCamp.roas ? Number(todayCamp.roas).toFixed(1) : null;
+            const tCtr = Number(todayCamp.ctr || 0).toFixed(2);
+            const tReach = todayCamp.reach ? Number(todayCamp.reach).toLocaleString('en-US') : null;
+
+            msg += `📅 *تقرير اليوم:*\n`;
+            msg += `• 💸 المصروف: *${tSpend}ج*\n`;
+            msg += `• 🎯 النتائج: *${tResults}* ${tLabel}\n`;
+            msg += `• 🏷️ تكلفة النتيجة: *${tCpa}ج*\n`;
+            if (tReach) {
+                msg += `• 👥 عدد الوصول: *${tReach}*\n`;
+            }
+            msg += `• 👆 معدل النقر (CTR): *${tCtr}%*\n`;
+            if (tRoas && Number(tRoas) > 0) {
+                msg += `• 📈 العائد (ROAS): *${tRoas}*\n`;
+            }
+        } else {
+            msg += `📅 *تقرير اليوم:*\n`;
+            msg += `• 💸 المصروف: *0ج*\n`;
+            msg += `• 🎯 النتائج: *0*\n`;
+            msg += `• 🏷️ تكلفة النتيجة: *0ج*\n`;
+            msg += `• 👆 معدل النقر (CTR): *0%*\n`;
+        }
+
+        msg += `\n`;
+
+        // 3. تقرير أمس
+        if (yestCamp) {
+            const ySpend = Math.round(Number(yestCamp.spend || 0)).toLocaleString('en-US');
+            const yResults = Number(yestCamp.results || 0).toLocaleString('en-US');
+            const yLabel = yestCamp.result_label || 'رسائل';
+            const yCpa = Number(yestCamp.cpa || 0).toFixed(2);
+            const yRoas = yestCamp.roas ? Number(yestCamp.roas).toFixed(1) : null;
+            const yCtr = Number(yestCamp.ctr || 0).toFixed(2);
+            const yReach = yestCamp.reach ? Number(yestCamp.reach).toLocaleString('en-US') : null;
+
+            msg += `📅 *تقرير أمس:*\n`;
+            msg += `• 💸 المصروف: *${ySpend}ج*\n`;
+            msg += `• 🎯 النتائج: *${yResults}* ${yLabel}\n`;
+            msg += `• 🏷️ تكلفة النتيجة: *${yCpa}ج*\n`;
+            if (yReach) {
+                msg += `• 👥 عدد الوصول: *${yReach}*\n`;
+            }
+            msg += `• 👆 معدل النقر (CTR): *${yCtr}%*\n`;
+            if (yRoas && Number(yRoas) > 0) {
+                msg += `• 📈 العائد (ROAS): *${yRoas}*\n`;
+            }
+        } else {
+            msg += `📅 *تقرير أمس:*\n`;
+            msg += `• 💸 المصروف: *0ج*\n`;
+            msg += `• 🎯 النتائج: *0*\n`;
+            msg += `• 🏷️ تكلفة النتيجة: *0ج*\n`;
+            msg += `• 👆 معدل النقر (CTR): *0%*\n`;
+        }
+
+        if (idx < allCampaignIds.length - 1) {
+            msg += `\n══════════════\n`;
+        }
+    });
+
+    return msg.trim();
+}
+
+/**
  * 1. عرض الحملات النشطة والشغالة فقط.
  * 2. الحالة نشطة بدون كلمة ACTIVE.
  * 3. فواصل قصيرة مناسبة لشاشات الموبايل (══════════════).
@@ -508,7 +634,11 @@ export async function fetchCampaignsSummary({
  * 9. حذف "مرات الظهور" وحذف ملخص "الحملات النشطة".
  * 10. عدم وضع روابط تخمينية.
  */
-export function formatAdsReportMessage(data, requestedId = '', datePreset = 'today', isExplicitCampaign = false, statusFilter = 'ACTIVE') {
+export function formatAdsReportMessage(data, requestedId = '', datePreset = 'today', isExplicitCampaign = false, statusFilter = 'ACTIVE', yesterdayData = null) {
+    if (isExplicitCampaign) {
+        return formatCampaignAdsReportMessage(data, yesterdayData, requestedId);
+    }
+
     const presetLabels = {
         today: 'اليوم',
         yesterday: 'أمس',
@@ -742,17 +872,29 @@ export async function handleAdsReportGroupMessage({
 
     let isExplicitCampaign = (idInfo.type === 'campaign');
     let apiResult = null;
+    let campaignYesterdayResult = null;
 
     if (idInfo.type === 'campaign') {
-        // طلب صريح لحملة
-        apiResult = await fetchCampaignsSummary({
-            campaign_ids: [idInfo.id],
-            date_preset: datePreset,
-            status_filter: statusFilter,
-            force_refresh: true
-        });
+        // طلب صريح لحملة: جلب أداء اليوم وأمس معاً بالتوازي لعرضهما للعميل مباشرة
+        const [todayRes, yestRes] = await Promise.all([
+            fetchCampaignsSummary({
+                campaign_ids: [idInfo.id],
+                date_preset: 'today',
+                status_filter: 'ALL',
+                force_refresh: true
+            }),
+            fetchCampaignsSummary({
+                campaign_ids: [idInfo.id],
+                date_preset: 'yesterday',
+                status_filter: 'ALL',
+                force_refresh: true
+            })
+        ]);
+        apiResult = (todayRes && todayRes.success) ? todayRes : yestRes;
+        campaignYesterdayResult = (yestRes && yestRes.success) ? yestRes : null;
+        isExplicitCampaign = true;
     } else if (idInfo.type === 'account') {
-        // طلب صريح لحساب
+        // طلب صريح لحساب: يظل كما هو تماماً دون أي تعديل
         apiResult = await fetchCampaignsSummary({
             account_id: idInfo.id,
             date_preset: datePreset,
@@ -760,7 +902,7 @@ export async function handleAdsReportGroupMessage({
             force_refresh: true
         });
     } else {
-        // نوع غير محدد: نجرب كحساب إعلاني أولاً
+        // نوع غير محدد: نجرب كحساب إعلاني أولاً (كما هو مطلوب للحسابات دون أي تعديل)
         apiResult = await fetchCampaignsSummary({
             account_id: idInfo.id,
             date_preset: datePreset,
@@ -768,17 +910,26 @@ export async function handleAdsReportGroupMessage({
             force_refresh: true
         });
 
-        // إذا لم ينجح كحساب إعلاني، نجرب كمعرف حملة تلقائياً
+        // إذا لم ينجح كحساب إعلاني، نجرب كمعرف حملة تلقائياً (جلب اليوم وأمس)
         if (!apiResult || !apiResult.success) {
             console.log(`🔄 [Ads Report] Trying fallback for ID ${idInfo.id} as campaign_id...`);
-            const campaignTry = await fetchCampaignsSummary({
-                campaign_ids: [idInfo.id],
-                date_preset: datePreset,
-                status_filter: statusFilter,
-                force_refresh: true
-            });
-            if (campaignTry && campaignTry.success) {
-                apiResult = campaignTry;
+            const [todayRes, yestRes] = await Promise.all([
+                fetchCampaignsSummary({
+                    campaign_ids: [idInfo.id],
+                    date_preset: 'today',
+                    status_filter: 'ALL',
+                    force_refresh: true
+                }),
+                fetchCampaignsSummary({
+                    campaign_ids: [idInfo.id],
+                    date_preset: 'yesterday',
+                    status_filter: 'ALL',
+                    force_refresh: true
+                })
+            ]);
+            if ((todayRes && todayRes.success) || (yestRes && yestRes.success)) {
+                apiResult = (todayRes && todayRes.success) ? todayRes : yestRes;
+                campaignYesterdayResult = (yestRes && yestRes.success) ? yestRes : null;
                 isExplicitCampaign = true;
             }
         }
@@ -798,7 +949,9 @@ export async function handleAdsReportGroupMessage({
     }
 
     // 4. صياغة التقرير الاحترافي وإرساله
-    const reportText = formatAdsReportMessage(apiResult, idInfo.id, datePreset, isExplicitCampaign, statusFilter);
+    const reportText = isExplicitCampaign
+        ? formatCampaignAdsReportMessage(apiResult, campaignYesterdayResult, idInfo.id)
+        : formatAdsReportMessage(apiResult, idInfo.id, datePreset, isExplicitCampaign, statusFilter);
     await sendGroupReply(sock, remoteJid, { text: reportText });
     return true;
 }
