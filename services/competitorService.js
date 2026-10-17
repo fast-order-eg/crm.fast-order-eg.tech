@@ -312,9 +312,9 @@ export async function getCompetitorAuthorizedStaff(userId = 3) {
         const cleanP = normalizePhone(u.phone);
         if (cleanP && !seenPhones.has(cleanP)) {
             seenPhones.add(cleanP);
+            if (excludedSet.has(cleanP)) continue;
             const roleLabel = u.role === 'super_admin' ? 'مدير عام' :
                               u.role === 'admin' ? 'مدير' : 'مسؤول مبيعات';
-            const isActive = !excludedSet.has(cleanP);
             list.push({
                 id: u.id,
                 name: u.fullName || u.username,
@@ -323,7 +323,7 @@ export async function getCompetitorAuthorizedStaff(userId = 3) {
                 roleLabel,
                 phone: cleanP,
                 isPrimary: false,
-                isActive,
+                isActive: true,
                 isCustom: false
             });
         }
@@ -334,9 +334,9 @@ export async function getCompetitorAuthorizedStaff(userId = 3) {
         const cleanP = normalizePhone(c.phone);
         if (cleanP && !seenPhones.has(cleanP)) {
             seenPhones.add(cleanP);
+            if (excludedSet.has(cleanP)) continue;
             let cleanRoleLabel = (c.roleLabel || 'مسؤول مبيعات').replace(/\s*\(.*?\)/g, '').trim();
             if (!cleanRoleLabel) cleanRoleLabel = 'مسؤول مبيعات';
-            const isActive = !excludedSet.has(cleanP);
             list.push({
                 id: c.id || `custom_${cleanP}`,
                 name: c.name || 'موظف مخصص',
@@ -345,7 +345,7 @@ export async function getCompetitorAuthorizedStaff(userId = 3) {
                 roleLabel: cleanRoleLabel,
                 phone: cleanP,
                 isPrimary: false,
-                isActive,
+                isActive: true,
                 isCustom: true
             });
         }
