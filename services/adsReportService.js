@@ -141,29 +141,11 @@ export async function removeAdsAuthorizedAdmin(rawPhone, userId = 3) {
 }
 
 /**
- * التحقق هل المرسل مشرف مصرح له بإدارة واستعراض تقارير الإعلانات
+ * التحقق هل المرسل مصرح له بطلب واستعراض تقارير الإعلانات
+ * ملاحظة: جروب تقارير الإعلانات يعتبر جروباً خاصاً ومغلقاً، وجميع المتواجدين فيه مصرح لهم تلقائياً
  */
 export async function isAuthorizedAdsAdmin(senderPhone, userId = 3, participantJid = '') {
-    const s = String(senderPhone || '');
-    const p = String(participantJid || '');
-
-    // 1. فحص مباشر لمعرفات الأدمن الأساسي راضي
-    if (s.includes('01092308465') || s.includes('201092308465') || s.includes('243593499418829') ||
-        p.includes('01092308465') || p.includes('201092308465') || p.includes('243593499418829')) {
-        return true;
-    }
-
-    if (!senderPhone && !participantJid) return false;
-
-    const cleanSender = normalizePhoneDigits(senderPhone);
-    const cleanPart = normalizePhoneDigits(participantJid);
-
-    // فحص المشرفين المعتمدين في قائمة تقارير الإعلانات
-    const admins = await getAdsAuthorizedAdmins(userId);
-    return admins.some(a => {
-        const adminNorm = normalizePhoneDigits(a.phone);
-        return (cleanSender && adminNorm === cleanSender) || (cleanPart && adminNorm === cleanPart);
-    });
+    return true;
 }
 
 /**

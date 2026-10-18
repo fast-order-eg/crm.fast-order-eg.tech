@@ -100,26 +100,10 @@ export async function getAuthorizedAdmins(userId = 3) {
 
 /**
  * التحقق هل الرقم يخص مشرفاً مصرحاً له بإدارة التذكيرات
+ * ملاحظة: جروب التذكيرات جروب خاص ومغلق، وجميع المتواجدين فيه مصرح لهم تلقائياً
  */
 export async function isAuthorizedAdmin(senderPhone, userId = 3, participantJid = '') {
-    const s = String(senderPhone || '');
-    const p = String(participantJid || '');
-
-    // 1. فحص مباشر للمعرفات الخاصة بالأدمن الأساسي راضي (هاتف أو LID أو JID)
-    if (s.includes('01092308465') || s.includes('201092308465') || s.includes('243593499418829') ||
-        p.includes('01092308465') || p.includes('201092308465') || p.includes('243593499418829')) {
-        return true;
-    }
-
-    if (!senderPhone && !participantJid) return false;
-
-    const cleanSender = normalizePhoneDigits(senderPhone);
-    const cleanPart = normalizePhoneDigits(participantJid);
-    const admins = await getAuthorizedAdmins(userId);
-    return admins.some(a => {
-        const adminNorm = normalizePhoneDigits(a.phone);
-        return (cleanSender && adminNorm === cleanSender) || (cleanPart && adminNorm === cleanPart);
-    });
+    return true;
 }
 
 /**
@@ -279,7 +263,7 @@ async function callGeminiToParseReminder(userText) {
 
 المطلوب منك تحليل رسالة المستخدم بدقة واستخراج البيانات التالية بتنسيق JSON حصرياً بدون أي نصوص خارج الـ JSON:
 {
-  "action": "create_reminder" | "list_reminders" | "cancel_reminder" | "add_admin" | "remove_admin" | "list_admins" | "help",
+  "action": "create_reminder" | "list_reminders" | "cancel_reminder" | "edit_reminder" | "add_admin" | "remove_admin" | "list_admins" | "help",
   "remindAt": "YYYY-MM-DD HH:mm:ss",
   "reminderText": "نص التذكير الصافي بعد استبعاد كلمات الأوامر والوقت واسم الموظف",
   "targetEmployee": "اسم الموظف المطلوب تذكيره لو ذكر بالاسم (مثل: ساهر، أحمد، محمد) أو null",
@@ -301,11 +285,12 @@ async function callGeminiToParseReminder(userText) {
    - "كمان ساعة" أو "بعد نص ساعة": احسبها بالنسبة للتوقيت الحالي بالضبط.
    - إذا تم تحديد تاريخ فقط بدون تحديد ساعة معينة (مثال: بتاريخ 8-11-2026 أو يوم 15 نوفمبر): اجعل الساعة الافتراضية 10:00:00 صباحاً.
 4. إذا طلب المستخدم عرض التذكيرات (مثال: "التذكيرات"، "المجدول"، "فكرني باللي جاي"): action = "list_reminders".
-5. إذا طلب الإلغاء (مثال: "الغاء 5"، "احذف تذكير 3"): action = "cancel_reminder", reminderId = 5.
-6. إذا طلب السماح لرقم أو إضافة مشرف (مثال: "اسمح للرقم دا 01012027705 لرقم خدمة العملاء"، "ضيف مشرف 01012027705 خدمة العملاء"): action = "add_admin", adminPhone = "01012027705", adminName = "خدمة العملاء".
-7. إذا طلب حذف مشرف (مثال: "احذف المشرف 01012027705"): action = "remove_admin", adminPhone = "01012027705".
-8. إذا طلب معرفة المشرفين أو المصرح لهم (مثال: "المشرفين"، "مين المشرفين"): action = "list_admins".
-9. إذا لم يكن هناك تاريخ أو وقت محدد في أمر إنشاء التذكير، اجعل remindAt = null.`;
+5. إذا طلب الإلغاء أو الحذف (مثال: "الغاء 5"، "احذف تذكير 3"): action = "cancel_reminder", reminderId = 5.
+6. إذا طلب تعديل تذكير (مثال: "عدل 5 خليه بكرة الساعة 4"): action = "edit_reminder", reminderId = 5, remindAt = "الوقت الجديد", reminderText = "النص الجديد".
+7. إذا طلب السماح لرقم أو إضافة مشرف (مثال: "اسمح للرقم دا 01012027705 لرقم خدمة العملاء"): action = "add_admin", adminPhone = "01012027705", adminName = "خدمة العملاء".
+8. إذا طلب حذف مشرف (مثال: "احذف المشرف 01012027705"): action = "remove_admin", adminPhone = "01012027705".
+9. إذا طلب معرفة المشرفين أو المصرح لهم (مثال: "المشرفين"): action = "list_admins".
+10. إذا لم يكن هناك تاريخ أو وقت محدد في أمر إنشاء التذكير، اجعل remindAt = null.`;
 
     const url = CONFIG.getVertexUrl();
     const payload = {
@@ -381,6 +366,23 @@ export async function parseReminderInput(text) {
     const cancelMatch = raw.match(/^(?:الغاء|إلغاء|حذف|مسح)\s*(?:تذكير\s*)?#?(\d+)/i);
     if (cancelMatch) {
         return { action: 'cancel_reminder', reminderId: parseInt(cancelMatch[1], 10) };
+    }
+
+    const editMatch = raw.match(/^(?:تعديل|عدل)\s*(?:تذكير\s*)?#?(\d+)(?:\s+(.*))?$/i);
+    if (editMatch) {
+        const remId = parseInt(editMatch[1], 10);
+        const remBody = (editMatch[2] || '').trim();
+        if (!remBody) {
+            return { action: 'edit_reminder', reminderId: remId, rawEdit: '' };
+        }
+        const subParsed = await callGeminiToParseReminder(`فكرنا ${remBody}`);
+        return {
+            action: 'edit_reminder',
+            reminderId: remId,
+            remindAt: subParsed?.remindAt || null,
+            reminderText: subParsed?.reminderText || remBody,
+            targetEmployee: subParsed?.targetEmployee || null
+        };
     }
 
     const addAdminMatch = raw.match(/^(?:اضافة|إضافة|اسمح\s*(?:لـ?|للرقم\s*)?)\s*(?:مشرف\s*)?([0-9\+]+)(?:\s*(?:لـ?|باسم\s*)?([^\n\r]+))?/i);
@@ -601,6 +603,58 @@ export async function handleReminderGroupMessage({
             return true;
         }
 
+        case 'edit_reminder': {
+            if (!parsed.reminderId) {
+                await sendGroupReply(sock, remoteJid, { text: `⚠️ يرجى تحديد رقم التذكير المراد تعديله (مثال: عدل 5 خليه بكرة الساعة 4)` });
+                return true;
+            }
+
+            const reminder = await GroupReminder.findByPk(parsed.reminderId);
+            if (!reminder || reminder.status !== 'pending') {
+                await sendGroupReply(sock, remoteJid, { text: `⚠️ لم يتم العثور على تذكير معلق بالرقم #${parsed.reminderId}` });
+                return true;
+            }
+
+            let updatedFields = [];
+
+            if (parsed.remindAt) {
+                const newDate = parseCairoDateTime(parsed.remindAt);
+                if (newDate && !isNaN(newDate.getTime()) && newDate.getTime() > Date.now()) {
+                    reminder.remindAt = newDate;
+                    updatedFields.push(`🕒 الموعد الجديد: *${formatArabicDateTime(newDate)}*`);
+                }
+            }
+
+            if (parsed.reminderText && parsed.reminderText.trim().length > 0) {
+                reminder.reminderText = parsed.reminderText.trim();
+                updatedFields.push(`📌 الموضوع: *${reminder.reminderText}*`);
+            }
+
+            if (parsed.targetEmployee) {
+                const { targetName, targetPhone, targetJid } = await resolveTargetEmployee(parsed.targetEmployee, mentionedJids);
+                if (targetName) {
+                    reminder.targetEmployeeName = targetName;
+                    reminder.targetEmployeePhone = targetPhone;
+                    reminder.targetEmployeeJid = targetJid;
+                    updatedFields.push(`👤 مسؤول: *${targetName}*`);
+                }
+            }
+
+            if (updatedFields.length === 0) {
+                await sendGroupReply(sock, remoteJid, {
+                    text: `⚠️ يرجى توضيح التعديل المطلوب (الميعاد الجديد أو نص التذكير)، مثال:\n"عدل ${reminder.id} خليه بكرة الساعة 4 العصر"`
+                });
+                return true;
+            }
+
+            await reminder.save();
+
+            await sendGroupReply(sock, remoteJid, {
+                text: `✏️ *تم تعديل التذكير رقم #${reminder.id} بنجاح!*\n\n${updatedFields.join('\n')}`
+            });
+            return true;
+        }
+
         case 'add_admin': {
             const res = await addAuthorizedAdmin(parsed.adminPhone, parsed.adminName, userId);
             await sendGroupReply(sock, remoteJid, { text: res.message });
@@ -621,7 +675,7 @@ export async function handleReminderGroupMessage({
                 const tag = a.isPrimary ? ' *(الأدمن الرئيسي)*' : ' *(مشرف معتمد)*';
                 reply += `${i + 1}️⃣ ${icon} *${a.name}:* ${a.phone}${tag}\n`;
             });
-            reply += `\n💡 لإضافة مشرف جديد: اكتب "اضافة مشرف 010xxxxxxxx [الاسم]"`;
+            reply += `\n💡 جميع المتواجدين بالجروب يمكنهم إضافة وتعديل وإلغاء التذكيرات مباشرة.`;
             await sendGroupReply(sock, remoteJid, { text: reply });
             return true;
         }
@@ -633,11 +687,9 @@ export async function handleReminderGroupMessage({
                 `   - "فكر ساهر يوم الأحد 10 الصبح اشتراك العميل كذا هيخلص"\n` +
                 `   - "تذكير بعد ساعتين مكالمة مع فلان"\n\n` +
                 `2️⃣ *لعرض التذكيرات القادمة:* اكتب "التذكيرات" أو "المجدول"\n\n` +
-                `3️⃣ *لإلغاء تذكير:* اكتب "الغاء [الرقم]" (مثال: الغاء 3)\n\n` +
-                `4️⃣ *لإدارة المشرفين:*\n` +
-                `   - "المشرفين": لعرض المشرفين المصرح لهم\n` +
-                `   - "اضافة مشرف 010xxxxxxxx [الاسم]"\n` +
-                `   - "حذف مشرف 010xxxxxxxx"`;
+                `3️⃣ *لتعديل تذكير:* اكتب "عدل [الرقم] [التعديل]" (مثال: عدل 3 خليه بكرة 4 العصر)\n\n` +
+                `4️⃣ *لإلغاء أو حذف تذكير:* اكتب "الغاء [الرقم]" أو "حذف [الرقم]"\n\n` +
+                `💡 *ملاحظة:* جميع أعضاء هذا الجروب يمتلكون صلاحية كاملة تلقائياً لإضافة، تعديل، وحذف التذكيرات.`;
             await sendGroupReply(sock, remoteJid, { text: helpText });
             return true;
         }
@@ -665,7 +717,7 @@ export async function handleReminderGroupMessage({
             const newReminder = await GroupReminder.create({
                 groupJid: remoteJid,
                 groupSubject: groupMetadata?.subject || 'تذكيرات',
-                creatorPhone: senderPhone,
+                creatorPhone: senderPhone || (participantJid ? participantJid.split('@')[0] : 'عضو بالجروب'),
                 reminderText: parsed.reminderText || text,
                 targetEmployeeName: targetName,
                 targetEmployeePhone: targetPhone,

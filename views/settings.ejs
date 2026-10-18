@@ -496,107 +496,35 @@
                                     <div id="checkReminderGroupResult" class="mt-3 small rounded-3" style="display: none;"></div>
                                 </div>
 
-                                <!-- Card: Authorized Admins -->
+                                <!-- Card: Group Access Info (Open for all members) -->
                                 <div class="card border-0 shadow-sm p-4 rounded-4 bg-light">
-                                    <div class="d-flex align-items-center justify-content-between mb-3">
+                                    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
                                         <div class="d-flex align-items-center">
-                                            <div class="bg-primary bg-opacity-10 p-2.5 rounded-circle me-3 d-flex align-items-center justify-content-center" style="width: 44px; height: 44px;">
-                                                <i class="bi bi-shield-lock-fill text-primary fs-4"></i>
+                                            <div class="bg-success bg-opacity-10 p-2.5 rounded-circle me-3 d-flex align-items-center justify-content-center" style="width: 44px; height: 44px;">
+                                                <i class="bi bi-people-fill text-success fs-4"></i>
                                             </div>
                                             <div>
-                                                <h6 class="fw-bold mb-0 text-dark">المشرفون المصرح لهم بإدارة التذكيرات</h6>
-                                                <small class="text-muted">الأشخاص والأرقام المصرح لها بإعطاء أوامر التذكير للبوت</small>
+                                                <h6 class="fw-bold mb-0 text-dark">صلاحيات إدارة التذكيرات</h6>
+                                                <small class="text-muted">نظام الصلاحيات التلقائي لأعضاء الجروب</small>
                                             </div>
                                         </div>
-                                        <span class="badge bg-primary bg-opacity-10 text-primary px-3 py-2 rounded-pill fw-bold" id="adminsCountBadge">
-                                            <%= (typeof reminderAdmins !== 'undefined' && reminderAdmins && reminderAdmins.length) || 1 %> مشرفين
+                                        <span class="badge bg-success bg-opacity-15 text-success border border-success border-opacity-25 px-3 py-1.5 rounded-pill fw-bold">
+                                            <i class="bi bi-unlock-fill me-1"></i> مفعل لجميع أعضاء الجروب
                                         </span>
                                     </div>
 
                                     <!-- Hidden input to keep form submission synced -->
                                     <input type="hidden" name="reminder_authorized_phones" id="reminderAuthorizedPhonesInput" value="<%= settings.reminder_authorized_phones || '01092308465' %>">
 
-                                    <!-- Admin List Table -->
-                                    <div class="table-responsive bg-white rounded-3 shadow-sm border mb-3 overflow-hidden">
-                                        <table class="table table-hover align-middle mb-0 text-nowrap">
-                                            <thead class="table-light">
-                                                <tr class="small text-secondary">
-                                                    <th class="ps-3 py-2.5">الاسم</th>
-                                                    <th class="py-2.5">رقم الهاتف</th>
-                                                    <th class="py-2.5">الدور والصلاحية</th>
-                                                    <th class="text-center pe-3 py-2.5" style="width: 80px;">إجراء</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody id="reminderAdminsTableBody">
-                                                <% const listToRender = (typeof reminderAdmins !== 'undefined' && reminderAdmins && reminderAdmins.length) ? reminderAdmins : [{ name: 'راضي', phone: '01092308465', isPrimary: true }]; %>
-                                                <% listToRender.forEach(function(admin) { %>
-                                                    <tr id="admin-row-<%= admin.phone %>">
-                                                        <td class="ps-3 fw-bold">
-                                                            <% if (admin.isPrimary) { %>
-                                                                <span class="d-inline-flex align-items-center text-primary">
-                                                                    <i class="bi bi-star-fill text-warning me-1"></i>
-                                                                    <%= admin.name %>
-                                                                </span>
-                                                            <% } else { %>
-                                                                <span class="d-inline-flex align-items-center text-dark">
-                                                                    <i class="bi bi-person-fill text-secondary me-1"></i>
-                                                                    <%= admin.name %>
-                                                                </span>
-                                                            <% } %>
-                                                        </td>
-                                                        <td>
-                                                            <code class="fw-bold text-dark px-2 py-1 bg-light rounded font-monospace"><%= admin.phone %></code>
-                                                        </td>
-                                                        <td>
-                                                            <% if (admin.isPrimary) { %>
-                                                                <span class="badge bg-warning bg-opacity-25 text-dark border border-warning px-2.5 py-1">
-                                                                    👑 الأدمن الرئيسي
-                                                                </span>
-                                                            <% } else { %>
-                                                                <span class="badge bg-info bg-opacity-10 text-info border border-info px-2.5 py-1">
-                                                                    مشرف معتمد
-                                                                </span>
-                                                            <% } %>
-                                                        </td>
-                                                        <td class="text-center pe-3">
-                                                            <% if (admin.isPrimary) { %>
-                                                                <span class="text-muted small" title="لا يمكن حذف الأدمن الرئيسي">
-                                                                    <i class="bi bi-lock-fill text-secondary"></i> أساسي
-                                                                </span>
-                                                            <% } else { %>
-                                                                <button type="button" class="btn btn-sm btn-outline-danger px-2.5 py-1 rounded-2" onclick="deleteReminderAdmin('<%= admin.phone %>', '<%= admin.name %>')" title="حذف المشرف">
-                                                                    <i class="bi bi-trash3"></i>
-                                                                </button>
-                                                            <% } %>
-                                                        </td>
-                                                    </tr>
-                                                <% }); %>
-                                            </tbody>
-                                        </table>
-                                    </div>
-
-                                    <!-- Quick Add Admin Form -->
-                                    <div class="p-3 bg-white rounded-3 border">
-                                        <label class="form-label fw-bold text-dark small mb-2 d-flex align-items-center">
-                                            <i class="bi bi-person-plus-fill text-primary me-1"></i> إضافة مشرف جديد:
-                                        </label>
-                                        <div class="row g-2">
-                                            <div class="col-12 col-sm-5">
-                                                <input type="text" id="newAdminNameInput" class="form-control form-control-sm py-2 rounded-2" placeholder="الاسم (مثال: خدمة العملاء)">
+                                    <div class="bg-white p-3.5 rounded-3 border">
+                                        <div class="d-flex align-items-start gap-2.5">
+                                            <i class="bi bi-shield-check text-success fs-4 mt-0.5"></i>
+                                            <div>
+                                                <strong class="text-dark d-block">جروب خاص ومغلق — صلاحية تلقائية كاملة:</strong>
+                                                <p class="text-muted small mb-0 mt-1">
+                                                    بما أن هذا جروب خاص بفريق العمل، فإن <strong>أي عضو متواجد داخل الجروب</strong> مصرح له تلقائياً وبشكل مباشر بـ <strong>(إضافة، تعديل، إلغاء/حذف، واستعراض)</strong> التذكيرات في أي وقت دون الحاجة لتحديد أشخاص معينين أو تسجيل أرقام هواتفهم مسبقاً.
+                                                </p>
                                             </div>
-                                            <div class="col-12 col-sm-5">
-                                                <input type="text" id="newAdminPhoneInput" class="form-control form-control-sm py-2 rounded-2 font-monospace" placeholder="رقم الهاتف (مثال: 01012027705)">
-                                            </div>
-                                            <div class="col-12 col-sm-2 d-grid">
-                                                <button type="button" id="addNewAdminBtn" class="btn btn-sm btn-primary w-100 py-2 rounded-2 fw-bold">
-                                                    <i class="bi bi-plus-lg me-1"></i> إضافة
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div id="newAdminAlert" class="mt-2 small" style="display: none;"></div>
-                                        <div class="form-text text-muted small mt-2">
-                                            <i class="bi bi-info-circle me-1"></i>
-                                            رقمك الأساسي (<strong>01092308465</strong> - راضي) مصرح له دائماً وأساسي في النظام. يمكنك أيضاً كتابة <code>اسمح للرقم 010xxxxxxxx لخدمة العملاء</code> داخل الجروب في أي وقت.
                                         </div>
                                     </div>
                                 </div>
@@ -625,11 +553,14 @@
                                         </div>
 
                                         <div class="list-group-item px-0 py-2.5 bg-transparent border-0">
-                                            <strong class="text-primary d-block mb-1">3️⃣ عرض المجدول أو الإلغاء:</strong>
-                                            <span class="text-muted">اكتب في الجروب:</span>
+                                            <strong class="text-primary d-block mb-1">3️⃣ عرض المجدول أو التعديل أو الإلغاء:</strong>
+                                            <span class="text-muted">لعرض التذكيرات:</span>
                                             <div class="bg-light p-2 rounded-2 mt-1 font-monospace">"التذكيرات" أو "المجدول"</div>
-                                            <span class="text-muted mt-1 d-block">وللإلغاء:</span>
+                                            <span class="text-muted mt-1 d-block">وللتعديل:</span>
+                                            <div class="bg-light p-2 rounded-2 mt-1 font-monospace">"عدل 1 خليه بكرة الساعة 4 العصر"</div>
+                                            <span class="text-muted mt-1 d-block">وللإلغاء أو الحذف:</span>
                                             <div class="bg-light p-2 rounded-2 mt-1 font-monospace">"الغاء 1" أو "حذف 1"</div>
+                                            <small class="text-success d-block mt-1.5 fw-medium">✨ أي شخص داخل الجروب يقدر يضيف أو يعدل أو يحذف عادي دون الحاجة لتحديد أشخاص معينين.</small>
                                         </div>
                                     </div>
                                 </div>
@@ -701,102 +632,33 @@
                                     <div id="checkAdsReportGroupResult" class="mt-3 small rounded-3" style="display: none;"></div>
                                 </div>
 
-                                <!-- Card: Authorized Admins for Ads Reports -->
+                                <!-- Card: Group Access Info for Ads Reports (Open for all members) -->
                                 <div class="card border-0 shadow-sm p-3 p-md-4 rounded-4 bg-white">
-                                    <% const adsAdminList = (typeof adsReportAdmins !== 'undefined' && adsReportAdmins && adsReportAdmins.length) ? adsReportAdmins : ((typeof reminderAdmins !== 'undefined' && reminderAdmins && reminderAdmins.length) ? reminderAdmins : [{ name: 'أ. راضي', phone: '01092308465', roleLabel: 'مدير النظام', isPrimary: true }]); %>
                                     <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom flex-wrap gap-2">
                                         <div class="d-flex align-items-center">
                                             <div class="bg-primary bg-opacity-10 text-primary p-2 rounded-3 me-2.5 me-md-3 icon-circle-fixed d-flex align-items-center justify-content-center">
                                                 <i class="bi bi-people-fill fs-5"></i>
                                             </div>
                                             <div>
-                                                <h6 class="fw-bold mb-0 text-dark">الأرقام المصرح لها بطلب التقارير</h6>
-                                                <small class="text-muted">الأشخاص المسموح لهم بإرسال أرقام الحسابات واستلام تقارير الإعلانات</small>
+                                                <h6 class="fw-bold mb-0 text-dark">صلاحيات طلب واستعراض التقارير</h6>
+                                                <small class="text-muted">نظام الصلاحيات التلقائي لأعضاء الجروب</small>
                                             </div>
                                         </div>
-                                        <span id="adsAdminsCountBadge" class="badge bg-primary rounded-pill px-3 py-1.5 fs-7">
-                                            <%= adsAdminList.length %> أرقام مصرحة
+                                        <span class="badge bg-success bg-opacity-15 text-success border border-success border-opacity-25 px-3 py-1.5 rounded-pill fw-bold">
+                                            <i class="bi bi-unlock-fill me-1"></i> مفعل لجميع أعضاء الجروب
                                         </span>
                                     </div>
 
-                                    <!-- Quick Add Number Box -->
-                                    <div class="bg-light p-3 rounded-3 mb-3 border">
-                                        <div class="d-flex align-items-center mb-2">
-                                            <i class="bi bi-person-plus-fill text-primary me-2"></i>
-                                            <strong class="text-dark small">إضافة رقم مصرح له جديد:</strong>
-                                        </div>
-                                        <div class="row g-2 align-items-end">
-                                            <div class="col-12 col-sm-5">
-                                                <label class="form-label small text-muted mb-1">الاسم</label>
-                                                <input type="text" id="newAdsAdminName" class="form-control form-control-sm rounded-3 py-2" placeholder="مثال: أحمد">
-                                            </div>
-                                            <div class="col-12 col-sm-5">
-                                                <label class="form-label small text-muted mb-1">رقم الواتساب <span class="text-danger">*</span></label>
-                                                <input type="text" id="newAdsAdminPhone" class="form-control form-control-sm rounded-3 py-2 font-monospace" placeholder="01012345678" dir="ltr">
-                                            </div>
-                                            <div class="col-12 col-sm-2 d-grid">
-                                                <button type="button" id="addNewAdsAdminBtn" class="btn btn-primary btn-sm rounded-3 py-2 fw-bold shadow-sm">
-                                                    <i class="bi bi-plus-lg me-1"></i> إضافة
-                                                </button>
+                                    <div class="bg-light p-3.5 rounded-3 border">
+                                        <div class="d-flex align-items-start gap-2.5">
+                                            <i class="bi bi-shield-check text-success fs-4 mt-0.5"></i>
+                                            <div>
+                                                <strong class="text-dark d-block">جروب خاص ومغلق — صلاحية فورية للجميع:</strong>
+                                                <p class="text-muted small mb-0 mt-1">
+                                                    نظراً لأن هذا الجروب مخصص لتقارير الإعلانات ومقتصر على فريقك أو عملائك، فإن <strong>أي عضو داخل الجروب</strong> يمكنه إرسال أرقام الحسابات والحملات الإعلانية وطلب التقارير وتحديد الفترات الزمنية مباشرة دون الحاجة لتقييد الأوامر بأرقام هواتف معينة.
+                                                </p>
                                             </div>
                                         </div>
-                                        <div id="adsAdminAlert" class="mt-2 small" style="display: none;"></div>
-                                    </div>
-
-                                    <!-- Admin List Table -->
-                                    <div class="table-responsive">
-                                        <table class="table table-hover align-middle mb-0">
-                                            <thead class="table-light">
-                                                <tr class="small text-muted">
-                                                    <th class="border-0 rounded-start">الاسم</th>
-                                                    <th class="border-0">الصلاحية</th>
-                                                    <th class="border-0">رقم الواتساب</th>
-                                                    <th class="border-0 text-center rounded-end">إجراء</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody id="adsAdminsTableBody">
-                                                <% adsAdminList.forEach(function(admin) { %>
-                                                    <tr id="ads-admin-row-<%= admin.phone %>">
-                                                        <td>
-                                                            <span class="fw-bold text-dark fs-7"><%= admin.name %></span>
-                                                        </td>
-                                                        <td>
-                                                            <% if (admin.isPrimary) { %>
-                                                                <span class="badge bg-warning bg-opacity-15 text-dark border border-warning border-opacity-25 rounded-pill px-2.5 py-1 fs-8">
-                                                                    <i class="bi bi-shield-check me-1"></i>مدير النظام
-                                                                </span>
-                                                            <% } else { %>
-                                                                <span class="badge bg-info bg-opacity-10 text-primary border border-info border-opacity-25 rounded-pill px-2.5 py-1 fs-8">
-                                                                    <i class="bi bi-person-badge me-1"></i><%= admin.roleLabel || 'مسؤول إعلانات' %>
-                                                                </span>
-                                                            <% } %>
-                                                        </td>
-                                                        <td>
-                                                            <div class="d-flex align-items-center">
-                                                                <i class="bi bi-whatsapp text-success me-1.5 fs-6"></i>
-                                                                <span class="font-monospace fw-bold text-dark fs-7"><%= admin.phone %></span>
-                                                            </div>
-                                                        </td>
-                                                        <td class="text-center">
-                                                            <% if (admin.isPrimary) { %>
-                                                                <span class="badge bg-secondary bg-opacity-15 text-muted px-2 py-1 fs-8" title="الأدمن الأساسي للنظام">
-                                                                    <i class="bi bi-lock-fill"></i>
-                                                                </span>
-                                                            <% } else { %>
-                                                                <button type="button" class="btn btn-sm btn-outline-danger p-1 px-2 rounded-2 fs-7" onclick="deleteAdsAdmin('<%= admin.phone %>', '<%= admin.name %>')" title="حذف الرقم">
-                                                                    <i class="bi bi-trash3-fill"></i>
-                                                                </button>
-                                                            <% } %>
-                                                        </td>
-                                                    </tr>
-                                                <% }); %>
-                                            </tbody>
-                                        </table>
-                                    </div>
-
-                                    <div class="mt-3 p-2.5 bg-light rounded-3 border small text-muted">
-                                        <i class="bi bi-info-circle-fill text-primary me-1"></i>
-                                        <strong>ملاحظة:</strong> يمكنك إضافة أي رقم ليصبح مصرحاً له فوراً بطلب تقارير الإعلانات داخل الجروب، أو حذفه في أي وقت.
                                     </div>
                                 </div>
                             </div>
@@ -1747,259 +1609,6 @@
                     }
                 });
             }
-
-            // إدارة المشرفين المصرح لهم بالتذكيرات
-            const addNewAdminBtn = document.getElementById('addNewAdminBtn');
-            const newAdminNameInput = document.getElementById('newAdminNameInput');
-            const newAdminPhoneInput = document.getElementById('newAdminPhoneInput');
-            const newAdminAlert = document.getElementById('newAdminAlert');
-            const reminderAdminsTableBody = document.getElementById('reminderAdminsTableBody');
-            const adminsCountBadge = document.getElementById('adminsCountBadge');
-            const reminderAuthorizedPhonesInput = document.getElementById('reminderAuthorizedPhonesInput');
-
-            function updateAdminListUI(admins) {
-                if (!reminderAdminsTableBody || !Array.isArray(admins)) return;
-                
-                if (adminsCountBadge) {
-                    adminsCountBadge.textContent = `${admins.length} مشرفين`;
-                }
-
-                if (reminderAuthorizedPhonesInput) {
-                    reminderAuthorizedPhonesInput.value = admins.map(a => a.phone).join(',');
-                }
-
-                reminderAdminsTableBody.innerHTML = '';
-                admins.forEach(admin => {
-                    const tr = document.createElement('tr');
-                    tr.id = `admin-row-${admin.phone}`;
-                    
-                    const nameCol = admin.isPrimary 
-                        ? `<span class="d-inline-flex align-items-center text-primary"><i class="bi bi-star-fill text-warning me-1"></i> ${admin.name}</span>`
-                        : `<span class="d-inline-flex align-items-center text-dark"><i class="bi bi-person-fill text-secondary me-1"></i> ${admin.name}</span>`;
-                        
-                    const badgeCol = admin.isPrimary
-                        ? `<span class="badge bg-warning bg-opacity-25 text-dark border border-warning px-2.5 py-1">👑 الأدمن الرئيسي</span>`
-                        : `<span class="badge bg-info bg-opacity-10 text-info border border-info px-2.5 py-1">مشرف معتمد</span>`;
-
-                    const actionCol = admin.isPrimary
-                        ? `<span class="text-muted small" title="لا يمكن حذف الأدمن الرئيسي"><i class="bi bi-lock-fill text-secondary"></i> أساسي</span>`
-                        : `<button type="button" class="btn btn-sm btn-outline-danger px-2.5 py-1 rounded-2" onclick="deleteReminderAdmin('${admin.phone}', '${admin.name}')" title="حذف المشرف"><i class="bi bi-trash3"></i></button>`;
-
-                    tr.innerHTML = `
-                        <td class="ps-3 fw-bold">${nameCol}</td>
-                        <td><code class="fw-bold text-dark px-2 py-1 bg-light rounded font-monospace">${admin.phone}</code></td>
-                        <td>${badgeCol}</td>
-                        <td class="text-center pe-3">${actionCol}</td>
-                    `;
-                    reminderAdminsTableBody.appendChild(tr);
-                });
-            }
-
-            if (addNewAdminBtn) {
-                addNewAdminBtn.addEventListener('click', async () => {
-                    const name = (newAdminNameInput.value || '').trim();
-                    const phone = (newAdminPhoneInput.value || '').trim();
-
-                    if (!phone) {
-                        newAdminAlert.style.display = 'block';
-                        newAdminAlert.className = 'mt-2 small text-danger fw-bold';
-                        newAdminAlert.innerHTML = '<i class="bi bi-exclamation-circle me-1"></i> يرجى إدخال رقم الهاتف أولاً.';
-                        return;
-                    }
-
-                    addNewAdminBtn.disabled = true;
-                    addNewAdminBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> جاري الإضافة...';
-                    newAdminAlert.style.display = 'none';
-
-                    try {
-                        const res = await fetch('/dashboard/settings/reminder-admins/add', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ name, phone })
-                        });
-                        const data = await res.json();
-
-                        if (data.success) {
-                            newAdminAlert.style.display = 'block';
-                            newAdminAlert.className = 'mt-2 small text-success fw-bold';
-                            newAdminAlert.innerHTML = `<i class="bi bi-check-circle me-1"></i> ${data.message}`;
-                            newAdminNameInput.value = '';
-                            newAdminPhoneInput.value = '';
-                            if (data.admins) updateAdminListUI(data.admins);
-                            setTimeout(() => { newAdminAlert.style.display = 'none'; }, 4000);
-                        } else {
-                            newAdminAlert.style.display = 'block';
-                            newAdminAlert.className = 'mt-2 small text-danger fw-bold';
-                            newAdminAlert.innerHTML = `<i class="bi bi-exclamation-circle me-1"></i> ${data.error || 'تعذر إضافة المشرف'}`;
-                        }
-                    } catch (e) {
-                        newAdminAlert.style.display = 'block';
-                        newAdminAlert.className = 'mt-2 small text-danger fw-bold';
-                        newAdminAlert.innerHTML = 'حدث خطأ: ' + e.message;
-                    } finally {
-                        addNewAdminBtn.disabled = false;
-                        addNewAdminBtn.innerHTML = '<i class="bi bi-plus-lg me-1"></i> إضافة';
-                    }
-                });
-            }
-
-            window.deleteReminderAdmin = async function(phone, name) {
-                if (!confirm(`هل أنت متأكد من حذف المشرف "${name}" (${phone}) من قائمة المشرفين المصرح لهم؟`)) {
-                    return;
-                }
-
-                try {
-                    const res = await fetch('/dashboard/settings/reminder-admins/delete', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ phone })
-                    });
-                    const data = await res.json();
-                    if (data.success) {
-                        if (data.admins) {
-                            updateAdminListUI(data.admins);
-                        } else {
-                            const row = document.getElementById(`admin-row-${phone}`);
-                            if (row) row.remove();
-                        }
-                    } else {
-                        alert(data.error || 'تعذر حذف المشرف');
-                    }
-                } catch (e) {
-                    alert('حدث خطأ أثناء الحذف: ' + e.message);
-                }
-            };
-
-            // ============================================================
-            // ============================================================
-            // Ads Report Authorized Admins Management (AJAX)
-            // ============================================================
-            function updateAdsAdminListUI(admins) {
-                const tbody = document.getElementById('adsAdminsTableBody');
-                const badge = document.getElementById('adsAdminsCountBadge');
-                if (!tbody) return;
-
-                if (badge && Array.isArray(admins)) {
-                    badge.textContent = `${admins.length} أرقام مصرحة`;
-                }
-
-                if (!admins || admins.length === 0) {
-                    tbody.innerHTML = `
-                        <tr>
-                            <td colspan="4" class="text-center py-4 text-muted">
-                                <i class="bi bi-info-circle me-1"></i> لا توجد أرقام مسجلة حالياً.
-                            </td>
-                        </tr>
-                    `;
-                    return;
-                }
-
-                tbody.innerHTML = admins.map(admin => {
-                    const roleBadge = admin.isPrimary
-                        ? `<span class="badge bg-warning bg-opacity-15 text-dark border border-warning border-opacity-25 rounded-pill px-2.5 py-1 fs-8"><i class="bi bi-shield-check me-1"></i>مدير النظام</span>`
-                        : `<span class="badge bg-info bg-opacity-10 text-primary border border-info border-opacity-25 rounded-pill px-2.5 py-1 fs-8"><i class="bi bi-person-badge me-1"></i>${admin.roleLabel || 'مسؤول إعلانات'}</span>`;
-
-                    const actionBtn = admin.isPrimary
-                        ? `<span class="badge bg-secondary bg-opacity-15 text-muted px-2 py-1 fs-8" title="الأدمن الأساسي للنظام"><i class="bi bi-lock-fill"></i></span>`
-                        : `<button type="button" class="btn btn-sm btn-outline-danger p-1 px-2 rounded-2 fs-7" onclick="deleteAdsAdmin('${admin.phone}', '${admin.name}')" title="حذف الرقم"><i class="bi bi-trash3-fill"></i></button>`;
-
-                    return `
-                        <tr id="ads-admin-row-${admin.phone}">
-                            <td>
-                                <span class="fw-bold text-dark fs-7">${admin.name}</span>
-                            </td>
-                            <td>${roleBadge}</td>
-                            <td>
-                                <div class="d-flex align-items-center">
-                                    <i class="bi bi-whatsapp text-success me-1.5 fs-6"></i>
-                                    <span class="font-monospace fw-bold text-dark fs-7">${admin.phone}</span>
-                                </div>
-                            </td>
-                            <td class="text-center">${actionBtn}</td>
-                        </tr>
-                    `;
-                }).join('');
-            }
-
-            const addNewAdsAdminBtn = document.getElementById('addNewAdsAdminBtn');
-            const newAdsAdminNameInput = document.getElementById('newAdsAdminName');
-            const newAdsAdminPhoneInput = document.getElementById('newAdsAdminPhone');
-            const adsAdminAlert = document.getElementById('adsAdminAlert');
-
-            if (addNewAdsAdminBtn) {
-                addNewAdsAdminBtn.addEventListener('click', async () => {
-                    const name = (newAdsAdminNameInput?.value || '').trim();
-                    const phone = (newAdsAdminPhoneInput?.value || '').trim();
-
-                    if (!phone) {
-                        adsAdminAlert.style.display = 'block';
-                        adsAdminAlert.className = 'mt-2 small text-danger fw-bold';
-                        adsAdminAlert.innerHTML = '<i class="bi bi-exclamation-circle me-1"></i> يرجى إدخال رقم الهاتف أولاً.';
-                        return;
-                    }
-
-                    addNewAdsAdminBtn.disabled = true;
-                    addNewAdsAdminBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> جاري الإضافة...';
-                    adsAdminAlert.style.display = 'none';
-
-                    try {
-                        const res = await fetch('/dashboard/settings/ads-admins/add', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ name, phone })
-                        });
-                        const data = await res.json();
-
-                        if (data.success) {
-                            adsAdminAlert.style.display = 'block';
-                            adsAdminAlert.className = 'mt-2 small text-success fw-bold';
-                            adsAdminAlert.innerHTML = `<i class="bi bi-check-circle me-1"></i> ${data.message}`;
-                            newAdsAdminNameInput.value = '';
-                            newAdsAdminPhoneInput.value = '';
-                            if (data.admins) updateAdsAdminListUI(data.admins);
-                            setTimeout(() => { adsAdminAlert.style.display = 'none'; }, 4000);
-                        } else {
-                            adsAdminAlert.style.display = 'block';
-                            adsAdminAlert.className = 'mt-2 small text-danger fw-bold';
-                            adsAdminAlert.innerHTML = `<i class="bi bi-exclamation-circle me-1"></i> ${data.error || 'تعذر إضافة الرقم'}`;
-                        }
-                    } catch (e) {
-                        adsAdminAlert.style.display = 'block';
-                        adsAdminAlert.className = 'mt-2 small text-danger fw-bold';
-                        adsAdminAlert.innerHTML = 'حدث خطأ: ' + e.message;
-                    } finally {
-                        addNewAdsAdminBtn.disabled = false;
-                        addNewAdsAdminBtn.innerHTML = '<i class="bi bi-plus-lg me-1"></i> إضافة';
-                    }
-                });
-            }
-
-            window.deleteAdsAdmin = async function(phone, name) {
-                if (!confirm(`هل أنت متأكد من إزالة صلاحية "${name}" (${phone}) من طلب تقارير الإعلانات؟`)) {
-                    return;
-                }
-
-                try {
-                    const res = await fetch('/dashboard/settings/ads-admins/delete', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ phone })
-                    });
-                    const data = await res.json();
-                    if (data.success) {
-                        if (data.admins) {
-                            updateAdsAdminListUI(data.admins);
-                        } else {
-                            const row = document.getElementById(`ads-admin-row-${phone}`);
-                            if (row) row.remove();
-                        }
-                    } else {
-                        alert(data.error || 'تعذر حذف الرقم');
-                    }
-                } catch (e) {
-                    alert('حدث خطأ أثناء الحذف: ' + e.message);
-                }
-            };
 
             // ============================================================
             // Fast Order Staff Management & Guide Helpers (AJAX)
