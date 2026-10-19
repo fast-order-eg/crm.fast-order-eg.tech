@@ -188,6 +188,12 @@
                         المنافسين
                     </button>
                 </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="facebook-analysis-tab" data-bs-toggle="pill" data-bs-target="#facebook-analysis-pane" type="button" role="tab" aria-controls="facebook-analysis-pane" aria-selected="false">
+                        <i class="bi bi-facebook text-primary"></i>
+                        تحليل فيس بوك
+                    </button>
+                </li>
             </ul>
 
             <!-- Unified Form for all settings -->
@@ -1149,6 +1155,211 @@
                         </div>
                     </div>
 
+                    <!-- 7. Facebook Analysis Tab (عين السوق 🦅) -->
+                    <div class="tab-pane fade" id="facebook-analysis-pane" role="tabpanel" aria-labelledby="facebook-analysis-tab">
+                        <div class="d-flex align-items-center justify-content-between mb-4 pb-2 border-bottom flex-wrap gap-2">
+                            <div>
+                                <h5 class="fw-bold mb-1 text-dark d-flex align-items-center">
+                                    <i class="bi bi-facebook text-primary me-2"></i>
+                                    نظام فحص وتحليل فيسبوك (عين السوق 🦅)
+                                </h5>
+                                <p class="text-muted small mb-0">إدارة صلاحيات الموظفين، فحص جاهزية الصفحات الإعلانية، وتحليل المنشورات والريلز الممولة بالذكاء الاصطناعي عبر الواتساب.</p>
+                            </div>
+                        </div>
+
+                        <div class="row g-4">
+                            <!-- Left Column: Authorized Staff Management & Numbers -->
+                            <div class="col-lg-7">
+                                <div class="card border-0 shadow-sm rounded-4 p-4 mb-4">
+                                    <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom flex-wrap gap-2">
+                                        <div class="d-flex align-items-center">
+                                            <div class="bg-primary bg-opacity-10 text-primary p-2 rounded-3 me-3">
+                                                <i class="bi bi-people-fill fs-5"></i>
+                                            </div>
+                                            <div>
+                                                <h6 class="fw-bold mb-0 text-dark">الموظفون والأرقام المصرح لها</h6>
+                                                <small class="text-muted">الأرقام التي يحق لها طلب فحص البوستات والصفحات عبر الواتساب</small>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Quick Add Number Box -->
+                                    <div class="bg-light p-3 rounded-3 mb-4 border">
+                                        <div class="d-flex align-items-center mb-2">
+                                            <i class="bi bi-person-plus-fill text-primary me-2"></i>
+                                            <strong class="text-dark small">إضافة رقم مصرح له جديد:</strong>
+                                        </div>
+                                        <div class="row g-2 align-items-end">
+                                            <div class="col-12 col-sm-5">
+                                                <label class="form-label small text-muted mb-1">الاسم</label>
+                                                <input type="text" id="newFacebookAnalysisName" class="form-control form-control-sm rounded-3 py-2" placeholder="مثال: أحمد">
+                                            </div>
+                                            <div class="col-12 col-sm-5">
+                                                <label class="form-label small text-muted mb-1">رقم الواتساب <span class="text-danger">*</span></label>
+                                                <input type="text" id="newFacebookAnalysisPhone" class="form-control form-control-sm rounded-3 py-2 font-monospace" placeholder="01012345678" dir="ltr">
+                                            </div>
+                                            <div class="col-12 col-sm-2 d-grid">
+                                                <button type="button" id="addNewFacebookAnalysisStaffBtn" class="btn btn-primary text-white btn-sm rounded-3 py-2 fw-bold shadow-sm">
+                                                    <i class="bi bi-plus-lg me-1"></i> إضافة
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div id="facebookAnalysisStaffAlert" class="mt-2 small" style="display: none;"></div>
+                                    </div>
+
+                                    <!-- Authorized Staff Table -->
+                                    <div class="table-responsive">
+                                        <table class="table table-hover align-middle mb-0">
+                                            <thead class="table-light">
+                                                <tr class="small text-muted">
+                                                    <th class="border-0 rounded-start">الاسم</th>
+                                                    <th class="border-0">الصلاحية</th>
+                                                    <th class="border-0">رقم الواتساب</th>
+                                                    <th class="border-0 text-center rounded-end">إجراء</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="facebookAnalysisStaffTableBody">
+                                                <% if (typeof facebookAnalysisStaff !== 'undefined' && facebookAnalysisStaff && facebookAnalysisStaff.length > 0) { %>
+                                                    <% facebookAnalysisStaff.forEach((staff) => { 
+                                                        const cleanRoleLabel = (staff.roleLabel || 'مسؤول مبيعات').replace(/\s*\(.*?\)/g, '').trim() || 'مسؤول مبيعات';
+                                                        const isAdmin = staff.role === 'super_admin' || staff.role === 'admin' || cleanRoleLabel.includes('مدير');
+                                                    %>
+                                                        <tr id="facebook-analysis-row-<%= staff.phone %>">
+                                                            <td>
+                                                                <span class="fw-bold text-dark fs-7"><%= staff.name %></span>
+                                                            </td>
+                                                            <td>
+                                                                <% if (isAdmin) { %>
+                                                                    <span class="badge bg-warning bg-opacity-15 text-dark border border-warning border-opacity-25 rounded-pill px-2.5 py-1 fs-8">
+                                                                        <i class="bi bi-shield-check me-1"></i><%= cleanRoleLabel %>
+                                                                    </span>
+                                                                <% } else { %>
+                                                                    <span class="badge bg-info bg-opacity-10 text-primary border border-info border-opacity-25 rounded-pill px-2.5 py-1 fs-8">
+                                                                        <i class="bi bi-person-badge me-1"></i><%= cleanRoleLabel %>
+                                                                    </span>
+                                                                <% } %>
+                                                            </td>
+                                                            <td>
+                                                                <div class="d-flex align-items-center">
+                                                                    <i class="bi bi-whatsapp text-success me-1.5 fs-6"></i>
+                                                                    <span class="font-monospace fw-bold text-dark fs-7"><%= staff.phone %></span>
+                                                                </div>
+                                                            </td>
+                                                            <td class="text-center">
+                                                                <% if (staff.isPrimary) { %>
+                                                                    <span class="badge bg-secondary bg-opacity-15 text-muted px-2 py-1 fs-8" title="الأدمن الأساسي للنظام">
+                                                                        <i class="bi bi-lock-fill"></i>
+                                                                    </span>
+                                                                <% } else { %>
+                                                                    <button type="button" class="btn btn-sm btn-outline-danger p-1 px-2 rounded-2 fs-7" onclick="deleteFacebookAnalysisStaff('<%= staff.phone %>', '<%= staff.name %>')" title="حذف نهائي">
+                                                                        <i class="bi bi-trash3-fill me-1"></i>حذف
+                                                                    </button>
+                                                                <% } %>
+                                                            </td>
+                                                        </tr>
+                                                    <% }); %>
+                                                <% } else { %>
+                                                    <tr>
+                                                        <td colspan="4" class="text-center py-4 text-muted">
+                                                            <i class="bi bi-info-circle me-1"></i> لا يوجد موظفين مسجلين حالياً.
+                                                        </td>
+                                                    </tr>
+                                                <% } %>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Right Column: Interactive Guide -->
+                            <div class="col-lg-5">
+                                <div class="card border-0 shadow-sm rounded-4 p-4 h-100">
+                                    <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom flex-wrap gap-2">
+                                        <div class="d-flex align-items-center">
+                                            <div class="bg-primary bg-opacity-10 text-primary p-2 rounded-3 me-3">
+                                                <i class="bi bi-facebook fs-5"></i>
+                                            </div>
+                                            <div>
+                                                <h6 class="fw-bold mb-0 text-dark">دليل استخدام تحليل فيسبوك 🦅</h6>
+                                                <small class="text-muted">أوامر فحص البوستات والصفحات عبر الواتساب</small>
+                                            </div>
+                                        </div>
+                                        <span class="badge bg-primary bg-opacity-10 text-primary rounded-pill px-2.5 py-1 fs-8">
+                                            <i class="bi bi-magic me-1"></i>ذكاء اصطناعي فائق
+                                        </span>
+                                    </div>
+
+                                    <!-- Stepper Container -->
+                                    <div class="d-flex flex-column gap-3">
+                                        
+                                        <!-- Step 1 -->
+                                        <div class="p-3 rounded-3 border bg-white shadow-sm position-relative">
+                                            <div class="d-flex align-items-center mb-1">
+                                                <span class="badge bg-primary rounded-circle p-2 me-2 d-inline-flex align-items-center justify-content-center text-white" style="width: 24px; height: 24px; font-size: 11px;">1</span>
+                                                <strong class="text-dark fs-7">تحليل منشور أو ريلز ممول:</strong>
+                                            </div>
+                                            <p class="text-muted small mb-2 ps-4">أرسل الأمر مع رابط البوست لفحص الهوك، الكوبي، الكريتيف، واقتراح الاستهداف والميزانية:</p>
+                                            <div class="ps-4">
+                                                <div class="d-flex align-items-center justify-content-between p-2 px-3 rounded-3 font-monospace fs-7 border" dir="ltr" style="background-color: #f8fafc; border-color: #cbd5e1 !important;">
+                                                    <span class="text-primary fw-bold">/حلل https://facebook.com/.../posts/...</span>
+                                                    <button type="button" class="btn btn-outline-primary btn-sm py-0.5 px-2.5 rounded-pill fs-8 fw-semibold" onclick="copyFacebookAnalysisCmd('/حلل https://www.facebook.com/.../posts/...', this)">
+                                                        <i class="bi bi-clipboard me-1"></i>نسخ
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Step 2 -->
+                                        <div class="p-3 rounded-3 border bg-white shadow-sm position-relative">
+                                            <div class="d-flex align-items-center mb-1">
+                                                <span class="badge bg-primary rounded-circle p-2 me-2 d-inline-flex align-items-center justify-content-center text-white" style="width: 24px; height: 24px; font-size: 11px;">2</span>
+                                                <strong class="text-dark fs-7">فحص وتقييم شامل لصفحة فيسبوك:</strong>
+                                            </div>
+                                            <p class="text-muted small mb-2 ps-4">أرسل الأمر مع رابط أو اسم الصفحة لفحص البنية التحتية، الهوية، والدليل الاجتماعي:</p>
+                                            <div class="ps-4">
+                                                <div class="d-flex align-items-center justify-content-between p-2 px-3 rounded-3 font-monospace fs-7 border" dir="ltr" style="background-color: #f8fafc; border-color: #cbd5e1 !important;">
+                                                    <span class="text-dark fw-bold">/حلل https://facebook.com/pagename</span>
+                                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0.5 px-2.5 rounded-pill fs-8 fw-semibold" onclick="copyFacebookAnalysisCmd('/حلل https://www.facebook.com/pagename', this)">
+                                                        <i class="bi bi-clipboard me-1"></i>نسخ
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Step 3 -->
+                                        <div class="p-3 rounded-3 border bg-white shadow-sm position-relative">
+                                            <div class="d-flex align-items-center mb-1">
+                                                <span class="badge bg-primary rounded-circle p-2 me-2 d-inline-flex align-items-center justify-content-center text-white" style="width: 24px; height: 24px; font-size: 11px;">3</span>
+                                                <strong class="text-dark fs-7">المحادثة التفاعلية السريعة:</strong>
+                                            </div>
+                                            <p class="text-muted small mb-2 ps-4">أرسل كلمة /حلل فقط وسيرد عليك البوت لمساعدتك في إرسال الرابط مباشرة:</p>
+                                            <div class="ps-4">
+                                                <div class="d-flex align-items-center justify-content-between p-2 px-3 rounded-3 font-monospace fs-7 border" dir="ltr" style="background-color: #f8fafc; border-color: #cbd5e1 !important;">
+                                                    <span class="text-success fw-bold">/حلل</span>
+                                                    <button type="button" class="btn btn-outline-success btn-sm py-0.5 px-2.5 rounded-pill fs-8 fw-semibold" onclick="copyFacebookAnalysisCmd('/حلل', this)">
+                                                        <i class="bi bi-clipboard me-1"></i>نسخ
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Info Box -->
+                                        <div class="p-3 rounded-3 border bg-light">
+                                            <strong class="text-primary d-block mb-1">✨ محتويات التقرير التكتيكي:</strong>
+                                            <ul class="mb-0 ps-3 text-muted small">
+                                                <li>تقييم قوة الهوك واقتراح تحسينات الكريتيف والكوبي.</li>
+                                                <li>اقتراح الجمهور والاهتمامات المستهدفة للميديا باير.</li>
+                                                <li>فحص الجاهزية الإعلانية والدليل الاجتماعي للصفحة.</li>
+                                                <li>خطة عمل فورية لمضاعفة المبيعات والاستفادة القصوى من الحملة.</li>
+                                            </ul>
+                                        </div>
+
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
 
                 <!-- Unified Save Button -->
@@ -1843,6 +2054,148 @@
             };
 
             window.copyCompetitorCmd = function(cmd, btn) {
+                navigator.clipboard.writeText(cmd).then(() => {
+                    const origHtml = btn.innerHTML;
+                    btn.innerHTML = '<i class="bi bi-check2 text-success me-1"></i>تم النسخ';
+                    setTimeout(() => { btn.innerHTML = origHtml; }, 2000);
+                }).catch(() => {
+                    prompt('انسخ الأمر التالي:', cmd);
+                });
+            };
+
+            // ==========================================
+            // Facebook Analysis (عين السوق) Staff Management
+            // ==========================================
+            function updateFacebookAnalysisStaffUI(staffList) {
+                const tbody = document.getElementById('facebookAnalysisStaffTableBody');
+                if (!tbody) return;
+
+                if (!staffList || staffList.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="4" class="text-center py-4 text-muted">
+                                <i class="bi bi-info-circle me-1"></i> لا يوجد موظفين مسجلين حالياً.
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                tbody.innerHTML = staffList.map((staff) => {
+                    const cleanRole = (staff.roleLabel || 'مسؤول مبيعات').replace(/\s*\(.*?\)/g, '').trim() || 'مسؤول مبيعات';
+                    const isAdmin = staff.role === 'super_admin' || staff.role === 'admin' || cleanRole.includes('مدير');
+
+                    let actionHtml = '';
+                    if (staff.isPrimary) {
+                        actionHtml = `<span class="badge bg-secondary bg-opacity-15 text-muted px-2 py-1 fs-8" title="الأدمن الأساسي للنظام"><i class="bi bi-lock-fill"></i></span>`;
+                    } else {
+                        actionHtml = `<button type="button" class="btn btn-sm btn-outline-danger p-1 px-2 rounded-2 fs-7" onclick="deleteFacebookAnalysisStaff('${staff.phone}', '${staff.name}')" title="حذف نهائي"><i class="bi bi-trash3-fill me-1"></i>حذف</button>`;
+                    }
+
+                    const roleBadge = isAdmin
+                        ? `<span class="badge bg-warning bg-opacity-15 text-dark border border-warning border-opacity-25 rounded-pill px-2.5 py-1 fs-8"><i class="bi bi-shield-check me-1"></i>${cleanRole}</span>`
+                        : `<span class="badge bg-info bg-opacity-10 text-primary border border-info border-opacity-25 rounded-pill px-2.5 py-1 fs-8"><i class="bi bi-person-badge me-1"></i>${cleanRole}</span>`;
+
+                    return `
+                        <tr id="facebook-analysis-row-${staff.phone}">
+                            <td>
+                                <span class="fw-bold text-dark fs-7">${staff.name}</span>
+                            </td>
+                            <td>${roleBadge}</td>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <i class="bi bi-whatsapp text-success me-1.5 fs-6"></i>
+                                    <span class="font-monospace fw-bold text-dark fs-7">${staff.phone}</span>
+                                </div>
+                            </td>
+                            <td class="text-center">${actionHtml}</td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+
+            const addNewFacebookAnalysisStaffBtn = document.getElementById('addNewFacebookAnalysisStaffBtn');
+            const newFacebookAnalysisNameInput = document.getElementById('newFacebookAnalysisName');
+            const newFacebookAnalysisPhoneInput = document.getElementById('newFacebookAnalysisPhone');
+            const facebookAnalysisStaffAlert = document.getElementById('facebookAnalysisStaffAlert');
+
+            if (addNewFacebookAnalysisStaffBtn) {
+                addNewFacebookAnalysisStaffBtn.addEventListener('click', async () => {
+                    const name = (newFacebookAnalysisNameInput?.value || '').trim();
+                    const phone = (newFacebookAnalysisPhoneInput?.value || '').trim();
+                    const role = 'مسؤول مبيعات';
+
+                    if (!phone) {
+                        facebookAnalysisStaffAlert.style.display = 'block';
+                        facebookAnalysisStaffAlert.className = 'mt-2 small text-danger fw-bold';
+                        facebookAnalysisStaffAlert.innerHTML = '<i class="bi bi-exclamation-circle me-1"></i> يرجى إدخال رقم الهاتف أولاً.';
+                        return;
+                    }
+
+                    addNewFacebookAnalysisStaffBtn.disabled = true;
+                    addNewFacebookAnalysisStaffBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> جاري الإضافة...';
+                    facebookAnalysisStaffAlert.style.display = 'none';
+
+                    try {
+                        const res = await fetch('/dashboard/settings/facebook-analysis-staff/add', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ name, phone, role })
+                        });
+                        const data = await res.json();
+
+                        if (data.success) {
+                            facebookAnalysisStaffAlert.style.display = 'block';
+                            facebookAnalysisStaffAlert.className = 'mt-2 small text-success fw-bold';
+                            facebookAnalysisStaffAlert.innerHTML = `<i class="bi bi-check-circle me-1"></i> ${data.message}`;
+                            newFacebookAnalysisNameInput.value = '';
+                            newFacebookAnalysisPhoneInput.value = '';
+                            if (data.staff) updateFacebookAnalysisStaffUI(data.staff);
+                            setTimeout(() => { facebookAnalysisStaffAlert.style.display = 'none'; }, 4000);
+                        } else {
+                            facebookAnalysisStaffAlert.style.display = 'block';
+                            facebookAnalysisStaffAlert.className = 'mt-2 small text-danger fw-bold';
+                            facebookAnalysisStaffAlert.innerHTML = `<i class="bi bi-exclamation-circle me-1"></i> ${data.error || 'تعذر إضافة الرقم'}`;
+                        }
+                    } catch (e) {
+                        facebookAnalysisStaffAlert.style.display = 'block';
+                        facebookAnalysisStaffAlert.className = 'mt-2 small text-danger fw-bold';
+                        facebookAnalysisStaffAlert.innerHTML = 'حدث خطأ: ' + e.message;
+                    } finally {
+                        addNewFacebookAnalysisStaffBtn.disabled = false;
+                        addNewFacebookAnalysisStaffBtn.innerHTML = '<i class="bi bi-plus-lg me-1"></i> إضافة';
+                    }
+                });
+            }
+
+            window.deleteFacebookAnalysisStaff = async function(phone, name) {
+                if (!confirm(`هل أنت متأكد من إزالة صلاحية "${name}" (${phone}) من خدمة تحليل فيسبوك؟`)) {
+                    return;
+                }
+
+                try {
+                    const res = await fetch('/dashboard/settings/facebook-analysis-staff/delete', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ phone })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        if (data.staff) {
+                            updateFacebookAnalysisStaffUI(data.staff);
+                        } else {
+                            const row = document.getElementById(`facebook-analysis-row-${phone}`);
+                            if (row) row.remove();
+                        }
+                    } else {
+                        alert(data.error || 'تعذر حذف الرقم');
+                    }
+                } catch (e) {
+                    alert('حدث خطأ أثناء الحذف: ' + e.message);
+                }
+            };
+
+            window.copyFacebookAnalysisCmd = function(cmd, btn) {
                 navigator.clipboard.writeText(cmd).then(() => {
                     const origHtml = btn.innerHTML;
                     btn.innerHTML = '<i class="bi bi-check2 text-success me-1"></i>تم النسخ';

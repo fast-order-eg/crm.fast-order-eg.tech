@@ -5,6 +5,7 @@ import Message from '../models/Message.js';
 import path from 'path';
 import { getSetting, setSetting } from './settingsService.js';
 import { isCompetitorCommand, isUserInCompetitorSession } from './competitorService.js';
+import { isFacebookAnalysisCommand, isUserInFacebookAnalysisSession } from './facebookAnalysisService.js';
 
 // Active in-memory sessions for staff members
 // Key: clean staff phone (e.g. '01092308465') or LID
@@ -733,8 +734,9 @@ export async function handleStaffMessage({ sock, msg, remoteJid, phoneNumber, te
     const session = getStaffSession(sessionKey);
     const trimmedText = (text || '').trim();
 
-    // Prevent any conflict with Competitor Spy (عين السوق)
-    if (isCompetitorCommand(trimmedText) || isUserInCompetitorSession(cleanPhone)) {
+    // Prevent any conflict with Competitor Spy (عين السوق) & Facebook Analysis
+    if (isCompetitorCommand(trimmedText) || isUserInCompetitorSession(cleanPhone) ||
+        isFacebookAnalysisCommand(trimmedText) || isUserInFacebookAnalysisSession(cleanPhone)) {
         return { handled: false };
     }
 
@@ -822,7 +824,8 @@ export async function handleStaffMessage({ sock, msg, remoteJid, phoneNumber, te
 
     // If staff has NO active store session and sent something else
     if (!session.activeStore) {
-        if (!isCompetitorCommand(trimmedText) && !isUserInCompetitorSession(cleanPhone)) {
+        if (!isCompetitorCommand(trimmedText) && !isUserInCompetitorSession(cleanPhone) &&
+            !isFacebookAnalysisCommand(trimmedText) && !isUserInFacebookAnalysisSession(cleanPhone)) {
             if (mediaBuffer || (trimmedText && trimmedText.length > 10 && !trimmedText.startsWith('/'))) {
                 await replyToStaff(sock, remoteJid, '⚠️ يرجى تفعيل متجر التاجر أولاً قبل إرسال المنتجات.\nاكتب: */store كود_المتجر* أو */store رقم_التاجر*', userId, io);
                 return { handled: true };

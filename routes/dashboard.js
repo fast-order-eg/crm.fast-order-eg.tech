@@ -29,6 +29,7 @@ import { getAuthorizedAdmins, addAuthorizedAdmin, removeAuthorizedAdmin } from '
 import { getAdsAuthorizedAdmins, addAdsAuthorizedAdmin, removeAdsAuthorizedAdmin } from '../services/adsReportService.js';
 import { getFastOrderAuthorizedStaff, addFastOrderStaff, removeFastOrderStaff } from '../services/whatsappProductCreatorService.js';
 import { getCompetitorAuthorizedStaff, addCompetitorStaff, removeCompetitorStaff, toggleCompetitorStaff } from '../services/competitorService.js';
+import { getFacebookAnalysisAuthorizedStaff, addFacebookAnalysisStaff, removeFacebookAnalysisStaff } from '../services/facebookAnalysisService.js';
 
 const router = express.Router();
 
@@ -2432,6 +2433,7 @@ router.get('/settings', async (req, res) => {
         const adsReportAdmins = await getAdsAuthorizedAdmins(userId);
         const fastOrderStaff = await getFastOrderAuthorizedStaff();
         const competitorStaff = await getCompetitorAuthorizedStaff(userId);
+        const facebookAnalysisStaff = await getFacebookAnalysisAuthorizedStaff(userId);
 
         res.render('settings', {
             user: req.user,
@@ -2445,6 +2447,7 @@ router.get('/settings', async (req, res) => {
             adsReportAdmins,
             fastOrderStaff,
             competitorStaff,
+            facebookAnalysisStaff,
             success_msg: req.flash('success_msg'),
             error_msg: req.flash('error_msg')
         });
@@ -2816,6 +2819,43 @@ router.post('/settings/competitor-staff/toggle', async (req, res) => {
     } catch (err) {
         console.error('Error toggling competitor staff:', err);
         res.status(500).json({ success: false, error: 'حدث خطأ أثناء تعديل حالة الرقم' });
+    }
+});
+
+// إدارة الأرقام والموظفين المصرح لهم بتحليل فيسبوك (عين السوق) (AJAX)
+router.post('/settings/facebook-analysis-staff/add', async (req, res) => {
+    try {
+        const { name, phone, role } = req.body;
+        if (!phone) {
+            return res.status(400).json({ success: false, error: 'يرجى إدخال رقم الهاتف' });
+        }
+        const result = await addFacebookAnalysisStaff(phone, name, role, req.user.id);
+        if (!result.success) {
+            return res.status(400).json({ success: false, error: result.message });
+        }
+        const updatedStaff = await getFacebookAnalysisAuthorizedStaff(req.user.id);
+        res.json({ success: true, message: result.message, staff: updatedStaff });
+    } catch (err) {
+        console.error('Error adding facebook analysis staff:', err);
+        res.status(500).json({ success: false, error: 'حدث خطأ أثناء إضافة الرقم' });
+    }
+});
+
+router.post('/settings/facebook-analysis-staff/delete', async (req, res) => {
+    try {
+        const { phone } = req.body;
+        if (!phone) {
+            return res.status(400).json({ success: false, error: 'يرجى تحديد رقم الهاتف المراد حذفه' });
+        }
+        const result = await removeFacebookAnalysisStaff(phone, req.user.id);
+        if (!result.success) {
+            return res.status(400).json({ success: false, error: result.message });
+        }
+        const updatedStaff = await getFacebookAnalysisAuthorizedStaff(req.user.id);
+        res.json({ success: true, message: result.message, staff: updatedStaff });
+    } catch (err) {
+        console.error('Error removing facebook analysis staff:', err);
+        res.status(500).json({ success: false, error: 'حدث خطأ أثناء حذف الرقم' });
     }
 });
 

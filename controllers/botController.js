@@ -27,6 +27,7 @@ import Campaign from '../models/Campaign.js';
 import * as notificationService from '../services/notificationService.js';
 import { handleStaffMessage } from '../services/whatsappProductCreatorService.js';
 import { handleCompetitorMessage } from '../services/competitorService.js';
+import { handleFacebookAnalysisMessage } from '../services/facebookAnalysisService.js';
 import { handleReminderGroupMessage } from '../services/reminderService.js';
 import { handleAdsReportGroupMessage } from '../services/adsReportService.js';
 
@@ -2139,7 +2140,22 @@ export const startSession = async (userId, io, phoneNumber = null) => {
                 || text 
                 || '';
 
-            // 1.1 Check Competitor Spy (عين السوق 🦅)
+            // 1.1 Check Facebook Post & Page Analysis (عين السوق 🦅)
+            const facebookAnalysisResult = await handleFacebookAnalysisMessage({
+                sock,
+                remoteJid,
+                phoneNumber: staffSenderPhone,
+                text: rawStaffText,
+                userId,
+                io
+            });
+
+            if (facebookAnalysisResult && facebookAnalysisResult.handled) {
+                console.log(`🔍 [Facebook Analysis - عين السوق] Handled action from staff ${staffSenderPhone} for user ${userId}`);
+                return;
+            }
+
+            // 1.2 Check Competitor Spy (عين السوق 🦅)
             const competitorResult = await handleCompetitorMessage({
                 sock,
                 remoteJid,
