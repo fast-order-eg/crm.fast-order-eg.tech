@@ -488,59 +488,105 @@ function classifyFacebookTarget(input) {
 }
 
 /**
- * Call Eina Souq API: Analyze Post
+ * Call Eina Souq API: Analyze Post with auto-retry and cache recovery
  */
 async function callAnalyzePostApi(postUrl) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 120000); // 120s timeout
+    const makeRequest = async (timeoutMs) => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-    try {
-        const res = await fetch(`${FACEBOOK_ANALYSIS_API_BASE}/analyze-post`, {
-            method: 'POST',
-            headers: {
-                'x-api-key': FACEBOOK_ANALYSIS_API_KEY,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ post_url: postUrl }),
-            signal: controller.signal
-        });
-        clearTimeout(timeoutId);
+        try {
+            const res = await fetch(`${FACEBOOK_ANALYSIS_API_BASE}/analyze-post`, {
+                method: 'POST',
+                headers: {
+                    'x-api-key': FACEBOOK_ANALYSIS_API_KEY,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ post_url: postUrl }),
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
 
-        const data = await res.json().catch(() => null);
-        return { status: res.status, data };
-    } catch (err) {
-        clearTimeout(timeoutId);
-        console.error('❌ [Facebook Analysis] Post API Error:', err.message);
-        return { status: 500, error: err.message };
+            const data = await res.json().catch(() => null);
+            return { status: res.status, data };
+        } catch (err) {
+            clearTimeout(timeoutId);
+            return { status: 500, error: err.message };
+        }
+    };
+
+    // Primary call with 240 seconds (4 minutes)
+    let result = await makeRequest(240000);
+
+    // If aborted or timed out or 504 gateway, wait 3 seconds and do a fast cache check
+    if (!result || result.status !== 200 || !result.data || result.data.success === false) {
+        const isTimeoutOrAbort = (result?.error && (result.error.includes('aborted') || result.error.includes('timeout'))) || result?.status === 504;
+        if (isTimeoutOrAbort) {
+            console.log('⏳ [Facebook Analysis] Post API timed out, checking cache in 3s...');
+            await new Promise(r => setTimeout(r, 3000));
+            const retryResult = await makeRequest(35000);
+            if (retryResult && retryResult.status === 200 && retryResult.data && retryResult.data.success) {
+                console.log('✅ [Facebook Analysis] Recovered post analysis from cache on retry!');
+                return retryResult;
+            }
+        }
     }
+
+    if (result.error) {
+        console.error('❌ [Facebook Analysis] Post API Error:', result.error);
+    }
+    return result;
 }
 
 /**
- * Call Eina Souq API: Analyze Page
+ * Call Eina Souq API: Analyze Page with auto-retry and cache recovery
  */
 async function callAnalyzePageApi(pageIdOrUrl) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 120000); // 120s timeout
+    const makeRequest = async (timeoutMs) => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-    try {
-        const res = await fetch(`${FACEBOOK_ANALYSIS_API_BASE}/analyze-page`, {
-            method: 'POST',
-            headers: {
-                'x-api-key': FACEBOOK_ANALYSIS_API_KEY,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ page_id: pageIdOrUrl }),
-            signal: controller.signal
-        });
-        clearTimeout(timeoutId);
+        try {
+            const res = await fetch(`${FACEBOOK_ANALYSIS_API_BASE}/analyze-page`, {
+                method: 'POST',
+                headers: {
+                    'x-api-key': FACEBOOK_ANALYSIS_API_KEY,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ page_id: pageIdOrUrl }),
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
 
-        const data = await res.json().catch(() => null);
-        return { status: res.status, data };
-    } catch (err) {
-        clearTimeout(timeoutId);
-        console.error('❌ [Facebook Analysis] Page API Error:', err.message);
-        return { status: 500, error: err.message };
+            const data = await res.json().catch(() => null);
+            return { status: res.status, data };
+        } catch (err) {
+            clearTimeout(timeoutId);
+            return { status: 500, error: err.message };
+        }
+    };
+
+    // Primary call with 240 seconds (4 minutes)
+    let result = await makeRequest(240000);
+
+    // If aborted or timed out or 504 gateway, wait 3 seconds and do a fast cache check
+    if (!result || result.status !== 200 || !result.data || result.data.success === false) {
+        const isTimeoutOrAbort = (result?.error && (result.error.includes('aborted') || result.error.includes('timeout'))) || result?.status === 504;
+        if (isTimeoutOrAbort) {
+            console.log('⏳ [Facebook Analysis] Page API timed out, checking cache in 3s...');
+            await new Promise(r => setTimeout(r, 3000));
+            const retryResult = await makeRequest(35000);
+            if (retryResult && retryResult.status === 200 && retryResult.data && retryResult.data.success) {
+                console.log('✅ [Facebook Analysis] Recovered page analysis from cache on retry!');
+                return retryResult;
+            }
+        }
     }
+
+    if (result.error) {
+        console.error('❌ [Facebook Analysis] Page API Error:', result.error);
+    }
+    return result;
 }
 
 /**
@@ -668,7 +714,10 @@ export async function handleFacebookAnalysisMessage({ sock, remoteJid, phoneNumb
         stopContinuousComposing();
 
         if (!apiResult || apiResult.status !== 200 || !apiResult.data || apiResult.data.success === false) {
-            const errMsg = apiResult?.data?.error || apiResult?.error || 'تعذر استكمال التحليل في الوقت الحالي. يرجى التأكد من أن الرابط منشور عام ونشط والمحاولة مرة أخرى.';
+            let errMsg = apiResult?.data?.error || apiResult?.error || 'تعذر استكمال التحليل في الوقت الحالي. يرجى التأكد من أن الرابط منشور عام ونشط والمحاولة مرة أخرى.';
+            if (typeof errMsg === 'string' && (errMsg.includes('aborted') || errMsg.includes('timeout') || errMsg.includes('ETIMEDOUT') || errMsg.includes('ECONNRESET'))) {
+                errMsg = 'استغرق التحليل وقتاً طويلاً نظراً لدقة الفحص وتفاصيل الفيديو بالكامل.\nالتقرير أصبح متوفراً وجاهزاً الآن في النظام، يرجى كتابة الأمر مرة أخرى: `/حلل [الرابط]` لعرضه فوراً وبدون انتظار! 🚀';
+            }
             await replyToStaff(sock, remoteJid, `❌ *عذراً، حدث خطأ أثناء التحليل:*\n${errMsg}\n\n💡 يمكنك التأكد من الرابط والمحاولة مجدداً: \`/حلل [الرابط]\``, userId, io);
             return { handled: true };
         }
