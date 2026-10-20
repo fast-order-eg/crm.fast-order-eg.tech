@@ -45,12 +45,30 @@ export function isUserInFacebookAnalysisSession(phone) {
 }
 
 /**
+ * Check if the text or button ID is an Alternative Targeting angle command
+ */
+export function isAlternativeTargetingCommand(text, selectedId = null) {
+    if (selectedId === 'btn_alternative_targeting') return true;
+    if (!text || typeof text !== 'string') return false;
+    const trimmed = text.trim().replace(/^[\/\s]+/, '');
+    if (/^(btn_alternative_targeting|🎯\s*استهداف\s*بديل|استهداف\s*بديل|الاستهداف\s*البديل|بديل|زاوية\s*استهداف\s*تانية|زاوية\s*تانية|زاوية\s*تاني|زاوية\s*تانى|استهداف\s*تانى|استهداف\s*تاني|استهداف\s*اخر|استهداف\s*آخر|زاوية\s*بديلة|الزاوية\s*البديلة)$/i.test(trimmed)) {
+        return true;
+    }
+    if (/^(عايز|هات|وريني|اعمل|طلع)?\s*(استهداف\s*بديل|استهداف\s*تان[يى]|زاوية\s*بديلة|زاوية\s*تان[يى]|بديل)$/i.test(trimmed)) {
+        return true;
+    }
+    return false;
+}
+
+/**
  * Check if the text is a Facebook Analysis command
  */
 export function isFacebookAnalysisCommand(text) {
     if (!text || typeof text !== 'string') return false;
     const trimmed = text.trim();
-    return /^(\/|\s)*(حلل|تحليل|فحص|analyze|audit)($|\s)/i.test(trimmed);
+    if (/^(\/|\s)*(حلل|تحليل|فحص|analyze|audit)($|\s)/i.test(trimmed)) return true;
+    if (isAlternativeTargetingCommand(trimmed)) return true;
+    return false;
 }
 
 /**
@@ -86,7 +104,7 @@ function startContinuousComposing(sock, remoteJid) {
  * - unavailable presence after completion
  * - SQL and Socket.io logging
  */
-async function replyToStaff(sock, remoteJid, text, userId, io) {
+async function replyToStaff(sock, remoteJid, text, userId, io, options = {}) {
     if (!sock || !remoteJid || !text) return;
 
     const textLen = (text || '').length;
@@ -126,9 +144,22 @@ async function replyToStaff(sock, remoteJid, text, userId, io) {
     const randomJitter = zeroWidthSpaces[Math.floor(Math.random() * zeroWidthSpaces.length)];
     const finalSendText = `${text}${randomJitter}`;
 
-    // 4. Send via WhatsApp socket
+    // 4. Send via WhatsApp socket (with buttons support if provided and supported)
     try {
-        await sock.sendMessage(remoteJid, { text: finalSendText });
+        if (options && options.buttons && Array.isArray(options.buttons) && options.buttons.length > 0) {
+            try {
+                await sock.sendMessage(remoteJid, {
+                    text: finalSendText,
+                    buttons: options.buttons,
+                    headerType: 1
+                });
+            } catch (btnErr) {
+                // Fallback to text send
+                await sock.sendMessage(remoteJid, { text: finalSendText });
+            }
+        } else {
+            await sock.sendMessage(remoteJid, { text: finalSendText });
+        }
     } catch (sendErr) {
         console.error('❌ [replyToStaff - Facebook Analysis] WhatsApp send error:', sendErr.message);
     }
@@ -490,19 +521,22 @@ function classifyFacebookTarget(input) {
 /**
  * Call Eina Souq API: Analyze Post with auto-retry and cache recovery
  */
-async function callAnalyzePostApi(postUrl) {
+async function callAnalyzePostApi(postUrl, angle = null) {
     const makeRequest = async (timeoutMs) => {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
         try {
+            const bodyPayload = { post_url: postUrl };
+            if (angle) bodyPayload.angle = angle;
+
             const res = await fetch(`${FACEBOOK_ANALYSIS_API_BASE}/analyze-post`, {
                 method: 'POST',
                 headers: {
                     'x-api-key': FACEBOOK_ANALYSIS_API_KEY,
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ post_url: postUrl }),
+                body: JSON.stringify(bodyPayload),
                 signal: controller.signal
             });
             clearTimeout(timeoutId);
@@ -621,14 +655,15 @@ async function sendHelpGuide(sock, remoteJid, staffInfo, userId, io) {
 /**
  * Main Handler for Facebook Analysis Messages
  */
-export async function handleFacebookAnalysisMessage({ sock, remoteJid, phoneNumber, text, userId, io }) {
-    if (!text || typeof text !== 'string') return { handled: false };
+export async function handleFacebookAnalysisMessage({ sock, remoteJid, phoneNumber, text, selectedId = null, userId, io }) {
+    const rawText = (text && typeof text === 'string') ? text.trim() : '';
+    if (!rawText && !selectedId) return { handled: false };
 
     const cleanPhone = normalizePhone(phoneNumber);
     if (!cleanPhone) return { handled: false };
 
-    const trimmed = text.trim();
-    const isCommand = isFacebookAnalysisCommand(trimmed);
+    const isAlternativeDirect = isAlternativeTargetingCommand(rawText, selectedId);
+    const isCommand = isFacebookAnalysisCommand(rawText) || isAlternativeDirect;
     const inSession = isUserInFacebookAnalysisSession(cleanPhone);
 
     // If not a command and not in session, ignore
@@ -655,10 +690,98 @@ export async function handleFacebookAnalysisMessage({ sock, remoteJid, phoneNumb
 
     // Extract potential argument from text (e.g. after /حلل or حلل)
     let argument = '';
-    if (isCommand) {
-        argument = trimmed.replace(/^(\/|\s)*(حلل|تحليل|فحص|analyze|audit)\s*/i, '').trim();
+    if (isCommand && !isAlternativeDirect) {
+        argument = rawText.replace(/^(\/|\s)*(حلل|تحليل|فحص|analyze|audit)\s*/i, '').trim();
     } else if (inSession) {
-        argument = trimmed;
+        argument = rawText;
+    }
+
+    // Check if this is an alternative targeting request (either via button, direct keyword, or after /حلل)
+    const isAlternative = isAlternativeDirect || isAlternativeTargetingCommand(argument, selectedId);
+
+    // === 0. Handle Alternative Targeting Angle request ("بديل" or button) ===
+    if (isAlternative) {
+        const session = facebookAnalysisSessions.get(cleanPhone);
+        const lastPostUrl = session?.lastPostUrl;
+        const cachedPart2 = session?.cachedParts && session.cachedParts.length >= 3 ? session.cachedParts[2] : null;
+
+        // If Part 2 is already cached in memory, send it instantly!
+        if (cachedPart2 && cachedPart2.trim()) {
+            console.log(`⚡ [Facebook Analysis] Delivering alternative targeting angle from cache for ${cleanPhone}`);
+            await replyToStaff(sock, remoteJid, cachedPart2.trim(), userId, io);
+            if (session) session.lastActive = Date.now();
+            return { handled: true };
+        }
+
+        // If not cached in memory but we have lastPostUrl, re-fetch with angle=alternative
+        if (lastPostUrl) {
+            console.log(`🔄 [Facebook Analysis] Fetching alternative targeting angle via API for ${lastPostUrl}`);
+            await replyToStaff(
+                sock,
+                remoteJid,
+                '🦅 *جاري استخراج زاوية الاستهداف البديلة (A/B Testing)...* ⏳',
+                userId,
+                io
+            );
+            const stopContinuousComposing = startContinuousComposing(sock, remoteJid);
+
+            try {
+                const apiRes = await callAnalyzePostApi(lastPostUrl, 'alternative');
+                stopContinuousComposing();
+
+                if (apiRes && apiRes.status === 200 && apiRes.data && apiRes.data.success) {
+                    const data = apiRes.data;
+                    let altText = null;
+                    if (Array.isArray(data.formatted_message_parts) && data.formatted_message_parts.length >= 3) {
+                        altText = data.formatted_message_parts[2];
+                    } else if (Array.isArray(data.formatted_message_parts) && data.formatted_message_parts.length > 0) {
+                        altText = data.formatted_message_parts[data.formatted_message_parts.length - 1];
+                    } else if (data.formatted_message) {
+                        altText = data.formatted_message;
+                    }
+
+                    if (altText && altText.trim()) {
+                        await replyToStaff(sock, remoteJid, altText.trim(), userId, io);
+                        if (session) {
+                            session.lastActive = Date.now();
+                            if (Array.isArray(data.formatted_message_parts)) {
+                                session.cachedParts = data.formatted_message_parts;
+                            }
+                        }
+                        return { handled: true };
+                    }
+                }
+                await replyToStaff(
+                    sock,
+                    remoteJid,
+                    '⚠️ تعذر استخراج زاوية الاستهداف البديلة حالياً، يرجى المحاولة مرة أخرى.',
+                    userId,
+                    io
+                );
+                return { handled: true };
+            } catch (err) {
+                stopContinuousComposing();
+                console.error('❌ [Facebook Analysis] Alternative targeting fetch error:', err.message);
+                await replyToStaff(
+                    sock,
+                    remoteJid,
+                    '⚠️ واجهنا مشكلة تقنية أثناء جلب زاوية الاستهداف البديلة.',
+                    userId,
+                    io
+                );
+                return { handled: true };
+            }
+        }
+
+        // If no prior post URL exists
+        await replyToStaff(
+            sock,
+            remoteJid,
+            '⚠️ لم يتم العثور على تحليل منشور سابق لطلب استهداف بديل له.\nيرجى إرسال رابط المنشور أولاً: `/حلل [الرابط]` 🦅',
+            userId,
+            io
+        );
+        return { handled: true };
     }
 
     // If argument is empty, send help guide and put user in session waiting for link
@@ -689,7 +812,13 @@ export async function handleFacebookAnalysisMessage({ sock, remoteJid, phoneNumb
     }
 
     // Update session state
-    facebookAnalysisSessions.set(cleanPhone, { inSession: true, lastTarget: classification.target, lastActive: Date.now() });
+    facebookAnalysisSessions.set(cleanPhone, {
+        inSession: true,
+        lastTarget: classification.target,
+        lastType: classification.type,
+        lastPostUrl: classification.type === 'post' ? classification.target : (facebookAnalysisSessions.get(cleanPhone)?.lastPostUrl || null),
+        lastActive: Date.now()
+    });
 
     // 1. Send immediate polite acknowledgment and start continuous typing presence
     const startNotice = classification.type === 'post'
@@ -724,51 +853,108 @@ export async function handleFacebookAnalysisMessage({ sock, remoteJid, phoneNumb
 
         const data = apiResult.data;
 
-        // Check if API returned formatted_message_parts (Multi-part response)
-        if (Array.isArray(data.formatted_message_parts) && data.formatted_message_parts.length > 0) {
-            for (let i = 0; i < data.formatted_message_parts.length; i++) {
-                const part = data.formatted_message_parts[i];
-                if (part && part.trim()) {
-                    await replyToStaff(sock, remoteJid, part.trim(), userId, io);
-                    // Pause slightly between parts with natural human delay if not last part
-                    if (i < data.formatted_message_parts.length - 1) {
-                        await new Promise(r => setTimeout(r, 1200));
+        // Handle Post vs Page responses
+        if (classification.type === 'post') {
+            // Save post analysis parts in session
+            facebookAnalysisSessions.set(cleanPhone, {
+                inSession: true,
+                lastTarget: classification.target,
+                lastType: 'post',
+                lastPostUrl: classification.target,
+                cachedParts: Array.isArray(data.formatted_message_parts) ? data.formatted_message_parts : [],
+                lastActive: Date.now()
+            });
+
+            if (Array.isArray(data.formatted_message_parts) && data.formatted_message_parts.length > 0) {
+                const parts = data.formatted_message_parts;
+
+                // Part 1: Creative & Content Assessment (formatted_message_parts[0])
+                if (parts[0] && parts[0].trim()) {
+                    await replyToStaff(sock, remoteJid, parts[0].trim(), userId, io);
+                    if (parts.length > 1) {
+                        await new Promise(r => setTimeout(r, 1500));
                     }
                 }
-            }
-        } else if (data.formatted_message && typeof data.formatted_message === 'string') {
-            // If single formatted_message is returned
-            const singleMsg = data.formatted_message.trim();
-            // If message is exceptionally long (> 3500 chars), split cleanly by section divider if possible
-            if (singleMsg.length > 3500 && singleMsg.includes('══════════════════════════')) {
-                const sections = singleMsg.split('══════════════════════════');
-                let chunk = '';
-                for (let j = 0; j < sections.length; j++) {
-                    const sec = sections[j];
-                    if ((chunk + sec).length > 2800) {
-                        if (chunk.trim()) {
-                            await replyToStaff(sock, remoteJid, chunk.trim(), userId, io);
-                            await new Promise(r => setTimeout(r, 1200));
+
+                // Part 2: Targeting & Media Buyer Plan (formatted_message_parts[1])
+                if (parts[1] && parts[1].trim()) {
+                    let part1Text = parts[1].trim();
+
+                    // Append interactive prompt and attach button for Alternative Targeting
+                    part1Text += '\n\n══════════════════════════\n💡 *عايز زاوية استهداف تانية للمقارنة (A/B Testing)؟*\nاضغط على الزر أدناه 👇 أو اكتب كلمة "*بديل*" أو "*استهداف تانى*" لعرضها فوراً 🎯';
+
+                    const buttons = [
+                        {
+                            buttonId: 'btn_alternative_targeting',
+                            buttonText: { displayText: '🎯 استهداف بديل' },
+                            type: 1
                         }
-                        chunk = sec;
-                    } else {
-                        chunk += (chunk ? '\n══════════════════════════\n' : '') + sec;
-                    }
+                    ];
+
+                    await replyToStaff(sock, remoteJid, part1Text, userId, io, { buttons });
                 }
-                if (chunk.trim()) {
-                    await replyToStaff(sock, remoteJid, chunk.trim(), userId, io);
-                }
+            } else if (data.formatted_message && typeof data.formatted_message === 'string') {
+                await replyToStaff(sock, remoteJid, data.formatted_message.trim(), userId, io);
             } else {
-                await replyToStaff(sock, remoteJid, singleMsg, userId, io);
+                await replyToStaff(
+                    sock,
+                    remoteJid,
+                    '✅ تم فحص بيانات المنشور بنجاح، لكن لم يتم العثور على تقرير نصي منسق.',
+                    userId,
+                    io
+                );
             }
         } else {
-            await replyToStaff(
-                sock,
-                remoteJid,
-                '✅ تم فحص البيانات بنجاح، لكن لم يتم العثور على تقرير نصي منسق.',
-                userId,
-                io
-            );
+            // Page Analysis
+            facebookAnalysisSessions.set(cleanPhone, {
+                inSession: true,
+                lastTarget: classification.target,
+                lastType: 'page',
+                lastActive: Date.now()
+            });
+
+            if (Array.isArray(data.formatted_message_parts) && data.formatted_message_parts.length > 0) {
+                for (let i = 0; i < data.formatted_message_parts.length; i++) {
+                    const part = data.formatted_message_parts[i];
+                    if (part && part.trim()) {
+                        await replyToStaff(sock, remoteJid, part.trim(), userId, io);
+                        if (i < data.formatted_message_parts.length - 1) {
+                            await new Promise(r => setTimeout(r, 1400));
+                        }
+                    }
+                }
+            } else if (data.formatted_message && typeof data.formatted_message === 'string') {
+                const singleMsg = data.formatted_message.trim();
+                if (singleMsg.length > 3500 && singleMsg.includes('══════════════════════════')) {
+                    const sections = singleMsg.split('══════════════════════════');
+                    let chunk = '';
+                    for (let j = 0; j < sections.length; j++) {
+                        const sec = sections[j];
+                        if ((chunk + sec).length > 2800) {
+                            if (chunk.trim()) {
+                                await replyToStaff(sock, remoteJid, chunk.trim(), userId, io);
+                                await new Promise(r => setTimeout(r, 1400));
+                            }
+                            chunk = sec;
+                        } else {
+                            chunk += (chunk ? '\n══════════════════════════\n' : '') + sec;
+                        }
+                    }
+                    if (chunk.trim()) {
+                        await replyToStaff(sock, remoteJid, chunk.trim(), userId, io);
+                    }
+                } else {
+                    await replyToStaff(sock, remoteJid, singleMsg, userId, io);
+                }
+            } else {
+                await replyToStaff(
+                    sock,
+                    remoteJid,
+                    '✅ تم فحص بيانات الصفحة بنجاح، لكن لم يتم العثور على تقرير نصي منسق.',
+                    userId,
+                    io
+                );
+            }
         }
 
         return { handled: true };

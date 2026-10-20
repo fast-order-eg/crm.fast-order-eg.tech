@@ -2146,6 +2146,7 @@ export const startSession = async (userId, io, phoneNumber = null) => {
                 remoteJid,
                 phoneNumber: staffSenderPhone,
                 text: rawStaffText,
+                selectedId,
                 userId,
                 io
             });
