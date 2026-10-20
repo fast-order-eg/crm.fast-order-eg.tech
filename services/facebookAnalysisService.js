@@ -96,6 +96,43 @@ function startContinuousComposing(sock, remoteJid) {
 }
 
 /**
+ * Clean AI-generated analysis text:
+ * - Strip redundant English technical headers in parentheses (e.g. (Objective):, (Behaviors):, (Placements):)
+ * - Strip redundant buzzwords translated in Arabic (e.g. (Dynamic Subtitles), (Automated Icebreakers))
+ * - Fix broken bracket artifacts like "[(..." or "...)]"
+ * - Clean empty parentheses/brackets and multiple spaces
+ */
+export function cleanAnalysisText(text) {
+    if (!text || typeof text !== 'string') return text;
+    let t = text;
+
+    // 1. Remove redundant English header labels in parentheses e.g. (Objective):, (Behaviors):, (Placements):, (Interests):, (Call To Action):
+    t = t.replace(/\s*\((Objective|Behaviors?|Placements?|Interests?|Call To Action|CTA|Targeting)\)\s*:/gi, ':');
+    t = t.replace(/\s*\((Objective|Behaviors?|Placements?|Interests?|Call To Action|CTA|Targeting)\)/gi, '');
+
+    // 2. Remove specific English buzzwords / technical terms that are already explained in Arabic
+    t = t.replace(/\s*\((Dynamic Subtitles|Subtitles|Automated Icebreakers|Icebreakers|Product Screen Capture|Screen Capture|A\/B Testing|A\/B Test)\)/gi, '');
+
+    // 3. Remove inline English technical words in parentheses if directly preceded by Arabic
+    t = t.replace(/([\u0600-\u06FF\s]+)\s*\((?!CRM|CTR|ROI|ROAS|CPC|CPM)[A-Za-z\s\/-]+\)/g, (match, arabicPart) => {
+        return arabicPart.trim();
+    });
+
+    // 4. Fix nested/broken brackets like "[(..." -> "[..." and "...)]" -> "...]"
+    t = t.replace(/\[\s*\(/g, '[');
+    t = t.replace(/\)\s*\]/g, ']');
+
+    // 5. Clean empty parentheses or brackets '()' or '[]'
+    t = t.replace(/\(\s*\)/g, '');
+    t = t.replace(/\[\s*\]/g, '');
+
+    // 6. Clean multiple spaces
+    t = t.replace(/[ \t]+/g, ' ');
+
+    return t.trim();
+}
+
+/**
  * Send WhatsApp reply to staff with full human simulation (Anti-Ban):
  * - available presence
  * - composing ("يكتب الآن...") status with periodic refresh
@@ -708,7 +745,7 @@ export async function handleFacebookAnalysisMessage({ sock, remoteJid, phoneNumb
         // If Part 2 is already cached in memory, send it instantly!
         if (cachedPart2 && cachedPart2.trim()) {
             console.log(`⚡ [Facebook Analysis] Delivering alternative targeting angle from cache for ${cleanPhone}`);
-            await replyToStaff(sock, remoteJid, cachedPart2.trim(), userId, io);
+            await replyToStaff(sock, remoteJid, cleanAnalysisText(cachedPart2.trim()), userId, io);
             if (session) session.lastActive = Date.now();
             return { handled: true };
         }
@@ -719,7 +756,7 @@ export async function handleFacebookAnalysisMessage({ sock, remoteJid, phoneNumb
             await replyToStaff(
                 sock,
                 remoteJid,
-                '🦅 *جاري استخراج زاوية الاستهداف البديلة (A/B Testing)...* ⏳',
+                '🦅 *جاري استخراج زاوية الاستهداف البديلة...* ⏳',
                 userId,
                 io
             );
@@ -741,11 +778,12 @@ export async function handleFacebookAnalysisMessage({ sock, remoteJid, phoneNumb
                     }
 
                     if (altText && altText.trim()) {
-                        await replyToStaff(sock, remoteJid, altText.trim(), userId, io);
+                        const cleanedAlt = cleanAnalysisText(altText.trim());
+                        await replyToStaff(sock, remoteJid, cleanedAlt, userId, io);
                         if (session) {
                             session.lastActive = Date.now();
                             if (Array.isArray(data.formatted_message_parts)) {
-                                session.cachedParts = data.formatted_message_parts;
+                                session.cachedParts = data.formatted_message_parts.map(p => cleanAnalysisText(p));
                             }
                         }
                         return { handled: true };
@@ -855,19 +893,20 @@ export async function handleFacebookAnalysisMessage({ sock, remoteJid, phoneNumb
 
         // Handle Post vs Page responses
         if (classification.type === 'post') {
+            const rawParts = Array.isArray(data.formatted_message_parts) ? data.formatted_message_parts : [];
+            const parts = rawParts.map(p => cleanAnalysisText(p));
+
             // Save post analysis parts in session
             facebookAnalysisSessions.set(cleanPhone, {
                 inSession: true,
                 lastTarget: classification.target,
                 lastType: 'post',
                 lastPostUrl: classification.target,
-                cachedParts: Array.isArray(data.formatted_message_parts) ? data.formatted_message_parts : [],
+                cachedParts: parts,
                 lastActive: Date.now()
             });
 
-            if (Array.isArray(data.formatted_message_parts) && data.formatted_message_parts.length > 0) {
-                const parts = data.formatted_message_parts;
-
+            if (parts.length > 0) {
                 // Part 1: Creative & Content Assessment (formatted_message_parts[0])
                 if (parts[0] && parts[0].trim()) {
                     await replyToStaff(sock, remoteJid, parts[0].trim(), userId, io);
@@ -880,8 +919,12 @@ export async function handleFacebookAnalysisMessage({ sock, remoteJid, phoneNumb
                 if (parts[1] && parts[1].trim()) {
                     let part1Text = parts[1].trim();
 
-                    // Append interactive prompt and attach button for Alternative Targeting
-                    part1Text += '\n\n══════════════════════════\n💡 *عايز زاوية استهداف تانية للمقارنة (A/B Testing)؟*\nاضغط على الزر أدناه 👇 أو اكتب كلمة "*بديل*" أو "*استهداف تانى*" لعرضها فوراً 🎯';
+                    // Strip any duplicate alternative prompt from API
+                    part1Text = part1Text.replace(/(══════════════════════════\s*)?💡\s*\*(تريد تجربة زاوية أخرى|عايز زاوية أخرى|تريد زاوية أخرى|عايز زاوية استهداف|تريد استهداف بديل|تريد تجربة زاوية|هل تريد تجربة زاوية)\*?[^\n]*(\n[^\n]*)*/gi, '').trim();
+                    part1Text = part1Text.replace(/══════════════════════════\s*$/g, '').trim();
+
+                    // Append single, concise prompt
+                    part1Text += '\n\n══════════════════════════\n💡 *عايز استهداف بديل؟* اضغط على الزرار أو اكتب "*بديل*" 🎯';
 
                     const buttons = [
                         {
@@ -894,7 +937,7 @@ export async function handleFacebookAnalysisMessage({ sock, remoteJid, phoneNumb
                     await replyToStaff(sock, remoteJid, part1Text, userId, io, { buttons });
                 }
             } else if (data.formatted_message && typeof data.formatted_message === 'string') {
-                await replyToStaff(sock, remoteJid, data.formatted_message.trim(), userId, io);
+                await replyToStaff(sock, remoteJid, cleanAnalysisText(data.formatted_message.trim()), userId, io);
             } else {
                 await replyToStaff(
                     sock,
@@ -915,7 +958,7 @@ export async function handleFacebookAnalysisMessage({ sock, remoteJid, phoneNumb
 
             if (Array.isArray(data.formatted_message_parts) && data.formatted_message_parts.length > 0) {
                 for (let i = 0; i < data.formatted_message_parts.length; i++) {
-                    const part = data.formatted_message_parts[i];
+                    const part = cleanAnalysisText(data.formatted_message_parts[i]);
                     if (part && part.trim()) {
                         await replyToStaff(sock, remoteJid, part.trim(), userId, io);
                         if (i < data.formatted_message_parts.length - 1) {
@@ -924,7 +967,7 @@ export async function handleFacebookAnalysisMessage({ sock, remoteJid, phoneNumb
                     }
                 }
             } else if (data.formatted_message && typeof data.formatted_message === 'string') {
-                const singleMsg = data.formatted_message.trim();
+                const singleMsg = cleanAnalysisText(data.formatted_message.trim());
                 if (singleMsg.length > 3500 && singleMsg.includes('══════════════════════════')) {
                     const sections = singleMsg.split('══════════════════════════');
                     let chunk = '';
