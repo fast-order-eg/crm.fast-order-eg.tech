@@ -2,7 +2,7 @@ import fetch from 'node-fetch';
 import Message from '../models/Message.js';
 import { cleanAnalysisText } from './facebookAnalysisService.js';
 import { getAdsAuthorizedAdmins } from './adsReportService.js';
-import { isStaffAuthorizedForFacebookAnalysis } from './facebookAnalysisService.js';
+import { isFacebookAnalysisStaffAuthorized } from './facebookAnalysisService.js';
 
 const CAMPAIGN_TARGETING_API_URL = 'https://einasouq.bird-ads.com/api/v1/merchant/campaign-targeting';
 const CAMPAIGN_TARGETING_API_KEY = 'fastorder_merchant_secure_api_key_2026';
@@ -234,7 +234,7 @@ export async function isAuthorizedForTargeting(phone, userId = 3) {
 
     // 3. Facebook Analysis Authorized Staff
     try {
-        const staffCheck = await isStaffAuthorizedForFacebookAnalysis(phone, userId);
+        const staffCheck = await isFacebookAnalysisStaffAuthorized(phone, userId);
         if (staffCheck && staffCheck.isAuthorized) return true;
     } catch (_) {}
 
