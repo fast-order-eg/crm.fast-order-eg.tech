@@ -30,6 +30,7 @@ import { handleCompetitorMessage } from '../services/competitorService.js';
 import { handleFacebookAnalysisMessage } from '../services/facebookAnalysisService.js';
 import { handleReminderGroupMessage } from '../services/reminderService.js';
 import { handleAdsReportGroupMessage } from '../services/adsReportService.js';
+import { handleCampaignTargetingMessage, isCampaignTargetingCommand, isPlainTargetingCommand } from '../services/campaignTargetingService.js';
 
 const handoffMessages = [
     "أهلاً بحضرتك يا فندم! تم تسجيل طلبك وهتتواصل معاك مسؤولة المبيعات أستاذة علا فوراً ✨\n\nتقدر كمان تتصل بيها أو تراسلها واتساب مباشرة:\n📞 هاتف / واتساب: 01070366534\n💬 https://wa.me/201070366534",
@@ -2139,6 +2140,24 @@ export const startSession = async (userId, io, phoneNumber = null) => {
                 || msg.message?.imageMessage?.caption 
                 || text 
                 || '';
+
+            // 1.05 Check Campaign Targeting Audit (عين السوق 🦅) for direct/staff messages
+            if (!remoteJid.endsWith('@g.us') && (isCampaignTargetingCommand(rawStaffText) || isPlainTargetingCommand(rawStaffText))) {
+                const targetingResult = await handleCampaignTargetingMessage({
+                    sock,
+                    remoteJid,
+                    phoneNumber: staffSenderPhone,
+                    text: rawStaffText,
+                    userId,
+                    io,
+                    isGroup: false
+                });
+
+                if (targetingResult && targetingResult.handled) {
+                    console.log(`🎯 [Campaign Targeting Audit] Handled direct command from ${staffSenderPhone} for user ${userId}`);
+                    return;
+                }
+            }
 
             // 1.1 Check Facebook Post & Page Analysis (عين السوق 🦅)
             const facebookAnalysisResult = await handleFacebookAnalysisMessage({

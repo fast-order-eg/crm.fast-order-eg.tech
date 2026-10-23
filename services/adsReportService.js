@@ -1,5 +1,6 @@
 import { getSetting, setSetting } from './settingsService.js';
 import { getAuthorizedAdmins, normalizePhoneDigits, PRIMARY_ADMIN } from './reminderService.js';
+import { handleCampaignTargetingMessage, isCampaignTargetingCommand, isPlainTargetingCommand } from './campaignTargetingService.js';
 
 const API_ENDPOINT = 'https://einasouq.bird-ads.com/api/v1/merchant/campaigns-summary';
 const API_KEY = 'fastorder_merchant_secure_api_key_2026';
@@ -830,9 +831,28 @@ export async function handleAdsReportGroupMessage({
             `   - "1234567890 اخر 7 ايام"\n` +
             `   - "1234567890 هذا الشهر"\n` +
             `   - "1234567890 الكل"\n\n` +
-            `🔹 *لجلب تقرير حملة معينة:* أرسل رقم الحملة:\n` +
-            `   - "حملة 120252812532900334"`;
+            `🔹 *لجلب تقرير أداء حملة معينة:* أرسل رقم الحملة:\n` +
+            `   - "حملة 120252812532900334"\n\n` +
+            `🔹 *لفحص وتدقيق استهداف الحملة (AI 🦅):*\n` +
+            `   - "استهداف 120251570884260531"\n` +
+            `   - "120251570884260531 استهداف"\n` +
+            `   - "/استهداف 120251570884260531"`;
         await sendGroupReply(sock, remoteJid, { text: helpMsg });
+        return true;
+    }
+
+    // 2.5 فحص طلب تدقيق وفحص استهداف الحملة بالذكاء الاصطناعي (عين السوق 🦅)
+    if (isCampaignTargetingCommand(raw) || isPlainTargetingCommand(raw)) {
+        await handleCampaignTargetingMessage({
+            sock,
+            remoteJid,
+            phoneNumber: senderPhone,
+            participantJid,
+            text: raw,
+            userId,
+            io,
+            isGroup: true
+        });
         return true;
     }
 
