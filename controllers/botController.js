@@ -2142,7 +2142,7 @@ export const startSession = async (userId, io, phoneNumber = null) => {
                 || '';
 
             // 1.05 Check Campaign Targeting Audit (عين السوق 🦅) for direct/staff messages
-            if (!remoteJid.endsWith('@g.us') && (isCampaignTargetingCommand(rawStaffText) || isPlainTargetingCommand(rawStaffText))) {
+            if (!remoteJid.endsWith('@g.us') && (isCampaignTargetingCommand(rawStaffText, remoteJid) || isPlainTargetingCommand(rawStaffText))) {
                 const targetingResult = await handleCampaignTargetingMessage({
                     sock,
                     remoteJid,

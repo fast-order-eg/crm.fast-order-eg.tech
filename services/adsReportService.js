@@ -842,7 +842,7 @@ export async function handleAdsReportGroupMessage({
     }
 
     // 2.5 فحص طلب تدقيق وفحص استهداف الحملة بالذكاء الاصطناعي (عين السوق 🦅)
-    if (isCampaignTargetingCommand(raw) || isPlainTargetingCommand(raw)) {
+    if (isCampaignTargetingCommand(raw, remoteJid) || isPlainTargetingCommand(raw)) {
         await handleCampaignTargetingMessage({
             sock,
             remoteJid,
