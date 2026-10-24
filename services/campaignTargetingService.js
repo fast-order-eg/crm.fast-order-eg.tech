@@ -170,21 +170,26 @@ async function replyToTargetingChat(sock, remoteJid, text, userId = 3, io = null
 /**
  * Call the Campaign Targeting API on einasouq
  */
-export async function callCampaignTargetingApi(campaignId) {
+export async function callCampaignTargetingApi(rawText, campaignId) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 180000); // 180 seconds
 
     try {
-        console.log(`📡 [Campaign Targeting API] Calling endpoint for campaign ${campaignId}...`);
+        console.log(`📡 [Campaign Targeting API] Calling endpoint with text: "${rawText}" (campaign_id: ${campaignId})...`);
+        const payload = {
+            text: String(rawText || '').trim()
+        };
+        if (campaignId) {
+            payload.campaign_id = String(campaignId).trim();
+        }
+
         const response = await fetch(CAMPAIGN_TARGETING_API_URL, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'x-api-key': CAMPAIGN_TARGETING_API_KEY
             },
-            body: JSON.stringify({
-                campaign_id: String(campaignId).trim()
-            }),
+            body: JSON.stringify(payload),
             signal: controller.signal
         });
 
@@ -276,19 +281,19 @@ export async function handleCampaignTargetingMessage({
 
     // If user wrote plain "استهداف" without campaign ID, send clear instruction
     if (isPlain) {
-        const helpText = `ℹ️ يرجى كتابة رقم الحملة الإعلانية المراد فحص استهدافها 🎯\n\n💡 *أمثلة للاستخدام:*\n- \`استهداف 120251570884260531\`\n- \`120251570884260531 استهداف\`\n- \`/استهداف 120251570884260531\``;
+        const helpText = `ℹ️ يا غالي اكتبلي رقم الحملة أو الإعلان علشان أفحصه فوراً 🎯\n\n💡 *أمثلة للاستخدام:*\n- \`استهداف 120251807851810053\`\n- أو اكتب بعد الرقم اللي عايزه، مثلاً:\n  \`استهداف 120251807851810053 ركز على تجار الجملة ومحلات المحافظات\`\n  \`استهداف 120251807851810053 خلي التركيز على ستات البيوت في الصعيد\``;
         await replyToTargetingChat(sock, remoteJid, helpText, userId, io, isGroup);
         return { handled: true };
     }
 
     const campaignId = extractCampaignTargetingId(raw);
     if (!campaignId) {
-        const helpText = `⚠️ لم يتم التعرف على رقم الحملة بشكل صحيح. يرجى التأكد من كتابة رقم الحملة المكون من أرقام.\n\n💡 مثال: \`استهداف 120251570884260531\``;
+        const helpText = `⚠️ يا غالي اتأكد من رقم الحملة، أو تأكد إن الحساب الإعلاني فيه صلاحية للوصول للحملة دي.\n\n💡 *مثال صحيح:*\n\`استهداف 120251807851810053\``;
         await replyToTargetingChat(sock, remoteJid, helpText, userId, io, isGroup);
         return { handled: true };
     }
 
-    console.log(`🎯 [Campaign Targeting] Starting audit for Campaign ID: ${campaignId} from ${sender}`);
+    console.log(`🎯 [Campaign Targeting] Starting audit for Campaign ID: ${campaignId} from ${sender} (raw: "${raw}")`);
 
     // Immediate acknowledgment
     const ackText = `🦅 جاري فحص وتدقيق استهداف الحملة (\`${campaignId}\`) بالذكاء الاصطناعي ومطابقته لمحتوى الإعلان وقاموس ميتا... ⏳`;
@@ -298,33 +303,45 @@ export async function handleCampaignTargetingMessage({
     const stopComposing = startContinuousComposing(sock, remoteJid);
 
     try {
-        const result = await callCampaignTargetingApi(campaignId);
+        const result = await callCampaignTargetingApi(raw, campaignId);
         stopComposing();
 
         if (!result || !result.success) {
-            const errDetail = result?.error || result?.message || 'تعذر استرجاع بيانات الحملة من خادم عين السوق.';
+            const errDetail = result?.error || result?.message || '';
             console.error(`❌ [Campaign Targeting] API failed for ${campaignId}:`, errDetail);
-            const errText = `⚠️ *تعذر فحص استهداف الحملة (\`${campaignId}\`):*\n\n📌 *السبب:* ${errDetail}`;
-            await replyToTargetingChat(sock, remoteJid, errText, userId, io, isGroup);
+            let friendlyErr = `⚠️ يا غالي اتأكد من رقم الحملة، أو تأكد إن الحساب الإعلاني فيه صلاحية للوصول للحملة دي.`;
+            if (errDetail && !errDetail.includes('404') && !errDetail.includes('not found') && !errDetail.includes('Campaign not found')) {
+                friendlyErr += `\n\n📌 *السبب:* ${errDetail}`;
+            }
+            await replyToTargetingChat(sock, remoteJid, friendlyErr, userId, io, isGroup);
             return { handled: true };
         }
 
-        const parts = result.formatted_message_parts;
-        if (!Array.isArray(parts) || parts.length === 0) {
-            const emptyText = `⚠️ لم يتم العثور على تقرير استهداف لهذه الحملة (\`${campaignId}\`). تأكد من صحة رقم الحملة وأنها تحتوي على مجموعات إعلانية نشطة.`;
+        // استخراج أجزاء الرسالة (part1 / part2 أو formatted_message_parts أو formatted_message)
+        let partsToSend = [];
+        if (result.part1 || result.part2) {
+            if (result.part1) partsToSend.push(result.part1);
+            if (result.part2) partsToSend.push(result.part2);
+        } else if (Array.isArray(result.formatted_message_parts) && result.formatted_message_parts.length > 0) {
+            partsToSend = result.formatted_message_parts;
+        } else if (result.formatted_message) {
+            partsToSend = [result.formatted_message];
+        }
+
+        if (partsToSend.length === 0) {
+            const emptyText = `⚠️ يا غالي اتأكد من رقم الحملة، أو تأكد إن الحساب الإعلاني فيه صلاحية للوصول للحملة دي وتأكد إن مجموعاتها الإعلانية نشطة.`;
             await replyToTargetingChat(sock, remoteJid, emptyText, userId, io, isGroup);
             return { handled: true };
         }
 
-        // Send all parts sequentially
-        for (let i = 0; i < parts.length; i++) {
-            const cleanedPart = cleanAnalysisText(parts[i]);
-            await replyToTargetingChat(sock, remoteJid, cleanedPart, userId, io, isGroup);
+        // إرسال الأجزاء بالتسلسل (الجزء الأول ثم انتظار ثانية وإرسال الجزء الثاني دون تعديل الأقواس النظيفة)
+        for (let i = 0; i < partsToSend.length; i++) {
+            const partText = partsToSend[i];
+            await replyToTargetingChat(sock, remoteJid, partText, userId, io, isGroup);
 
-            // Natural human pause between consecutive parts if more than one
-            if (i < parts.length - 1) {
-                const betweenDelay = 2500 + Math.floor(Math.random() * 1500);
-                await new Promise(r => setTimeout(r, betweenDelay));
+            // انتظار فاصل زمني طبيعي بين الجزأين
+            if (i < partsToSend.length - 1) {
+                await new Promise(r => setTimeout(r, 1500));
             }
         }
 
@@ -332,7 +349,7 @@ export async function handleCampaignTargetingMessage({
     } catch (err) {
         stopComposing();
         console.error(`💥 [Campaign Targeting Exception] for ${campaignId}:`, err);
-        const errText = `⚠️ حدث خطأ غير متوقع أثناء فحص استهداف الحملة (\`${campaignId}\`): ${err.message}`;
+        const errText = `⚠️ يا غالي حصل خطأ غير متوقع أثناء فحص استهداف الحملة (\`${campaignId}\`): ${err.message}`;
         await replyToTargetingChat(sock, remoteJid, errText, userId, io, isGroup);
         return { handled: true };
     }
