@@ -30,6 +30,7 @@ import { getAdsAuthorizedAdmins, addAdsAuthorizedAdmin, removeAdsAuthorizedAdmin
 import { getFastOrderAuthorizedStaff, addFastOrderStaff, removeFastOrderStaff } from '../services/whatsappProductCreatorService.js';
 import { getCompetitorAuthorizedStaff, addCompetitorStaff, removeCompetitorStaff, toggleCompetitorStaff } from '../services/competitorService.js';
 import { getFacebookAnalysisAuthorizedStaff, addFacebookAnalysisStaff, removeFacebookAnalysisStaff } from '../services/facebookAnalysisService.js';
+import { getTargetingAuthorizedStaff, addTargetingStaff, removeTargetingStaff } from '../services/campaignTargetingService.js';
 
 const router = express.Router();
 
@@ -2434,6 +2435,7 @@ router.get('/settings', async (req, res) => {
         const fastOrderStaff = await getFastOrderAuthorizedStaff();
         const competitorStaff = await getCompetitorAuthorizedStaff(userId);
         const facebookAnalysisStaff = await getFacebookAnalysisAuthorizedStaff(userId);
+        const targetingStaff = await getTargetingAuthorizedStaff(userId);
 
         res.render('settings', {
             user: req.user,
@@ -2448,6 +2450,7 @@ router.get('/settings', async (req, res) => {
             fastOrderStaff,
             competitorStaff,
             facebookAnalysisStaff,
+            targetingStaff,
             success_msg: req.flash('success_msg'),
             error_msg: req.flash('error_msg')
         });
@@ -2855,6 +2858,43 @@ router.post('/settings/facebook-analysis-staff/delete', async (req, res) => {
         res.json({ success: true, message: result.message, staff: updatedStaff });
     } catch (err) {
         console.error('Error removing facebook analysis staff:', err);
+        res.status(500).json({ success: false, error: 'حدث خطأ أثناء حذف الرقم' });
+    }
+});
+
+// إدارة الأرقام والموظفين المصرح لهم بالاستهدافات (عين السوق 🦅) (AJAX)
+router.post('/settings/targeting-staff/add', async (req, res) => {
+    try {
+        const { name, phone, role } = req.body;
+        if (!phone) {
+            return res.status(400).json({ success: false, error: 'يرجى إدخال رقم الهاتف' });
+        }
+        const result = await addTargetingStaff(phone, name, role, req.user.id);
+        if (!result.success) {
+            return res.status(400).json({ success: false, error: result.message });
+        }
+        const updatedStaff = await getTargetingAuthorizedStaff(req.user.id);
+        res.json({ success: true, message: result.message, staff: updatedStaff });
+    } catch (err) {
+        console.error('Error adding targeting staff:', err);
+        res.status(500).json({ success: false, error: 'حدث خطأ أثناء إضافة الرقم' });
+    }
+});
+
+router.post('/settings/targeting-staff/delete', async (req, res) => {
+    try {
+        const { phone } = req.body;
+        if (!phone) {
+            return res.status(400).json({ success: false, error: 'يرجى تحديد رقم الهاتف المراد حذفه' });
+        }
+        const result = await removeTargetingStaff(phone, req.user.id);
+        if (!result.success) {
+            return res.status(400).json({ success: false, error: result.message });
+        }
+        const updatedStaff = await getTargetingAuthorizedStaff(req.user.id);
+        res.json({ success: true, message: result.message, staff: updatedStaff });
+    } catch (err) {
+        console.error('Error removing targeting staff:', err);
         res.status(500).json({ success: false, error: 'حدث خطأ أثناء حذف الرقم' });
     }
 });

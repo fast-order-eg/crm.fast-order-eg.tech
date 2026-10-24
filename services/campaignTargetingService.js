@@ -1,5 +1,8 @@
 import fetch from 'node-fetch';
 import Message from '../models/Message.js';
+import User from '../models/User.js';
+import { Op } from 'sequelize';
+import { getSetting, setSetting } from './settingsService.js';
 import { cleanAnalysisText } from './facebookAnalysisService.js';
 import { getAdsAuthorizedAdmins } from './adsReportService.js';
 import { isFacebookAnalysisStaffAuthorized } from './facebookAnalysisService.js';
@@ -306,6 +309,279 @@ export async function callCampaignTargetingApi(rawText, campaignId) {
 }
 
 /**
+ * Get targeting configuration settings (excluded phones & custom staff)
+ */
+export async function getTargetingConfigSettings(userId = 3) {
+    let excludedSet = new Set();
+    let customList = [];
+
+    try {
+        let excluded = await getSetting('targeting_excluded_phones', userId);
+        if (!excluded && userId !== 3) excluded = await getSetting('targeting_excluded_phones', 3);
+        if (!excluded && userId !== 1) excluded = await getSetting('targeting_excluded_phones', 1);
+
+        if (typeof excluded === 'string' && excluded.trim()) {
+            try {
+                const parsed = JSON.parse(excluded);
+                if (Array.isArray(parsed)) excludedSet = new Set(parsed.map(p => normalizePhone(p)).filter(Boolean));
+            } catch (_) {}
+        } else if (Array.isArray(excluded)) {
+            excludedSet = new Set(excluded.map(p => normalizePhone(p)).filter(Boolean));
+        }
+
+        let custom = await getSetting('targeting_custom_staff', userId);
+        if (!custom && userId !== 3) custom = await getSetting('targeting_custom_staff', 3);
+        if (!custom && userId !== 1) custom = await getSetting('targeting_custom_staff', 1);
+
+        if (typeof custom === 'string' && custom.trim()) {
+            try {
+                const parsed = JSON.parse(custom);
+                if (Array.isArray(parsed)) customList = parsed;
+            } catch (_) {}
+        } else if (Array.isArray(custom)) {
+            customList = custom;
+        }
+    } catch (err) {
+        console.error('Error fetching targeting settings:', err.message);
+    }
+
+    if (!Array.isArray(customList)) customList = [];
+    return { excludedSet, customList };
+}
+
+/**
+ * Check if the sender is an authorized staff member for Targeting
+ */
+export async function isTargetingStaffAuthorized(phoneNumber, userId = 3) {
+    const cleanPhone = normalizePhone(phoneNumber);
+    if (!cleanPhone) return false;
+
+    // 1. Explicit Whitelist: Rady (01092308465)
+    if (cleanPhone === '01092308465' || cleanPhone.endsWith('1092308465')) {
+        return { isAuthorized: true, name: 'أ. راضي', role: 'admin' };
+    }
+
+    // 2. Check Excluded Phones
+    const { excludedSet, customList } = await getTargetingConfigSettings(userId);
+    if (excludedSet.has(cleanPhone)) {
+        return false;
+    }
+
+    // 3. Check Custom Added Staff
+    const customMatch = customList.find(c => normalizePhone(c.phone) === cleanPhone);
+    if (customMatch) {
+        return {
+            isAuthorized: true,
+            name: customMatch.name || 'مسؤول مخصص',
+            role: customMatch.role || 'sales',
+            roleLabel: customMatch.roleLabel || 'مسؤول استهداف وميديا باير'
+        };
+    }
+
+    // 4. Check Database for staff/admin user
+    try {
+        const cleanNoZero = cleanPhone.startsWith('0') ? cleanPhone.substring(1) : cleanPhone;
+        const user = await User.findOne({
+            where: {
+                role: ['super_admin', 'admin', 'sales'],
+                [Op.or]: [
+                    { phone: cleanPhone },
+                    { phone: '2' + cleanPhone },
+                    { phone: '20' + cleanNoZero },
+                    { phone: cleanNoZero },
+                    { phone: '0' + cleanNoZero }
+                ]
+            }
+        });
+
+        if (user) {
+            return {
+                isAuthorized: true,
+                name: user.fullName || user.username,
+                role: user.role,
+                userId: user.id
+            };
+        }
+    } catch (e) {
+        console.error('Error checking targeting staff authorization:', e.message);
+    }
+
+    return false;
+}
+
+/**
+ * Get full list of staff members for Targeting settings tab
+ */
+export async function getTargetingAuthorizedStaff(userId = 3) {
+    const { excludedSet, customList } = await getTargetingConfigSettings(userId);
+
+    let users = [];
+    try {
+        users = await User.findAll({
+            where: {
+                role: ['super_admin', 'admin', 'sales']
+            },
+            attributes: ['id', 'username', 'fullName', 'role', 'phone'],
+            order: [['id', 'ASC']]
+        });
+    } catch (e) {
+        console.error('Error fetching staff users for targeting:', e.message);
+    }
+
+    const list = [];
+    const seenPhones = new Set();
+
+    // 1. Explicit Whitelist: أ. راضي
+    list.push({
+        id: 3,
+        name: 'أ. راضي',
+        username: 'rady',
+        role: 'admin',
+        roleLabel: 'مدير النظام',
+        phone: '01092308465',
+        isPrimary: true,
+        isActive: true,
+        isCustom: false
+    });
+    seenPhones.add('01092308465');
+
+    // 2. Database Staff Users
+    for (const u of users) {
+        const cleanP = normalizePhone(u.phone);
+        if (cleanP && !seenPhones.has(cleanP)) {
+            seenPhones.add(cleanP);
+            if (excludedSet.has(cleanP)) continue;
+            const roleLabel = u.role === 'super_admin' ? 'مدير عام' :
+                              u.role === 'admin' ? 'مدير' : 'مسؤول مبيعات واستهداف';
+            list.push({
+                id: u.id,
+                name: u.fullName || u.username,
+                username: u.username,
+                role: u.role,
+                roleLabel,
+                phone: cleanP,
+                isPrimary: false,
+                isActive: true,
+                isCustom: false
+            });
+        }
+    }
+
+    // 3. Custom Added Staff
+    for (const c of customList) {
+        const cleanP = normalizePhone(c.phone);
+        if (cleanP && !seenPhones.has(cleanP)) {
+            seenPhones.add(cleanP);
+            if (excludedSet.has(cleanP)) continue;
+            let cleanRoleLabel = (c.roleLabel || 'مسؤول استهداف وميديا باير').replace(/\s*\(.*?\)/g, '').trim();
+            if (!cleanRoleLabel) cleanRoleLabel = 'مسؤول استهداف وميديا باير';
+            list.push({
+                id: c.id || `custom_${cleanP}`,
+                name: c.name || 'موظف مخصص',
+                username: c.username || cleanP,
+                role: c.role || 'sales',
+                roleLabel: cleanRoleLabel,
+                phone: cleanP,
+                isPrimary: false,
+                isActive: true,
+                isCustom: true
+            });
+        }
+    }
+
+    return list;
+}
+
+/**
+ * Add a new authorized phone number for Targeting
+ */
+export async function addTargetingStaff(rawPhone, name = '', roleLabel = 'مسؤول استهداف وميديا باير', userId = 3) {
+    const clean = normalizePhone(rawPhone);
+    if (!clean || clean.length < 10) {
+        return { success: false, message: '⚠️ رقم الهاتف غير صحيح. يرجى إدخال رقم هاتف مصري صالح (مثال: 01012345678).' };
+    }
+
+    if (clean === '01092308465') {
+        return { success: false, message: 'ℹ️ هذا الرقم هو رقم الأدمن الأساسي ومسجل ومفعل دائماً.' };
+    }
+
+    const { excludedSet, customList } = await getTargetingConfigSettings(userId);
+
+    // If it was previously excluded, unexclude it
+    if (excludedSet.has(clean)) {
+        excludedSet.delete(clean);
+        const updatedExcluded = Array.from(excludedSet);
+        await setSetting('targeting_excluded_phones', JSON.stringify(updatedExcluded), userId);
+        if (userId !== 1) await setSetting('targeting_excluded_phones', JSON.stringify(updatedExcluded), 1);
+    }
+
+    const existingIdx = customList.findIndex(c => normalizePhone(c.phone) === clean);
+    const finalName = (name || '').trim() || `مسؤول ${clean.slice(-4)}`;
+    const finalRoleLabel = (roleLabel || 'مسؤول استهداف وميديا باير').replace(/\s*\(.*?\)/g, '').trim() || 'مسؤول استهداف وميديا باير';
+
+    if (existingIdx >= 0) {
+        customList[existingIdx].name = finalName;
+        customList[existingIdx].roleLabel = finalRoleLabel;
+    } else {
+        customList.push({
+            id: `custom_${Date.now()}`,
+            name: finalName,
+            username: clean,
+            phone: clean,
+            role: 'sales',
+            roleLabel: finalRoleLabel,
+            createdAt: new Date().toISOString()
+        });
+    }
+
+    await setSetting('targeting_custom_staff', JSON.stringify(customList), userId);
+    if (userId !== 1) await setSetting('targeting_custom_staff', JSON.stringify(customList), 1);
+
+    const updatedList = await getTargetingAuthorizedStaff(userId);
+    return {
+        success: true,
+        message: `✅ تم إضافة الرقم ${clean} (${finalName}) إلى قائمة صلاحيات الاستهداف بنجاح.`,
+        staffList: updatedList
+    };
+}
+
+/**
+ * Remove a phone number from Targeting
+ */
+export async function removeTargetingStaff(rawPhone, userId = 3) {
+    const clean = normalizePhone(rawPhone);
+    if (!clean) {
+        return { success: false, message: '⚠️ يرجى تحديد رقم الهاتف المراد حذفه.' };
+    }
+
+    if (clean === '01092308465') {
+        return { success: false, message: '⚠️ لا يمكن حذف رقم الأدمن الرئيسي للنظام (أ. راضي).' };
+    }
+
+    const { excludedSet, customList } = await getTargetingConfigSettings(userId);
+
+    // 1. Remove from customList if present
+    const updatedCustom = customList.filter(c => normalizePhone(c.phone) !== clean);
+    if (updatedCustom.length !== customList.length) {
+        await setSetting('targeting_custom_staff', JSON.stringify(updatedCustom), userId);
+        if (userId !== 1) await setSetting('targeting_custom_staff', JSON.stringify(updatedCustom), 1);
+    }
+
+    // 2. Add to excludedSet so even if it exists in User table, it will be excluded
+    excludedSet.add(clean);
+    const updatedExcluded = Array.from(excludedSet);
+    await setSetting('targeting_excluded_phones', JSON.stringify(updatedExcluded), userId);
+    if (userId !== 1) await setSetting('targeting_excluded_phones', JSON.stringify(updatedExcluded), 1);
+
+    const updatedList = await getTargetingAuthorizedStaff(userId);
+    return {
+        success: true,
+        message: `🗑️ تم إزالة صلاحية الرقم ${clean} من خدمة الاستهدافات بنجاح.`,
+        staffList: updatedList
+    };
+}
+
+/**
  * Check if the user is authorized to perform targeting audits
  */
 export async function isAuthorizedForTargeting(phone, userId = 3) {
@@ -316,13 +592,19 @@ export async function isAuthorizedForTargeting(phone, userId = 3) {
     // 1. Rady (01092308465)
     if (clean === '01092308465' || clean.endsWith('1092308465')) return true;
 
-    // 2. Ads Authorized Admins
+    // 2. Check dedicated Targeting Staff Authorization
+    try {
+        const targetingCheck = await isTargetingStaffAuthorized(clean, userId);
+        if (targetingCheck && targetingCheck.isAuthorized) return true;
+    } catch (_) {}
+
+    // 3. Fallback: Ads Authorized Admins
     try {
         const adsAdmins = await getAdsAuthorizedAdmins(userId);
         if (adsAdmins.some(a => normalizePhone(a.phone) === clean)) return true;
     } catch (_) {}
 
-    // 3. Facebook Analysis Authorized Staff
+    // 4. Fallback: Facebook Analysis Authorized Staff
     try {
         const staffCheck = await isFacebookAnalysisStaffAuthorized(phone, userId);
         if (staffCheck && staffCheck.isAuthorized) return true;
