@@ -100,6 +100,55 @@ function startContinuousComposing(sock, remoteJid) {
 }
 
 /**
+ * Format and refine targeting message text according to user preferences:
+ * 1. Clean header to direct "🎯 *مقترحات الاستهداف:*"
+ * 2. Remove fake user directive line if it was just "/استهداف" or empty
+ * 3. Split behaviors so each is on its own bullet line
+ * 4. Remove AdSet name/post repetition if single AdSet
+ */
+export function formatTargetingReportPart(text, adsetsCount = 1) {
+    if (!text || typeof text !== 'string') return text;
+    let t = text;
+
+    // 1. Remove fake user directive if it only contains command keywords
+    t = t.replace(/\n?📝\s*\*بناءً على طلبك وملاحظاتك:\*\s*["'/]?(?:استهداف|\/استهداف|targeting)["'/]?\s*\n?/gi, '\n');
+
+    // 2. Simplify header in Part 2: start directly with "مقترحات الاستهداف"
+    t = t.replace(/🚀\s*\*مقترحات الاستهداف البديل المخصص للمجموعة\*\s*🎯/gi, '🎯 *مقترحات الاستهداف:*');
+    t = t.replace(/🚀\s*\*مقترحات الاستهداف.*?\*\s*🎯/gi, '🎯 *مقترحات الاستهداف:*');
+
+    // 3. If single AdSet, remove repeated Group/AdSet name and redundant brackets
+    if (adsetsCount <= 1) {
+        t = t.replace(/\n?📂\s*\*المجموعة:\*\s*[^\n]+\n?/gi, '\n');
+        t = t.replace(/\n?\(مختارة حصرياً من قاموس ميتا الرسمي المعتمد\)\n?/gi, '\n');
+    }
+
+    // 4. Split behaviors so each behavior is on its own bullet line:
+    // e.g. "• *السلوكيات المقترحة:* [Retail page admins] مع [Business page admins] وسلوك [Small Business Owners]"
+    t = t.replace(/•\s*\*السلوكيات المقترحة:\*\s*([^\n]+)/gi, (match, content) => {
+        const bracketItems = content.match(/\[[^\]]+\]/g);
+        if (bracketItems && bracketItems.length > 0) {
+            return `• *السلوكيات المقترحة:*\n` + bracketItems.map(item => `  ▫️ ${item}`).join('\n');
+        }
+        return match;
+    });
+
+    // 5. Split current interests/behaviors if joined on a single comma/dash line in Part 1
+    t = t.replace(/•\s*\*الاهتمامات الحالية:\*\s*([^\n]+)/gi, (match, content) => {
+        const bracketItems = content.match(/\[[^\]]+\](?:\s*[✅❌])?/g);
+        if (bracketItems && bracketItems.length > 1) {
+            return `• *الاهتمامات الحالية:*\n` + bracketItems.map(item => `  ▫️ ${item}`).join('\n');
+        }
+        return match;
+    });
+
+    // 6. Clean extra empty lines
+    t = t.replace(/\n{3,}/g, '\n\n');
+
+    return t.trim();
+}
+
+/**
  * Send reply with human simulation, anti-ban jitter, and DB logging
  */
 async function replyToTargetingChat(sock, remoteJid, text, userId = 3, io = null, isGroup = false) {
@@ -295,6 +344,13 @@ export async function handleCampaignTargetingMessage({
 
     console.log(`🎯 [Campaign Targeting] Starting audit for Campaign ID: ${campaignId} from ${sender} (raw: "${raw}")`);
 
+    // تنظيف نص الرسالة المرسل للـ API لمنع اعتبار كلمة "/استهداف" كملاحظة من المستخدم
+    let cleanTextToSend = raw;
+    const strippedDirective = raw.replace(/^[\/\s]*(?:استهداف|targeting)\s*[:=\-]?\s*\d{6,20}\s*/i, '').trim();
+    if (!strippedDirective) {
+        cleanTextToSend = `استهداف ${campaignId}`;
+    }
+
     // Immediate acknowledgment
     const ackText = `🦅 جاري فحص وتدقيق استهداف الحملة (\`${campaignId}\`) بالذكاء الاصطناعي ومطابقته لمحتوى الإعلان وقاموس ميتا... ⏳`;
     await replyToTargetingChat(sock, remoteJid, ackText, userId, io, isGroup);
@@ -303,7 +359,7 @@ export async function handleCampaignTargetingMessage({
     const stopComposing = startContinuousComposing(sock, remoteJid);
 
     try {
-        const result = await callCampaignTargetingApi(raw, campaignId);
+        const result = await callCampaignTargetingApi(cleanTextToSend, campaignId);
         stopComposing();
 
         if (!result || !result.success) {
@@ -334,10 +390,13 @@ export async function handleCampaignTargetingMessage({
             return { handled: true };
         }
 
-        // إرسال الأجزاء بالتسلسل (الجزء الأول ثم انتظار ثانية وإرسال الجزء الثاني دون تعديل الأقواس النظيفة)
+        const adsetsCount = result.adsets_count || (Array.isArray(result.adsets) ? result.adsets.length : 1);
+
+        // إرسال الأجزاء بالتسلسل مع التنسيق المتقن (المقترحات مباشرة، السلوكيات كل واحدة على سطر، وإلغاء تكرار المجموعة)
         for (let i = 0; i < partsToSend.length; i++) {
-            const partText = partsToSend[i];
-            await replyToTargetingChat(sock, remoteJid, partText, userId, io, isGroup);
+            const rawPartText = partsToSend[i];
+            const formattedPart = formatTargetingReportPart(rawPartText, adsetsCount);
+            await replyToTargetingChat(sock, remoteJid, formattedPart, userId, io, isGroup);
 
             // انتظار فاصل زمني طبيعي بين الجزأين
             if (i < partsToSend.length - 1) {
