@@ -223,21 +223,50 @@ export function extractAdIdentifiers(text = '') {
 }
 
 /**
- * تصنيف نوع وهدف الحملة الإعلانية وتوضيح نوع الرسائل (واتساب / ماسنجر) بدون إيموجي
+ * تصنيف نوع وهدف الحملة الإعلانية وتوضيح نوع الرسائل (واتساب / ماسنجر / إنستجرام دايركت) بدون إيموجي
  */
-export function classifyObjective(objective = '', ctaType = '') {
+export function classifyObjective(objective = '', ctaType = '', camp = null) {
     const obj = String(objective || '').toUpperCase();
     const cta = String(ctaType || '').toUpperCase();
 
-    if (obj.includes('MESSAGES') || obj.includes('ENGAGEMENT') || obj.includes('CONVERSATION')) {
+    // فحص ما إذا كان الإعلان مخصصاً لإنستغرام
+    const postUrl = String(camp?.post_url || camp?.primary_ad?.post_url || camp?.instagram_url || '');
+    const isInstagramUrl = postUrl.includes('instagram.com');
+    const isInstagramPlatform = Boolean(
+        camp?.platform === 'INSTAGRAM' ||
+        camp?.primary_ad?.platform === 'INSTAGRAM' ||
+        isInstagramUrl ||
+        (camp?.instagram_url && !camp?.facebook_url) ||
+        (Array.isArray(camp?.publisher_platforms) && camp.publisher_platforms.length === 1 && camp.publisher_platforms[0] === 'instagram') ||
+        camp?.adsets?.some(a => {
+            const pubs = a.targeting?.publisher_platforms || a.publisher_platforms;
+            return Array.isArray(pubs) && pubs.length === 1 && pubs[0] === 'instagram';
+        })
+    );
+
+    const destType = String(
+        camp?.destination_type || 
+        camp?.adsets?.[0]?.destination_type || 
+        ''
+    ).toUpperCase();
+
+    const isInstagramDirect = Boolean(
+        cta === 'INSTAGRAM_MESSAGE' ||
+        destType.includes('INSTAGRAM') ||
+        (isInstagramPlatform && cta !== 'WHATSAPP_MESSAGE' && (cta === 'MESSAGE_PAGE' || destType.includes('MESSAG') || !cta))
+    );
+
+    if (obj.includes('MESSAGES') || obj.includes('ENGAGEMENT') || obj.includes('CONVERSATION') || destType.includes('MESSAG') || cta.includes('MESSAGE')) {
         if (cta === 'WHATSAPP_MESSAGE') {
             return 'إعلان رسائل واتساب';
-        } else if (cta === 'MESSAGE_PAGE') {
-            return 'إعلان رسائل ماسنجر';
-        } else if (cta === 'INSTAGRAM_MESSAGE') {
-            return 'إعلان رسائل إنستجرام';
         }
-        return 'إعلان رسائل';
+        if (isInstagramDirect || (isInstagramPlatform && cta !== 'WHATSAPP_MESSAGE')) {
+            return 'إعلان رسائل إنستجرام دايركت';
+        }
+        if (cta === 'MESSAGE_PAGE') {
+            return 'إعلان رسائل ماسنجر';
+        }
+        return isInstagramPlatform ? 'إعلان رسائل إنستجرام دايركت' : 'إعلان رسائل';
     }
 
     if (obj.includes('SALES') || obj.includes('PURCHASE')) {
@@ -512,7 +541,7 @@ export function formatCampaignAdsReportMessage(todayData, yesterdayData, request
         // 1. البيانات العامة للحملة (تظهر مرة واحدة فقط)
         const cStatus = camp.status_label || (camp.status === 'ACTIVE' ? '🟢 نشطة' : '⏸️ متوقفة');
         const ctaType = camp.ads?.[0]?.creative?.cta_type || camp.primary_ad?.cta_type || '';
-        const cObj = classifyObjective(camp.objective, ctaType);
+        const cObj = classifyObjective(camp.objective, ctaType, camp);
         const budgetStr = formatCampaignBudget(camp);
         const stopInfo = getStopTimeDetails(camp.stop_time);
         const linksText = formatCampaignPostLinks(camp);
@@ -683,7 +712,7 @@ export function formatAdsReportMessage(data, requestedId = '', datePreset = 'tod
         // 1. قراءة الحالة من campaign.status_label المباشرة من الـ API
         const cStatus = camp.status_label || (camp.status === 'ACTIVE' ? '🟢 نشطة' : '⏸️ متوقفة');
         const ctaType = camp.ads?.[0]?.creative?.cta_type || camp.primary_ad?.cta_type || '';
-        const cObj = classifyObjective(camp.objective, ctaType);
+        const cObj = classifyObjective(camp.objective, ctaType, camp);
         const cSpend = Math.round(Number(camp.spend || 0)).toLocaleString('en-US');
         const cResults = Number(camp.results || 0).toLocaleString('en-US');
         const cLabel = camp.result_label || 'نتائج';
