@@ -1196,8 +1196,8 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
                 });
                 if (res.success) {
                     results.push(act.status === 'ACTIVE'
-                        ? '🟢 *الحالة:* تم تشغيل وتفعيل الحملة بنجاح'
-                        : '⏸️ *الحالة:* تم إيقاف الحملة مؤقتاً بنجاح');
+                        ? '✅ *الحالة:* نشطة'
+                        : '✅ *الحالة:* متوقفة');
                 } else {
                     results.push(`❌ *الحالة:* تعذر تغيير الحالة (${res.error || 'خطأ في Meta API'})`);
                 }
@@ -1213,7 +1213,7 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
                 }
                 const res = await callManageCampaignApi(payload);
                 if (res.success) {
-                    results.push(`💵 *الميزانية:* تم ضبطها إلى ${res.budget_formatted || `${act.amount} ج.م`} (${res.budget_type || (act.isLifetime ? 'إجمالية' : 'يومية')})`);
+                    results.push(`✅ *الميزانية:* تم ضبطها إلى ${res.budget_formatted || `${act.amount} ج.م`} (${res.budget_type || (act.isLifetime ? 'إجمالية' : 'يومية')})`);
                 } else {
                     results.push(`❌ *الميزانية:* تعذر تعديل الميزانية (${res.error || 'خطأ في Meta API'})`);
                 }
@@ -1225,7 +1225,7 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
                         extend_days: act.extendDays
                     });
                     if (res.success) {
-                        results.push(`⏳ *المدة:* تم تمديد الحملة بمقدار ${act.extendDays} يوم`);
+                        results.push(`✅ *المدة:* تم تمديد الحملة بمقدار ${act.extendDays} يوم`);
                     } else {
                         results.push(`❌ *المدة:* تعذر تمديد الحملة (${res.error || 'خطأ في Meta API'})`);
                     }
@@ -1236,7 +1236,7 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
                         stop_time: 'never'
                     });
                     if (res.success) {
-                        results.push(`♾️ *تاريخ الانتهاء:* الحملة الآن مستمرة بدون تاريخ انتهاء`);
+                        results.push(`✅ *تاريخ الانتهاء:* الحملة الآن مستمرة بدون تاريخ انتهاء`);
                     } else {
                         results.push(`❌ *تاريخ الانتهاء:* تعذر التحديث (${res.error || 'خطأ في Meta API'})`);
                     }
@@ -1247,7 +1247,7 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
                         stop_time: act.stopTime
                     });
                     if (res.success) {
-                        results.push(`📅 *تاريخ الانتهاء:* تم الضبط إلى ${act.stopTime}`);
+                        results.push(`✅ *تاريخ الانتهاء:* تم الضبط إلى ${act.stopTime}`);
                     } else {
                         results.push(`❌ *تاريخ الانتهاء:* تعذر التحديث (${res.error || 'خطأ في Meta API'})`);
                     }
@@ -1264,7 +1264,7 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
                         }
                     });
                     if (res.success) {
-                        results.push(`👥 *السن:* تم ضبط الفئة العمرية من ${targeting.age_min} إلى ${targeting.age_max} سنة`);
+                        results.push(`✅ *السن:* تم ضبط الفئة العمرية من ${targeting.age_min} إلى ${targeting.age_max} سنة`);
                     } else {
                         let errorText = res.error || 'خطأ في Meta API';
                         if (errorText.includes('Advantage') || errorText.includes('1359202')) {
@@ -1279,7 +1279,7 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
                         targeting: { gender: targeting.gender }
                     });
                     if (res.success) {
-                        results.push(`👥 *الجنس:* تم التحديد إلى (${act.genderLabel})`);
+                        results.push(`✅ *الجنس:* تم التحديد إلى (${act.genderLabel})`);
                     } else {
                         results.push(`❌ *الجنس:* ${res.error || 'خطأ في Meta API'}`);
                     }
@@ -1290,7 +1290,7 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
                         targeting: { regions: targeting.regions }
                     });
                     if (res.success) {
-                        results.push(`📍 *المناطق:* تم الضبط إلى (${act.regionsRaw})`);
+                        results.push(`✅ *المناطق:* تم الضبط إلى (${act.regionsRaw})`);
                     } else {
                         results.push(`❌ *المناطق:* ${res.error || 'خطأ في Meta API'}`);
                     }
@@ -1301,7 +1301,7 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
                         targeting: { interests: targeting.interests }
                     });
                     if (res.success) {
-                        results.push(`🏷️ *الاهتمامات:* تم الضبط إلى (${act.interestsRaw})`);
+                        results.push(`✅ *الاهتمامات:* تم الضبط إلى (${act.interestsRaw})`);
                     } else {
                         results.push(`❌ *الاهتمامات:* ${res.error || 'خطأ في Meta API'}`);
                     }
@@ -1313,7 +1313,7 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
                     name: act.name
                 });
                 if (res.success) {
-                    results.push(`✏️ *الاسم:* تم تغيير اسم الحملة إلى "${act.name}"`);
+                    results.push(`✅ *الاسم:* تم تغيير اسم الحملة إلى "${act.name}"`);
                 } else {
                     results.push(`❌ *الاسم:* تعذر تغيير الاسم (${res.error || 'خطأ في Meta API'})`);
                 }
@@ -1322,7 +1322,7 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
 
         const allSucceeded = !results.some(r => r.startsWith('❌'));
         const title = allSucceeded
-            ? `🎯 *تمام يا فندم، نفذتلك جميع الأوامر بنجاح!*`
+            ? `✅ *تمام يا فندم، تم تنفيذ جميع الأوامر بنجاح!*`
             : `⚠️ *تم تنفيذ بعض الأوامر مع وجود تنبيهات:*`;
 
         let summaryMsg = `${title}\n\n📌 *المعرف:* \`${campaignId}\`\n\n`;
@@ -1431,9 +1431,9 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
         });
         if (res.success) {
             await sendGroupReply(sock, remoteJid, {
-                text: `⏸️ *تمام يا فندم، وقفتلك الحملة بنجاح!*\n\n` +
+                text: `✅ *تمام يا فندم، وقفتلك الحملة بنجاح!*\n\n` +
                       `📌 *المعرف:* \`${campaignId}\`\n` +
-                      `📊 *الحالة الجديدة:* متوقفة مؤقتاً ⏸️\n` +
+                      `📊 *الحالة الجديدة:* متوقفة\n\n` +
                       `💡 *لو حابب تشغلها في أي وقت:* قولي "شغل الحملة ${campaignId}" 🟢`
             });
         } else {
@@ -1454,9 +1454,9 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
         });
         if (res.success) {
             await sendGroupReply(sock, remoteJid, {
-                text: `🟢 *تمام يا فندم، شغلتلك الحملة بنجاح!*\n\n` +
+                text: `✅ *تمام يا فندم، شغلتلك الحملة بنجاح!*\n\n` +
                       `📌 *المعرف:* \`${campaignId}\`\n` +
-                      `📊 *الحالة الجديدة:* نشطة وشغالة 🟢\n` +
+                      `📊 *الحالة الجديدة:* نشطة\n\n` +
                       `💡 *للإيقاف المؤقت:* قولي "وقف الحملة ${campaignId}" ⏸️`
             });
         } else {
@@ -1486,7 +1486,7 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
         const res = await callManageCampaignApi(payload);
         if (res.success) {
             await sendGroupReply(sock, remoteJid, {
-                text: `💵 *تمام يا فندم، عدلتلك ميزانية الحملة بنجاح!*\n\n` +
+                text: `✅ *تمام يا فندم، عدلتلك ميزانية الحملة بنجاح!*\n\n` +
                       `📌 *المعرف:* \`${campaignId}\`\n` +
                       `💰 *الميزانية الجديدة:* ${res.budget_formatted || `${budgetAmount} ج.م`}\n` +
                       `📊 *النوع:* ${res.budget_type || (isLifetime ? 'إجمالية' : 'يومية')}`
@@ -1513,7 +1513,7 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
 
             if (res.success) {
                 await sendGroupReply(sock, remoteJid, {
-                    text: `⏳ *تمام يا فندم، مددتلك فترة الحملة بنجاح!*\n\n` +
+                    text: `✅ *تمام يا فندم، مددتلك فترة الحملة بنجاح!*\n\n` +
                           `📌 *المعرف:* \`${campaignId}\`\n` +
                           `➕ *المدة المضافة:* ${days} يوم\n` +
                           `🏁 *النتيجة:* ${res.message || 'تم تمديد موعد انتهاء الحملة بنجاح'}`
@@ -1537,7 +1537,7 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
 
             if (res.success) {
                 await sendGroupReply(sock, remoteJid, {
-                    text: `♾️ *تمام يا فندم، الحملة الآن تعمل بشكل مستمر بدون تاريخ انتهاء!*\n\n` +
+                    text: `✅ *تمام يا فندم، الحملة الآن تعمل بشكل مستمر بدون تاريخ انتهاء!*\n\n` +
                           `📌 *المعرف:* \`${campaignId}\`\n` +
                           `الحملة ستستمر بالعمل حتى تقوم بإيقافها في أي وقت.`
                 });
@@ -1560,7 +1560,7 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
 
             if (res.success) {
                 await sendGroupReply(sock, remoteJid, {
-                    text: `⏳ *تمام يا فندم، تم تحديث موعد الانتهاء بنجاح!*\n\n` +
+                    text: `✅ *تمام يا فندم، تم تحديث موعد الانتهاء بنجاح!*\n\n` +
                           `📌 *المعرف:* \`${campaignId}\`\n` +
                           `🏁 ${res.message}`
                 });
@@ -1590,7 +1590,7 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
 
             if (res.success) {
                 await sendGroupReply(sock, remoteJid, {
-                    text: `🎯 *تمام يا فندم، تم تحديث الفئة العمرية بنجاح!*\n\n` +
+                    text: `✅ *تمام يا فندم، تم تحديث الفئة العمرية بنجاح!*\n\n` +
                           `📌 *المعرف:* \`${campaignId}\`\n` +
                           `👥 *السن المحدث:* من ${targeting.age_min} إلى ${targeting.age_max} سنة`
                 });
@@ -1621,7 +1621,7 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
 
             if (res.success) {
                 await sendGroupReply(sock, remoteJid, {
-                    text: `🎯 *تمام يا فندم، تم تحديث استهداف الجنس بنجاح!*\n\n` +
+                    text: `✅ *تمام يا فندم، تم تحديث استهداف الجنس بنجاح!*\n\n` +
                           `📌 *المعرف:* \`${campaignId}\`\n` +
                           `👥 *الجنس المستهدف:* ${cmd.genderLabel}`
                 });
@@ -1652,7 +1652,7 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
 
             if (res.success) {
                 await sendGroupReply(sock, remoteJid, {
-                    text: `📍 *تمام يا فندم، تم تحديث المناطق المستهدفة بنجاح!*\n\n` +
+                    text: `✅ *تمام يا فندم، تم تحديث المناطق المستهدفة بنجاح!*\n\n` +
                           `📌 *المعرف:* \`${campaignId}\`\n` +
                           `🗺️ *المناطق المحددة:* ${cmd.regionsRaw}`
                 });
@@ -1683,7 +1683,7 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
 
             if (res.success) {
                 await sendGroupReply(sock, remoteJid, {
-                    text: `🎯 *تمام يا فندم، تم تحديث الاهتمامات بنجاح!*\n\n` +
+                    text: `✅ *تمام يا فندم، تم تحديث الاهتمامات بنجاح!*\n\n` +
                           `📌 *المعرف:* \`${campaignId}\`\n` +
                           `🏷️ *الاهتمامات:* ${cmd.interestsRaw}`
                 });
@@ -1715,7 +1715,7 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
 
         if (res.success) {
             await sendGroupReply(sock, remoteJid, {
-                text: `✏️ *تمام يا فندم، تم تغيير اسم الحملة بنجاح!*\n\n` +
+                text: `✅ *تمام يا فندم، تم تغيير اسم الحملة بنجاح!*\n\n` +
                       `📌 *المعرف:* \`${campaignId}\`\n` +
                       `📝 *الاسم الجديد:* ${newName}`
             });
@@ -1738,11 +1738,11 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
 
         if (res.success) {
             await sendGroupReply(sock, remoteJid, {
-                text: `📋 *تمام يا فندم، تم نسخ الحملة بنجاح!*\n\n` +
+                text: `✅ *تمام يا فندم، تم نسخ الحملة بنجاح!*\n\n` +
                       `📌 *المعرف الأصلي:* \`${campaignId}\`\n` +
                       `🆕 *معرف النسخة الجديدة:* \`${res.copied_id}\`\n` +
-                      `⏸️ *الحالة:* متوقفة مؤقتاً لتجهيزها قبل النشر.\n` +
-                      `💡 *لتشغيل النسخة:* قولي "شغل ${res.copied_id}" 🚀`
+                      `📊 *الحالة:* متوقفة\n\n` +
+                      `💡 *لتشغيل النسخة:* قولي "شغل ${res.copied_id}" 🟢`
             });
         } else {
             let errorText = res.error || 'حدث خطأ في Meta API';
