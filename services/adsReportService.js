@@ -1195,7 +1195,9 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
                     status: act.status
                 });
                 if (res.success) {
-                    results.push(`🟢 *الحالة:* تم ${act.status === 'ACTIVE' ? 'تشغيل وتفعيل' : 'إيقاف'} الحملة بنجاح (${act.status})`);
+                    results.push(act.status === 'ACTIVE'
+                        ? '🟢 *الحالة:* تم تشغيل وتفعيل الحملة بنجاح'
+                        : '⏸️ *الحالة:* تم إيقاف الحملة مؤقتاً بنجاح');
                 } else {
                     results.push(`❌ *الحالة:* تعذر تغيير الحالة (${res.error || 'خطأ في Meta API'})`);
                 }
@@ -1431,7 +1433,7 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
             await sendGroupReply(sock, remoteJid, {
                 text: `⏸️ *تمام يا فندم، وقفتلك الحملة بنجاح!*\n\n` +
                       `📌 *المعرف:* \`${campaignId}\`\n` +
-                      `📊 *الحالة الجديدة:* متوقفة مؤقتاً (PAUSED)\n` +
+                      `📊 *الحالة الجديدة:* متوقفة مؤقتاً ⏸️\n` +
                       `💡 *لو حابب تشغلها في أي وقت:* قولي "شغل الحملة ${campaignId}" 🟢`
             });
         } else {
@@ -1454,7 +1456,7 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
             await sendGroupReply(sock, remoteJid, {
                 text: `🟢 *تمام يا فندم، شغلتلك الحملة بنجاح!*\n\n` +
                       `📌 *المعرف:* \`${campaignId}\`\n` +
-                      `📊 *الحالة الجديدة:* نشطة وشغالة (ACTIVE)\n` +
+                      `📊 *الحالة الجديدة:* نشطة وشغالة 🟢\n` +
                       `💡 *للإيقاف المؤقت:* قولي "وقف الحملة ${campaignId}" ⏸️`
             });
         } else {
