@@ -428,8 +428,20 @@ export function isCampaignCurrentlyRunning(camp) {
 export function formatCampaignPostLinks(camp) {
     if (!camp) return '';
 
-    const postUrl = (camp.post_url || camp.primary_ad?.post_url || '').trim();
+    const fbUrl = (camp.facebook_url || camp.primary_ad?.facebook_url || '').trim();
+    const instaUrl = (camp.instagram_url || camp.primary_ad?.instagram_url || '').trim();
     const isHttp = (u) => typeof u === 'string' && u.startsWith('http');
+
+    let out = '';
+    if (isHttp(fbUrl)) {
+        out += `• 🔗 رابط المنشور (فيسبوك): ${fbUrl}\n`;
+    }
+    if (isHttp(instaUrl) && instaUrl !== fbUrl) {
+        out += `• 🔗 رابط المنشور (إنستغرام): ${instaUrl}\n`;
+    }
+    if (out) return out;
+
+    const postUrl = (camp.post_url || camp.primary_ad?.post_url || '').trim();
     if (!isHttp(postUrl)) return '';
 
     const pLabel = String(camp.platform_label || camp.primary_ad?.platform_label || camp.platform || camp.primary_ad?.platform || '').toLowerCase();
