@@ -42,21 +42,35 @@ export function getActiveCampaignTargetingSession(remoteJid) {
 }
 
 /**
- * Check if the text is a plain "استهداف" prompt without ID (to show help/usage)
+ * Comprehensive Regex for Targeting, Placements, Interests, Audience, and Campaign Audit keywords
+ */
+export const TARGETING_AUDIT_KEYWORDS_REGEX = /(?:استهداف|فحص|تقييم|قيم|تدقيق|دقق|audit|targeting|مواضع|مواضيع|مواضع\s*الظهور|اماكن\s*الظهور|منصات|بلاتفورم|placements?|interests?|audience|جمهور|جماهير|اهتمامات|اهتمام|سلوكيات|سلوك|بيستهدف|مستهدف|مستهدفة|مستهدفه|شغال\s*على\s*ايه|شغالة\s*على\s*ايه|شغال\s*فين|بيظهر\s*فين|بيبان\s*فين|معروض\s*فين|ايه\s*(?:اللي\s*)?مستخدم|المستخدم(?:ة|ه)?)/i;
+
+/**
+ * Check if the text is a plain "استهداف" or "مواضع" prompt without ID (to show help/usage)
  */
 export function isPlainTargetingCommand(text) {
     if (!text || typeof text !== 'string') return false;
     const trimmed = text.trim();
-    return /^[\/\s]*(استهداف|targeting)[\/\s]*$/i.test(trimmed);
+    return /^[\/\s]*(?:استهداف|targeting|مواضع|المواضع|مواضيع|المواضيع|مواضع\s*الظهور)[\/\s]*$/i.test(trimmed);
 }
 
 /**
- * Check if text is a follow-up targeting command (e.g. "استهداف بديل", "استهداف اخر", "بديل", "استهداف ...")
+ * Check if text is a follow-up targeting command (e.g. "استهداف بديل", "استهداف اخر", "بديل", "ايه المواضع", etc.)
  */
-export function isFollowupTargetingCommand(text) {
+export function isFollowupTargetingCommand(text, remoteJid = null) {
     if (!text || typeof text !== 'string') return false;
     const trimmed = text.trim();
-    return /^(?:btn_alternative_targeting|🎯\s*استهداف\s*بديل|استهداف\s*(?:بديل|اخر|آخر|تاني|تانى|جديد)|بديل|زاوية\s*(?:تانية|تاني|تانى|بديلة)|استهداف\s+[^\d]+|عايز\s+استهداف|هات\s+استهداف)/i.test(trimmed);
+    if (/^(?:btn_alternative_targeting|🎯\s*استهداف\s*بديل|استهداف\s*(?:بديل|اخر|آخر|تاني|تانى|جديد)|بديل|زاوية\s*(?:تانية|تاني|تانى|بديلة)|استهداف\s+[^\d]+|عايز\s+استهداف|هات\s+استهداف)/i.test(trimmed)) {
+        return true;
+    }
+    // If active session exists in this chat and user is asking about targeting/placements/interests
+    if (remoteJid && getActiveCampaignTargetingSession(remoteJid)) {
+        if (TARGETING_AUDIT_KEYWORDS_REGEX.test(trimmed)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /**
@@ -66,17 +80,16 @@ export function isCampaignTargetingCommand(text, remoteJid = null) {
     if (!text || typeof text !== 'string') return false;
     const trimmed = text.trim();
 
-    // 1. Must contain a campaign ID (between 6 and 20 digits) + targeting keyword
-    const targetingKeyword = '(?:استهداف|فحص\\s*استهداف|تقييم\\s*استهداف|audit\\s*targeting|targeting)';
-    const hasTargetingWord = new RegExp(`(?:^|[\\/\\s])${targetingKeyword}(?:[\\s\\d_]|$)`, 'i').test(trimmed);
-    const hasDigits = /\d{6,20}/.test(trimmed);
+    // 1. Must contain a campaign ID (between 6 and 25 digits) + targeting / placements / audience keyword
+    const hasDigits = /\b\d{6,25}\b/.test(trimmed.replace(/[`*~_]/g, ' '));
+    const hasKeyword = TARGETING_AUDIT_KEYWORDS_REGEX.test(trimmed);
 
-    if (hasDigits && hasTargetingWord) {
+    if (hasDigits && hasKeyword) {
         return true;
     }
 
-    // 2. Or is a follow-up targeting command
-    if (isFollowupTargetingCommand(trimmed)) {
+    // 2. Or is a follow-up targeting command (with or without active session)
+    if (isFollowupTargetingCommand(trimmed, remoteJid)) {
         return true;
     }
 
@@ -90,19 +103,19 @@ export function extractCampaignTargetingId(text, remoteJid = null) {
     if (!text || typeof text !== 'string') return null;
     const trimmed = text.trim();
 
-    // 1. Prefix: "استهداف 120251570884260531" or "/استهداف 120251570884260531"
-    const prefixMatch = trimmed.match(/(?:^|[\/\s])(?:استهداف|فحص\s*استهداف|تقييم\s*استهداف|targeting)\s*[:=\-]?\s*(\d{6,20})/i);
+    // 1. Any 6-25 digit number in string containing targeting/placements inquiry keyword
+    if (TARGETING_AUDIT_KEYWORDS_REGEX.test(trimmed)) {
+        const match = trimmed.replace(/[`*~_]/g, ' ').match(/\b(\d{6,25})\b/);
+        if (match && match[1]) return match[1];
+    }
+
+    // 2. Prefix: "استهداف 120251570884260531" or "/استهداف 120251570884260531"
+    const prefixMatch = trimmed.match(/(?:^|[\/\s])(?:استهداف|فحص\s*استهداف|تقييم\s*استهداف|targeting)\s*[:=\-]?\s*(\d{6,25})/i);
     if (prefixMatch && prefixMatch[1]) return prefixMatch[1];
 
-    // 2. Suffix: "120251570884260531 استهداف"
-    const suffixMatch = trimmed.match(/(\d{6,20})\s*(?:استهداف|targeting)/i);
+    // 3. Suffix: "120251570884260531 استهداف"
+    const suffixMatch = trimmed.match(/(\d{6,25})\s*(?:استهداف|targeting)/i);
     if (suffixMatch && suffixMatch[1]) return suffixMatch[1];
-
-    // 3. Any 6-20 digit number in string containing targeting keyword
-    if (/(?:استهداف|targeting)/i.test(trimmed)) {
-        const anyDigits = trimmed.match(/(\d{6,20})/);
-        if (anyDigits && anyDigits[1]) return anyDigits[1];
-    }
 
     // 4. Fallback to active chat session
     if (remoteJid) {
@@ -674,16 +687,23 @@ export async function handleCampaignTargetingMessage({
     if (isFollowup) {
         cleanTextToSend = `استهداف بديل ${campaignId} ${raw}`;
     } else {
-        const strippedDirective = raw.replace(/^[\/\s]*(?:استهداف|targeting)\s*[:=\-]?\s*\d{6,20}\s*/i, '').trim();
-        if (!strippedDirective) {
+        const stripped = raw
+            .replace(new RegExp(`\\b${campaignId}\\b`, 'g'), '')
+            .replace(/[`*~_]/g, '')
+            .replace(/[\/\s]*(?:استهداف|فحص|تقييم|audit|targeting)[\/\s]*/gi, ' ')
+            .trim();
+
+        if (!stripped) {
             cleanTextToSend = `استهداف ${campaignId}`;
+        } else {
+            cleanTextToSend = `${campaignId} ${stripped}`;
         }
     }
 
     // Immediate acknowledgment
     const ackText = isFollowup
         ? `🦅 جاري فحص وتوليد استهداف بديل ومخصص للحملة (\`${campaignId}\`) بناءً على طلبك وملاحظاتك... ⏳`
-        : `🦅 جاري فحص وتدقيق استهداف الحملة (\`${campaignId}\`) بالذكاء الاصطناعي ومطابقته لمحتوى الإعلان وقاموس ميتا... ⏳`;
+        : `🦅 جاري فحص وتدقيق استهداف ومواضع الحملة (\`${campaignId}\`) بالذكاء الاصطناعي ومطابقته لمحتوى الإعلان وقاموس ميتا... ⏳`;
     await replyToTargetingChat(sock, remoteJid, ackText, userId, io, isGroup);
 
     // Keep typing presence active
