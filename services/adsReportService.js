@@ -3,7 +3,27 @@ import { getAuthorizedAdmins, normalizePhoneDigits, PRIMARY_ADMIN } from './remi
 import { handleCampaignTargetingMessage, isCampaignTargetingCommand, isPlainTargetingCommand } from './campaignTargetingService.js';
 
 const API_ENDPOINT = 'https://einasouq.bird-ads.com/api/v1/merchant/campaigns-summary';
+const MANAGE_API_ENDPOINT = 'https://einasouq.bird-ads.com/api/v1/merchant/manage-campaign';
 const API_KEY = 'fastorder_merchant_secure_api_key_2026';
+
+/**
+ * استدعاء API إدارة الحملات الإعلانية (إيقاف، تشغيل، ميزانية، تمديد، استهداف)
+ */
+export async function callManageCampaignApi(payload) {
+    try {
+        const res = await fetch(MANAGE_API_ENDPOINT, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': API_KEY
+            },
+            body: JSON.stringify(payload)
+        });
+        return await res.json();
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+}
 
 /**
  * جلب قائمة الأرقام المصرح لها بطلب تقارير الإعلانات
@@ -658,6 +678,10 @@ export function formatCampaignAdsReportMessage(todayData, yesterdayData, request
             msg += `• 👆 معدل النقر (CTR): *0%*\n`;
         }
 
+        if (allCampaignIds.length === 1) {
+            msg += `\n💡 *أوامر سريعة للتحكم:* \`وقف ${camp.id}\` | \`شغل ${camp.id}\` | \`ميزانية ${camp.id} 500\` | \`تمديد ${camp.id} 3 ايام\`\n`;
+        }
+
         if (idx < allCampaignIds.length - 1) {
             msg += `\n══════════════\n`;
         }
@@ -853,6 +877,381 @@ async function sendGroupReply(sock, remoteJid, content) {
 }
 
 /**
+ * معالجة أوامر التحكم السريع بالحملات الإعلانية من الواتساب
+ * (إيقاف، تشغيل، تعديل ميزانية، تمديد موعد الانتهاء، تعديل السن، تعديل النوع، تعديل المناطق، تعديل الاهتمامات، تغيير الاسم، نسخ الحملة)
+ */
+async function handleCampaignManagementCommand({ sock, remoteJid, raw, senderPhone }) {
+    const text = raw.trim();
+
+    // 1. أمر إيقاف الحملة: وقف [ID] | ايقاف [ID] | pause [ID]
+    const pauseMatch = text.match(/^(?:وقف|ايقاف|إيقاف|pause)\s+(?:حملة\s+|حمله\s+)?(\d{10,25})$/i);
+    if (pauseMatch) {
+        const campaignId = pauseMatch[1];
+        await sendGroupReply(sock, remoteJid, { text: `⏳ جاري إيقاف الحملة \`${campaignId}\`...` });
+        const res = await callManageCampaignApi({
+            action: 'UPDATE_STATUS',
+            target_id: campaignId,
+            status: 'PAUSED'
+        });
+        if (res.success) {
+            await sendGroupReply(sock, remoteJid, {
+                text: `⏸️ *تم إيقاف الحملة بنجاح!*\n\n` +
+                      `📌 *المعرف:* \`${campaignId}\`\n` +
+                      `📊 *الحالة الجديدة:* متوقفة مؤقتاً (PAUSED)\n` +
+                      `💡 *لإعادة التشغيل:* أرسل: \`شغل ${campaignId}\``
+            });
+        } else {
+            await sendGroupReply(sock, remoteJid, {
+                text: `❌ *فشل إيقاف الحملة:*\n${res.error || 'حدث خطأ غير متوقع في Meta API'}`
+            });
+        }
+        return true;
+    }
+
+    // 2. أمر تشغيل الحملة: شغل [ID] | تشغيل [ID] | start [ID] | resume [ID]
+    const resumeMatch = text.match(/^(?:شغل|تشغيل|start|resume)\s+(?:حملة\s+|حمله\s+)?(\d{10,25})$/i);
+    if (resumeMatch) {
+        const campaignId = resumeMatch[1];
+        await sendGroupReply(sock, remoteJid, { text: `⏳ جاري تفعيل وتشغيل الحملة \`${campaignId}\`...` });
+        const res = await callManageCampaignApi({
+            action: 'UPDATE_STATUS',
+            target_id: campaignId,
+            status: 'ACTIVE'
+        });
+        if (res.success) {
+            await sendGroupReply(sock, remoteJid, {
+                text: `🟢 *تم تشغيل الحملة بنجاح!*\n\n` +
+                      `📌 *المعرف:* \`${campaignId}\`\n` +
+                      `📊 *الحالة الجديدة:* نشطة (ACTIVE)\n` +
+                      `💡 *للإيقاف المؤقت:* أرسل: \`وقف ${campaignId}\``
+            });
+        } else {
+            await sendGroupReply(sock, remoteJid, {
+                text: `❌ *فشل تشغيل الحملة:*\n${res.error || 'حدث خطأ غير متوقع في Meta API'}`
+            });
+        }
+        return true;
+    }
+
+    // 3. أمر تعديل الميزانية: ميزانية [ID] [المبلغ] [يومي/كلي] أو ميزانية [المبلغ] [ID]
+    const budgetMatch = text.match(/^(?:تعديل\s+|تحديث\s+|ضبط\s+)?(?:ميزانية|ميزانيه|budget)\s+(?:حملة\s+|حمله\s+)?(\d{10,25})\s+(\d+(?:\.\d+)?)(?:\s*(ج|جم|جنيه|egp|يومي|يومية|يوميه|كلي|إجمالي|اجمالي))?$/i)
+        || text.match(/^(?:تعديل\s+|تحديث\s+|ضبط\s+)?(?:ميزانية|ميزانيه|budget)\s+(\d+(?:\.\d+)?)(?:\s*(ج|جم|جنيه|egp|يومي|يومية|يوميه|كلي|إجمالي|اجمالي))?\s+(?:حملة\s+|حمله\s+)?(\d{10,25})$/i);
+
+    if (budgetMatch) {
+        let campaignId, budgetAmount, typeModifier;
+        if (/^\d{10,25}$/.test(budgetMatch[1])) {
+            campaignId = budgetMatch[1];
+            budgetAmount = budgetMatch[2];
+            typeModifier = budgetMatch[3];
+        } else {
+            budgetAmount = budgetMatch[1];
+            typeModifier = budgetMatch[2];
+            campaignId = budgetMatch[3];
+        }
+
+        const isLifetime = typeModifier && /(كلي|إجمالي|اجمالي)/i.test(typeModifier);
+        await sendGroupReply(sock, remoteJid, { text: `⏳ جاري تعديل ميزانية الحملة \`${campaignId}\` إلى ${budgetAmount} ج.م...` });
+
+        const payload = {
+            action: 'UPDATE_BUDGET',
+            target_id: campaignId
+        };
+        if (isLifetime) {
+            payload.lifetime_budget = budgetAmount;
+        } else {
+            payload.daily_budget = budgetAmount;
+        }
+
+        const res = await callManageCampaignApi(payload);
+        if (res.success) {
+            await sendGroupReply(sock, remoteJid, {
+                text: `💵 *تم تعديل الميزانية بنجاح!*\n\n` +
+                      `📌 *المعرف:* \`${campaignId}\`\n` +
+                      `💰 *الميزانية الجديدة:* ${res.budget_formatted || `${budgetAmount} ج.م`}\n` +
+                      `📊 *النوع:* ${res.budget_type || (isLifetime ? 'إجمالية' : 'يومية')}`
+            });
+        } else {
+            await sendGroupReply(sock, remoteJid, {
+                text: `❌ *فشل تعديل الميزانية:*\n${res.error || 'حدث خطأ في Meta API'}`
+            });
+        }
+        return true;
+    }
+
+    // 4. أمر تمديد الحملة: تمديد [ID] [أيام] | مد [ID] [أيام]
+    const extendMatch = text.match(/^(?:تمديد|مد|extend)\s+(?:حملة\s+|حمله\s+)?(\d{10,25})\s+(\d+)\s*(?:يوم|أيام|ايام|day|days)?$/i);
+    if (extendMatch) {
+        const campaignId = extendMatch[1];
+        const days = parseInt(extendMatch[2], 10);
+        await sendGroupReply(sock, remoteJid, { text: `⏳ جاري تمديد الحملة \`${campaignId}\` بمقدار ${days} يوم...` });
+
+        const res = await callManageCampaignApi({
+            action: 'UPDATE_STOP_TIME',
+            target_id: campaignId,
+            extend_days: days
+        });
+
+        if (res.success) {
+            await sendGroupReply(sock, remoteJid, {
+                text: `⏳ *تم تمديد فترة الحملة بنجاح!*\n\n` +
+                      `📌 *المعرف:* \`${campaignId}\`\n` +
+                      `➕ *المدة المضافة:* ${days} يوم\n` +
+                      `🏁 *النتيجة:* ${res.message}`
+            });
+        } else {
+            await sendGroupReply(sock, remoteJid, {
+                text: `❌ *فشل تمديد الحملة:*\n${res.error || 'حدث خطأ في Meta API'}`
+            });
+        }
+        return true;
+    }
+
+    // 5. أمر تحديد تاريخ انتهاء محدد أو إلغاء الانتهاء
+    const stopTimeMatch = text.match(/^(?:انتهاء|تاريخ انتهاء|انهاء)\s+(?:حملة\s+|حمله\s+)?(\d{10,25})\s+(\d{4}-\d{2}-\d{2}(?:\s+\d{2}:\d{2})?)$/i);
+    if (stopTimeMatch) {
+        const campaignId = stopTimeMatch[1];
+        const dateStr = stopTimeMatch[2];
+        await sendGroupReply(sock, remoteJid, { text: `⏳ جاري ضبط موعد انتهاء الحملة \`${campaignId}\` إلى ${dateStr}...` });
+
+        const res = await callManageCampaignApi({
+            action: 'UPDATE_STOP_TIME',
+            target_id: campaignId,
+            stop_time: dateStr
+        });
+
+        if (res.success) {
+            await sendGroupReply(sock, remoteJid, {
+                text: `⏳ *تم تحديث موعد الانتهاء بنجاح!*\n\n` +
+                      `📌 *المعرف:* \`${campaignId}\`\n` +
+                      `🏁 ${res.message}`
+            });
+        } else {
+            await sendGroupReply(sock, remoteJid, {
+                text: `❌ *فشل تحديث تاريخ الانتهاء:*\n${res.error || 'حدث خطأ في Meta API'}`
+            });
+        }
+        return true;
+    }
+
+    const neverEndMatch = text.match(/^(?:بدون انتهاء|حذف انتهاء|مستمرة|مستمره)\s+(?:حملة\s+|حمله\s+)?(\d{10,25})$/i);
+    if (neverEndMatch) {
+        const campaignId = neverEndMatch[1];
+        await sendGroupReply(sock, remoteJid, { text: `⏳ جاري ضبط الحملة \`${campaignId}\` لتكون مستمرة بدون انتهاء...` });
+
+        const res = await callManageCampaignApi({
+            action: 'UPDATE_STOP_TIME',
+            target_id: campaignId,
+            stop_time: 'never'
+        });
+
+        if (res.success) {
+            await sendGroupReply(sock, remoteJid, {
+                text: `♾️ *تم تحديث الحملة بنجاح!*\n\n` +
+                      `📌 *المعرف:* \`${campaignId}\`\n` +
+                      `الحملة الآن تعمل بشكل مستمر بدون تاريخ انتهاء.`
+            });
+        } else {
+            await sendGroupReply(sock, remoteJid, {
+                text: `❌ *فشل تحديث الحملة:*\n${res.error || 'حدث خطأ في Meta API'}`
+            });
+        }
+        return true;
+    }
+
+    // 6. أمر تعديل السن: سن [ID] 25-45 | عمر [ID] 20 إلى 50
+    const ageMatch = text.match(/^(?:تعديل\s+|ضبط\s+|تحديث\s+)?(?:استهداف\s+)?(?:سن|عمر|السن|العمر|age)\s+(?:حملة\s+|حمله\s+)?(\d{10,25})\s+(\d{2})\s*(?:-|–|الى|إلى|\s+)\s*(\d{2})$/i);
+    if (ageMatch) {
+        const campaignId = ageMatch[1];
+        const minAge = parseInt(ageMatch[2], 10);
+        const maxAge = parseInt(ageMatch[3], 10);
+
+        await sendGroupReply(sock, remoteJid, { text: `⏳ جاري تعديل الفئة العمرية للحملة \`${campaignId}\` إلى (${minAge} - ${maxAge} سنة)...` });
+
+        const res = await callManageCampaignApi({
+            action: 'UPDATE_TARGETING',
+            target_id: campaignId,
+            targeting: {
+                age_min: minAge,
+                age_max: maxAge
+            }
+        });
+
+        if (res.success) {
+            await sendGroupReply(sock, remoteJid, {
+                text: `🎯 *تم تحديث الفئة العمرية بنجاح!*\n\n` +
+                      `📌 *المعرف:* \`${campaignId}\`\n` +
+                      `👥 *السن المحدث:* من ${minAge} إلى ${maxAge} سنة\n` +
+                      `💡 *ملاحظة:* تم التوافق مع إعدادات Advantage+ Audience تلقائياً.`
+            });
+        } else {
+            await sendGroupReply(sock, remoteJid, {
+                text: `❌ *فشل تحديث الاستهداف:*\n${res.error || 'حدث خطأ في Meta API'}`
+            });
+        }
+        return true;
+    }
+
+    // 7. أمر تعديل النوع / الجنس: نوع [ID] رجال | نوع [ID] نساء | نوع [ID] الكل
+    const genderMatch = text.match(/^(?:تعديل\s+|ضبط\s+|تحديث\s+)?(?:استهداف\s+)?(?:نوع|جنس|النوع|الجنس|gender)\s+(?:حملة\s+|حمله\s+)?(\d{10,25})\s+(رجال|نساء|الكل|الجميع|ذكور|اناث|إناث|all|men|women)$/i);
+    if (genderMatch) {
+        const campaignId = genderMatch[1];
+        const gWord = genderMatch[2].toLowerCase();
+
+        let mappedGender = 'ALL';
+        let genderLabel = 'الجميع (رجال ونساء)';
+        if (['رجال', 'ذكور', 'men'].includes(gWord)) {
+            mappedGender = 'MEN';
+            genderLabel = 'رجال فقط 👨';
+        } else if (['نساء', 'اناث', 'إناث', 'women'].includes(gWord)) {
+            mappedGender = 'WOMEN';
+            genderLabel = 'نساء فقط 👩';
+        }
+
+        await sendGroupReply(sock, remoteJid, { text: `⏳ جاري تعديل استهداف الجنس للحملة \`${campaignId}\` إلى (${genderLabel})...` });
+
+        const res = await callManageCampaignApi({
+            action: 'UPDATE_TARGETING',
+            target_id: campaignId,
+            targeting: {
+                gender: mappedGender
+            }
+        });
+
+        if (res.success) {
+            await sendGroupReply(sock, remoteJid, {
+                text: `🎯 *تم تحديث استهداف الجنس بنجاح!*\n\n` +
+                      `📌 *المعرف:* \`${campaignId}\`\n` +
+                      `👥 *الجنس المستهدف:* ${genderLabel}`
+            });
+        } else {
+            await sendGroupReply(sock, remoteJid, {
+                text: `❌ *فشل تحديث استهداف الجنس:*\n${res.error || 'حدث خطأ في Meta API'}`
+            });
+        }
+        return true;
+    }
+
+    // 8. أمر استهداف المناطق / المحافظات: مناطق [ID] القاهرة, الجيزة, الاسكندرية
+    const geoMatch = text.match(/^(?:تعديل\s+|ضبط\s+|تحديث\s+)?(?:استهداف\s+)?(?:مناطق|محافظات|المناطق|المحافظات|مدن|منطقة)\s+(?:حملة\s+|حمله\s+)?(\d{10,25})\s+(.+)$/i);
+    if (geoMatch) {
+        const campaignId = geoMatch[1];
+        const regionsRaw = geoMatch[2].trim();
+
+        await sendGroupReply(sock, remoteJid, { text: `⏳ جاري تحديث المناطق المستهدفة للحملة \`${campaignId}\` (${regionsRaw})...` });
+
+        const res = await callManageCampaignApi({
+            action: 'UPDATE_TARGETING',
+            target_id: campaignId,
+            targeting: {
+                regions: regionsRaw
+            }
+        });
+
+        if (res.success) {
+            await sendGroupReply(sock, remoteJid, {
+                text: `📍 *تم تحديث المناطق المستهدفة بنجاح!*\n\n` +
+                      `📌 *المعرف:* \`${campaignId}\`\n` +
+                      `🗺️ *المناطق المحددة:* ${regionsRaw}`
+            });
+        } else {
+            await sendGroupReply(sock, remoteJid, {
+                text: `❌ *فشل تحديث المناطق:*\n${res.error || 'حدث خطأ في Meta API'}`
+            });
+        }
+        return true;
+    }
+
+    // 9. أمر استهداف الاهتمامات: اهتمامات [ID] تسوق, ملابس
+    const interestMatch = text.match(/^(?:تعديل\s+|ضبط\s+|تحديث\s+)?(?:استهداف\s+)?(?:اهتمامات|اهتمام|الاهتمامات|interests)\s+(?:حملة\s+|حمله\s+)?(\d{10,25})\s+(.+)$/i);
+    if (interestMatch) {
+        const campaignId = interestMatch[1];
+        const interestsRaw = interestMatch[2].trim();
+        const interestsList = interestsRaw.split(/[,،]/).map(s => s.trim()).filter(Boolean);
+
+        await sendGroupReply(sock, remoteJid, { text: `⏳ جاري مطابقة وتحديث الاهتمامات للحملة \`${campaignId}\`...` });
+
+        const res = await callManageCampaignApi({
+            action: 'UPDATE_TARGETING',
+            target_id: campaignId,
+            targeting: {
+                interests: interestsList
+            }
+        });
+
+        if (res.success) {
+            await sendGroupReply(sock, remoteJid, {
+                text: `🎯 *تم تحديث الاهتمامات بنجاح!*\n\n` +
+                      `📌 *المعرف:* \`${campaignId}\`\n` +
+                      `🏷️ *الاهتمامات:* ${interestsRaw}`
+            });
+        } else {
+            await sendGroupReply(sock, remoteJid, {
+                text: `❌ *فشل تحديث الاهتمامات:*\n${res.error || 'حدث خطأ في Meta API'}`
+            });
+        }
+        return true;
+    }
+
+    // 10. أمر تغيير اسم الحملة: اسم [ID] [الاسم الجديد] | تسمية [ID] [الاسم الجديد]
+    const renameMatch = text.match(/^(?:اسم|تسمية|تسميه|تغيير اسم|rename)\s+(?:حملة\s+|حمله\s+)?(\d{10,25})\s+(.+)$/i);
+    if (renameMatch) {
+        const campaignId = renameMatch[1];
+        const newName = renameMatch[2].trim();
+
+        await sendGroupReply(sock, remoteJid, { text: `⏳ جاري تغيير اسم الحملة \`${campaignId}\`...` });
+
+        const res = await callManageCampaignApi({
+            action: 'RENAME',
+            target_id: campaignId,
+            name: newName
+        });
+
+        if (res.success) {
+            await sendGroupReply(sock, remoteJid, {
+                text: `✏️ *تم تغيير اسم الحملة بنجاح!*\n\n` +
+                      `📌 *المعرف:* \`${campaignId}\`\n` +
+                      `📝 *الاسم الجديد:* ${newName}`
+            });
+        } else {
+            await sendGroupReply(sock, remoteJid, {
+                text: `❌ *فشل تغيير اسم الحملة:*\n${res.error || 'حدث خطأ في Meta API'}`
+            });
+        }
+        return true;
+    }
+
+    // 11. أمر نسخ / تكرار الحملة (Duplicate)
+    const duplicateMatch = text.match(/^(?:دبلكييت|دوبلكيت|دبلكيت|نسخ|تكرار|duplicate|copy)\s+(?:حملة\s+|حمله\s+)?(\d{10,25})$/i);
+    if (duplicateMatch) {
+        const campaignId = duplicateMatch[1];
+
+        await sendGroupReply(sock, remoteJid, { text: `⏳ جاري عمل نسخة (Duplicate) متطابقة للحملة \`${campaignId}\`...` });
+
+        const res = await callManageCampaignApi({
+            action: 'DUPLICATE',
+            target_id: campaignId
+        });
+
+        if (res.success) {
+            await sendGroupReply(sock, remoteJid, {
+                text: `📋 *تم نسخ الحملة بنجاح!*\n\n` +
+                      `📌 *المعرف الأصلي:* \`${campaignId}\`\n` +
+                      `🆕 *معرف النسخة الجديدة:* \`${res.copied_id}\`\n` +
+                      `⏸️ *الحالة:* متوقفة مؤقتاً لتجهيزها قبل النشر.\n` +
+                      `💡 *لتشغيل النسخة:* أرسل: \`شغل ${res.copied_id}\``
+            });
+        } else {
+            await sendGroupReply(sock, remoteJid, {
+                text: `❌ *فشل نسخ الحملة:*\n${res.error || 'حدث خطأ في Meta API'}`
+            });
+        }
+        return true;
+    }
+
+    return false;
+}
+
+/**
  * معالجة رسائل جروب تقارير الإعلانات
  */
 export async function handleAdsReportGroupMessage({
@@ -891,22 +1290,39 @@ export async function handleAdsReportGroupMessage({
 
     // 2. فحص أوامر المساعدة أو التعليمات
     if (/^(مساعدة|التعليمات|اوامر|الأوامر|شرح|help)$/i.test(raw)) {
-        const helpMsg = `📊 *دليل استخدام جروب تقارير الإعلانات:*\n\n` +
+        const helpMsg = `📊 *دليل استخدام جروب تقارير وإدارة الإعلانات:*\n\n` +
             `🔹 *لجلب تقرير الحساب الإعلاني:* أرسل رقم الحساب مباشرة:\n` +
             `   - \`1234567890\`\n` +
-            `   - "تقرير الحساب 1234567890"\n\n` +
-            `🔹 *لتحديد الفترة الزمنية:* اكتب الفترة مع الرقم:\n` +
-            `   - "تقرير الحساب 1234567890 امبارح"\n` +
-            `   - "1234567890 اخر 7 ايام"\n` +
-            `   - "1234567890 هذا الشهر"\n` +
-            `   - "1234567890 الكل"\n\n` +
+            `   - "تقرير الحساب 1234567890"\n` +
+            `   - "1234567890 امبارح" أو "اخر 7 ايام" أو "هذا الشهر"\n\n` +
             `🔹 *لجلب تقرير أداء حملة معينة:* أرسل رقم الحملة:\n` +
             `   - "حملة 120252812532900334"\n\n` +
-            `🔹 *لفحص وتدقيق استهداف الحملة (AI 🦅):*\n` +
+            `⚡ *أوامر التحكم السريع بالحملات:*\n` +
+            `   - ⏸️ *إيقاف حملة:* \`وقف 120248649213580630\`\n` +
+            `   - 🟢 *تشغيل حملة:* \`شغل 120248649213580630\`\n` +
+            `   - 💵 *تعديل ميزانية:* \`ميزانية 120248649213580630 500\`\n` +
+            `   - ⏳ *تمديد الحملة:* \`تمديد 120248649213580630 3 ايام\`\n` +
+            `   - 🎯 *تعديل السن:* \`سن 120248649213580630 25-45\`\n` +
+            `   - 👥 *تعديل الجنس:* \`نوع 120248649213580630 رجال\` (أو نساء / الكل)\n` +
+            `   - 📍 *تعديل المناطق:* \`مناطق 120248649213580630 القاهرة, الجيزة\`\n` +
+            `   - 🏷️ *تعديل الاهتمامات:* \`اهتمامات 120248649213580630 تسوق, ملابس\`\n` +
+            `   - ✏️ *تغيير الاسم:* \`اسم 120248649213580630 حملة الشتاء\`\n` +
+            `   - 📋 *دبلكييت / نسخ:* \`دبلكييت 120248649213580630\`\n\n` +
+            `🦅 *لفحص وتدقيق استهداف الحملة بالذكاء الاصطناعي:*\n` +
             `   - "استهداف 120251807851810053"\n` +
-            `   - "استهداف 120251807851810053 ركز على تجار الجملة والمحافظات"\n` +
-            `   - "/استهداف 120251807851810053"`;
+            `   - "استهداف 120251807851810053 ركز على تجار الجملة والمحافظات"`;
         await sendGroupReply(sock, remoteJid, { text: helpMsg });
+        return true;
+    }
+
+    // 2.4 فحص وتنفيذ أوامر التحكم وإدارة الحملات (إيقاف، تشغيل، ميزانية، تمديد، سن، نوع، مناطق، اهتمامات، اسم، نسخ)
+    const handledManagement = await handleCampaignManagementCommand({
+        sock,
+        remoteJid,
+        raw,
+        senderPhone
+    });
+    if (handledManagement) {
         return true;
     }
 

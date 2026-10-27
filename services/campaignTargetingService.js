@@ -71,7 +71,7 @@ export function isCampaignTargetingCommand(text, remoteJid = null) {
     const hasTargetingWord = new RegExp(`(?:^|[\\/\\s])${targetingKeyword}(?:[\\s\\d_]|$)`, 'i').test(trimmed);
     const hasDigits = /\d{6,20}/.test(trimmed);
 
-    if (hasDigits && (hasTargetingWord || /(?:حملة|camp)/i.test(trimmed))) {
+    if (hasDigits && hasTargetingWord) {
         return true;
     }
 
