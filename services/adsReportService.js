@@ -905,7 +905,7 @@ async function sendGroupReply(sock, remoteJid, content) {
 
 /**
  * تحليل ذكي لأوامر إدارة الحملات بالعامية المصرية الطبيعية وكأنك تخاطب ميديا باير
- * يدعم جميع الصيغ المباشرة والعامية الحرة بأي ترتيب
+ * يدعم جميع الصيغ المباشرة والعامية الحرة والأوامر المركبة (Multi-intent Commands) بأي ترتيب
  */
 export function parseConversationalCampaignCommand(rawText = '') {
     if (!rawText || typeof rawText !== 'string') return null;
@@ -921,8 +921,8 @@ export function parseConversationalCampaignCommand(rawText = '') {
 
     const campaignId = idMatches[0];
 
-    // استبعاد استفسارات فحص وتدقيق الاستهداف بالذكاء الاصطناعي (عين السوق) ما لم يكن معها طلب تعديل
-    if (/(?:^|\s)استهداف(?:\s|$)/i.test(text) && !/(?:سن|عمر|نوع|جنس|مناطق|محافظات|اهتمامات|تعديل|غير|عدل)/i.test(text)) {
+    // استبعاد استفسارات فحص وتدقيق الاستهداف بالذكاء الاصطناعي (عين السوق) ما لم يكن معها طلب تعديل صريح
+    if (/(?:^|\s)استهداف(?:\s|$)/i.test(text) && !/(?:سن|عمر|نوع|جنس|مناطق|محافظات|اهتمامات|تعديل|غير|عدل|ميزانية|ميزان|شغل|وقف)/i.test(text)) {
         return null;
     }
 
@@ -931,45 +931,51 @@ export function parseConversationalCampaignCommand(rawText = '') {
         return null;
     }
 
+    // نص نظيف بدون معرّف الحملة لمنع تداخل أرقام الحملة مع مبالغ الميزانية أو السن أو الأيام
+    const textWithoutId = text.replace(new RegExp('\\b' + campaignId + '\\b', 'g'), ' ');
+
+    const actions = [];
+
     // 1. أمر إيقاف الحملة (Pause)
     if (/(?:وقف|وقفه|وقفي|وقفها|وقفلي|وقفوا|توقف|توقفي|توقفلي|ايقاف|إيقاف|توقيف|عطل|عطلها|اووقف|اوقف|اوصل|pause|stop)/i.test(text)) {
         if (!/(?:ليه|هو ليه|ازاي|سبب|الحملات المتوقفة|الحملات المتوقفه)/i.test(text)) {
-            return {
-                action: 'UPDATE_STATUS',
-                campaignId,
-                status: 'PAUSED'
-            };
+            if (!/(?:شغل|شغلها|تفعيل|تشغيل)/i.test(text) || /(?:ثم\s*وقف|وبعدين\s*وقف|وقفها)/i.test(text)) {
+                actions.push({
+                    action: 'UPDATE_STATUS',
+                    status: 'PAUSED'
+                });
+            }
         }
     }
 
     // 2. أمر تشغيل الحملة (Resume / Active)
     if (/(?:شغل|شغله|شغلي|شغلها|شغلوا|تشغيل|تشغلي|تشغل|فعل|فعلها|فعلي|تفعيل|افتح|افتحها|resume|start|active)/i.test(text)) {
         if (!/(?:ليه|هو ليه|ازاي|سبب|الحملات الشغالة|الحملات الشغاله|الحملات النشطة|الحملات النشطه)/i.test(text)) {
-            return {
-                action: 'UPDATE_STATUS',
-                campaignId,
-                status: 'ACTIVE'
-            };
+            if (!actions.some(a => a.action === 'UPDATE_STATUS')) {
+                actions.push({
+                    action: 'UPDATE_STATUS',
+                    status: 'ACTIVE'
+                });
+            }
         }
     }
 
     // 3. أمر تعديل الميزانية (Budget)
     if (/(?:ميزان|ميزانية|ميزانيه|budget|صرف|فلوس|الميزانية|الميزانيه)/i.test(text)) {
-        const allNums = text.match(/\b\d+(?:\.\d+)?\b/g) || [];
-        const budgetNumStr = allNums.find(n => n !== campaignId && Number(n) >= 10 && Number(n) <= 500000);
+        const allNums = textWithoutId.match(/\b\d+(?:\.\d+)?\b/g) || [];
+        const budgetNumStr = allNums.find(n => Number(n) >= 10 && Number(n) <= 500000);
         if (budgetNumStr) {
             const isLifetime = /(كلي|إجمالي|اجمالي|إجمالية|اجمالية|lifetime)/i.test(text);
-            return {
+            actions.push({
                 action: 'UPDATE_BUDGET',
-                campaignId,
                 amount: budgetNumStr,
                 isLifetime
-            };
+            });
+        } else {
+            actions.push({
+                action: 'GUIDE_BUDGET'
+            });
         }
-        return {
-            action: 'GUIDE_BUDGET',
-            campaignId
-        };
     }
 
     // 4. أمر تمديد الحملة (Extend)
@@ -981,65 +987,62 @@ export function parseConversationalCampaignCommand(rawText = '') {
         else if (/(?:يومين)/i.test(text)) days = 2;
         else if (/(?:يوم واحد|يوم(?:\s|$))/i.test(text) && !/\d+\s*يوم/.test(text)) days = 1;
         else {
-            const allNums = text.match(/\b\d+\b/g) || [];
-            const dayNumStr = allNums.find(n => n !== campaignId && Number(n) >= 1 && Number(n) <= 365);
+            const allNums = textWithoutId.match(/\b\d+\b/g) || [];
+            const dayNumStr = allNums.find(n => Number(n) >= 1 && Number(n) <= 365);
             if (dayNumStr) days = parseInt(dayNumStr, 10);
         }
 
         if (days) {
-            return {
+            actions.push({
                 action: 'UPDATE_STOP_TIME',
-                campaignId,
                 extendDays: days
-            };
+            });
+        } else {
+            actions.push({
+                action: 'GUIDE_EXTEND'
+            });
         }
-        return {
-            action: 'GUIDE_EXTEND',
-            campaignId
-        };
     }
 
     // 5. بدون تاريخ انتهاء
     if (/(?:بدون انتهاء|حذف انتهاء|شيل الانتهاء|مستمرة|مستمره|بدون تاريخ انتهاء|شيل تاريخ الانتهاء)/i.test(text)) {
-        return {
+        actions.push({
             action: 'UPDATE_STOP_TIME',
-            campaignId,
             stopTime: 'never'
-        };
+        });
     }
 
     // 6. تاريخ انتهاء محدد
-    const dateMatch = text.match(/(\d{4}-\d{2}-\d{2}(?:\s+\d{2}:\d{2})?)/);
+    const dateMatch = textWithoutId.match(/(\d{4}-\d{2}-\d{2}(?:\s+\d{2}:\d{2})?)/);
     if (dateMatch && /(?:انتهاء|انهاء|تاريخ انتهاء|نهاية)/i.test(text)) {
-        return {
+        actions.push({
             action: 'UPDATE_STOP_TIME',
-            campaignId,
             stopTime: dateMatch[1]
-        };
+        });
     }
 
     // 7. تعديل السن (Age)
     if (/(?:سن|عمر|السن|العمر|age)/i.test(text)) {
         // يدعم: من 25 حتي 50 / من 25 حتى 50 / 25 لحد 50 / 25 لغاية 50 / 25 لـ 50 / 25 الى 50 / 25-50 / 25 50
-        const ageMatch = text.match(/(?:من\s*)?(\d{2})\s*(?:-|–|—|الى|إلى|حتي|حتى|لحد|لغاية|لـ|ل|و|\s+)\s*(\d{2})(?:\s*سنة|\s*سنه)?/i);
+        const ageMatch = textWithoutId.match(/(?:(?:سن|عمر|السن|العمر|age)[^\d]*?)?(?:من\s*)?(\d{2})\s*(?:-|–|—|الى|إلى|حتي|حتى|لحد|لغاية|لـ|ل|و)\s*(\d{2})(?:\s*سنة|\s*سنه)?/i);
         if (ageMatch) {
             const a1 = parseInt(ageMatch[1], 10);
             const a2 = parseInt(ageMatch[2], 10);
             if (a1 >= 13 && a1 <= 65 && a2 >= 13 && a2 <= 65) {
-                return {
+                actions.push({
                     action: 'UPDATE_TARGETING',
-                    campaignId,
+                    subType: 'age',
                     targeting: {
                         age_min: Math.min(a1, a2),
                         age_max: Math.max(a1, a2)
                     }
-                };
+                });
             }
+        } else {
+            actions.push({
+                action: 'GUIDE_AGE'
+            });
         }
-        return {
-            action: 'GUIDE_AGE',
-            campaignId
-        };
     }
 
     // 8. تعديل النوع (Gender)
@@ -1057,99 +1060,105 @@ export function parseConversationalCampaignCommand(rawText = '') {
             genderLabel = 'الجميع (رجال ونساء)';
         }
         if (mappedGender) {
-            return {
+            actions.push({
                 action: 'UPDATE_TARGETING',
-                campaignId,
+                subType: 'gender',
                 targeting: { gender: mappedGender },
                 genderLabel
-            };
+            });
+        } else {
+            actions.push({
+                action: 'GUIDE_GENDER'
+            });
         }
-        return {
-            action: 'GUIDE_GENDER',
-            campaignId
-        };
     }
 
     // 9. تعديل المناطق والمحافظات (Regions)
     if (/(?:مناطق|محافظات|المناطق|المحافظات|مدن|منطقة)/i.test(text)) {
-        let cleanText = text;
-        cleanText = cleanText.replace(campaignId, ' ');
+        let cleanText = textWithoutId;
         cleanText = cleanText.replace(/.*?(?:مناطق|محافظات|مدن|منطقة)\s*(?:خليهم|خليها|هي|هو|تكون|يكون|لـ|إلى|الى)?\s*[:=]?/i, ' ');
         cleanText = cleanText.replace(/(?:الحملة|حمله|دي|رقم)\s*/gi, ' ').trim();
 
         if (cleanText.length >= 2) {
-            return {
+            actions.push({
                 action: 'UPDATE_TARGETING',
-                campaignId,
+                subType: 'regions',
                 targeting: { regions: cleanText },
                 regionsRaw: cleanText
-            };
+            });
+        } else {
+            actions.push({
+                action: 'GUIDE_REGIONS'
+            });
         }
-        return {
-            action: 'GUIDE_REGIONS',
-            campaignId
-        };
     }
 
     // 10. تعديل الاهتمامات (Interests)
     if (/(?:اهتمامات|اهتمام|الاهتمامات|interests)/i.test(text)) {
-        let cleanText = text;
-        cleanText = cleanText.replace(campaignId, ' ');
+        let cleanText = textWithoutId;
         cleanText = cleanText.replace(/.*?(?:اهتمامات|اهتمام|الاهتمامات)\s*(?:خليهم|خليها|هي|هو|تكون|يكون|لـ|إلى|الى)?\s*[:=]?/i, ' ');
         cleanText = cleanText.replace(/(?:الحملة|حمله|دي|رقم)\s*/gi, ' ').trim();
 
         const interestsList = cleanText.split(/[,،\n]/).map(s => s.trim()).filter(Boolean);
         if (interestsList.length > 0) {
-            return {
+            actions.push({
                 action: 'UPDATE_TARGETING',
-                campaignId,
+                subType: 'interests',
                 targeting: { interests: interestsList },
                 interestsRaw: cleanText
-            };
+            });
+        } else {
+            actions.push({
+                action: 'GUIDE_INTERESTS'
+            });
         }
-        return {
-            action: 'GUIDE_INTERESTS',
-            campaignId
-        };
     }
 
     // 11. تغيير اسم الحملة (Rename)
     if (/(?:اسم|تسمية|تسميه|غير اسم|تغيير اسم|سمي|rename)/i.test(text)) {
-        let cleanText = text;
-        cleanText = cleanText.replace(campaignId, ' ');
+        let cleanText = textWithoutId;
         cleanText = cleanText.replace(/.*?(?:اسم|تسمية|تسميه|غير اسم|تغيير اسم|سمي|rename)\s*(?:الحملة|حمله|دي|رقم)?\s*(?:لـ|الى|إلى|خليه|خليها|باسم|هو)?\s*[:=]?/i, ' ');
         cleanText = cleanText.replace(/(?:الحملة|حمله|دي|رقم)\s*/gi, ' ').trim();
 
         if (cleanText.length >= 2) {
-            return {
+            actions.push({
                 action: 'RENAME',
-                campaignId,
                 name: cleanText
-            };
+            });
+        } else {
+            actions.push({
+                action: 'GUIDE_RENAME'
+            });
         }
-        return {
-            action: 'GUIDE_RENAME',
-            campaignId
-        };
     }
 
     // 12. دبلكييت / نسخ الحملة (Duplicate)
     if (/(?:دبلكييت|دوبلكيت|دبلكيت|نسخ|تكرار|اعمل نسخة|اعمل نسخه|كرر|كررها|انسخ|duplicate|copy)/i.test(text)) {
-        return {
-            action: 'DUPLICATE',
-            campaignId
-        };
+        actions.push({
+            action: 'DUPLICATE'
+        });
     }
 
     // 13. التقاط عام لنوايا التعديل التي لم تكتمل بارامتراتها (General Management Intent)
-    if (/(?:تعديل|تغيير|غير|عدل|ظبط|تظبيط|عايز اعمل|عاوز اعمل|ممكن اعدل)/i.test(text)) {
-        return {
-            action: 'GUIDE_GENERAL',
-            campaignId
-        };
+    if (actions.length === 0 && /(?:تعديل|تغيير|غير|عدل|ظبط|تظبيط|عايز اعمل|عاوز اعمل|ممكن اعدل)/i.test(text)) {
+        actions.push({
+            action: 'GUIDE_GENERAL'
+        });
     }
 
-    return null;
+    if (actions.length === 0) {
+        return null;
+    }
+
+    // استبعاد إرشادات GUIDE إذا وجد أمر تنفيذي صالح
+    const executableActions = actions.filter(a => !a.action.startsWith('GUIDE_'));
+    const finalActions = executableActions.length > 0 ? executableActions : actions;
+
+    return {
+        campaignId,
+        actions: finalActions,
+        ...finalActions[0]
+    };
 }
 
 /**
@@ -1163,6 +1172,7 @@ export function isCampaignManagementCommand(rawText = '') {
 /**
  * معالجة أوامر التحكم السريع بالحملات الإعلانية من الواتساب
  * بأسلوب الميديا باير الطبيعي (إيقاف، تشغيل، تعديل ميزانية، تمديد، ضبط السن، النوع، المناطق، الاهتمامات، تغيير الاسم، نسخ الحملة)
+ * مع دعم كامل للأوامر المركبة (Compound Commands)
  */
 export async function handleCampaignManagementCommand({ sock, remoteJid, raw, senderPhone }) {
     const cmd = parseConversationalCampaignCommand(raw);
@@ -1171,6 +1181,155 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
     }
 
     const { campaignId, action } = cmd;
+
+    // معالجة الأوامر المركبة (Compound Commands) عندما يطلب المستخدم أكثر من إجراء في نفس الرسالة
+    if (cmd.actions && cmd.actions.length > 1) {
+        await sendGroupReply(sock, remoteJid, { text: `⏳ جاري تنفيذ الأوامر المطلوبة للحملة \`${campaignId}\`...` });
+
+        const results = [];
+        for (const act of cmd.actions) {
+            if (act.action === 'UPDATE_STATUS') {
+                const res = await callManageCampaignApi({
+                    action: 'UPDATE_STATUS',
+                    target_id: campaignId,
+                    status: act.status
+                });
+                if (res.success) {
+                    results.push(`🟢 *الحالة:* تم ${act.status === 'ACTIVE' ? 'تشغيل وتفعيل' : 'إيقاف'} الحملة بنجاح (${act.status})`);
+                } else {
+                    results.push(`❌ *الحالة:* تعذر تغيير الحالة (${res.error || 'خطأ في Meta API'})`);
+                }
+            } else if (act.action === 'UPDATE_BUDGET') {
+                const payload = {
+                    action: 'UPDATE_BUDGET',
+                    target_id: campaignId
+                };
+                if (act.isLifetime) {
+                    payload.lifetime_budget = act.amount;
+                } else {
+                    payload.daily_budget = act.amount;
+                }
+                const res = await callManageCampaignApi(payload);
+                if (res.success) {
+                    results.push(`💵 *الميزانية:* تم ضبطها إلى ${res.budget_formatted || `${act.amount} ج.م`} (${res.budget_type || (act.isLifetime ? 'إجمالية' : 'يومية')})`);
+                } else {
+                    results.push(`❌ *الميزانية:* تعذر تعديل الميزانية (${res.error || 'خطأ في Meta API'})`);
+                }
+            } else if (act.action === 'UPDATE_STOP_TIME') {
+                if (act.extendDays) {
+                    const res = await callManageCampaignApi({
+                        action: 'UPDATE_STOP_TIME',
+                        target_id: campaignId,
+                        extend_days: act.extendDays
+                    });
+                    if (res.success) {
+                        results.push(`⏳ *المدة:* تم تمديد الحملة بمقدار ${act.extendDays} يوم`);
+                    } else {
+                        results.push(`❌ *المدة:* تعذر تمديد الحملة (${res.error || 'خطأ في Meta API'})`);
+                    }
+                } else if (act.stopTime === 'never') {
+                    const res = await callManageCampaignApi({
+                        action: 'UPDATE_STOP_TIME',
+                        target_id: campaignId,
+                        stop_time: 'never'
+                    });
+                    if (res.success) {
+                        results.push(`♾️ *تاريخ الانتهاء:* الحملة الآن مستمرة بدون تاريخ انتهاء`);
+                    } else {
+                        results.push(`❌ *تاريخ الانتهاء:* تعذر التحديث (${res.error || 'خطأ في Meta API'})`);
+                    }
+                } else if (act.stopTime) {
+                    const res = await callManageCampaignApi({
+                        action: 'UPDATE_STOP_TIME',
+                        target_id: campaignId,
+                        stop_time: act.stopTime
+                    });
+                    if (res.success) {
+                        results.push(`📅 *تاريخ الانتهاء:* تم الضبط إلى ${act.stopTime}`);
+                    } else {
+                        results.push(`❌ *تاريخ الانتهاء:* تعذر التحديث (${res.error || 'خطأ في Meta API'})`);
+                    }
+                }
+            } else if (act.action === 'UPDATE_TARGETING') {
+                const targeting = act.targeting;
+                if (targeting.age_min) {
+                    const res = await callManageCampaignApi({
+                        action: 'UPDATE_TARGETING',
+                        target_id: campaignId,
+                        targeting: {
+                            age_min: targeting.age_min,
+                            age_max: targeting.age_max
+                        }
+                    });
+                    if (res.success) {
+                        results.push(`👥 *السن:* تم ضبط الفئة العمرية من ${targeting.age_min} إلى ${targeting.age_max} سنة`);
+                    } else {
+                        let errorText = res.error || 'خطأ في Meta API';
+                        if (errorText.includes('Advantage') || errorText.includes('1359202')) {
+                            errorText = 'الحملة تستخدم Advantage+ Audience وميتا تمنع تعديل السن يدوياً عبر الـ API';
+                        }
+                        results.push(`❌ *السن:* ${errorText}`);
+                    }
+                } else if (targeting.gender) {
+                    const res = await callManageCampaignApi({
+                        action: 'UPDATE_TARGETING',
+                        target_id: campaignId,
+                        targeting: { gender: targeting.gender }
+                    });
+                    if (res.success) {
+                        results.push(`👥 *الجنس:* تم التحديد إلى (${act.genderLabel})`);
+                    } else {
+                        results.push(`❌ *الجنس:* ${res.error || 'خطأ في Meta API'}`);
+                    }
+                } else if (targeting.regions) {
+                    const res = await callManageCampaignApi({
+                        action: 'UPDATE_TARGETING',
+                        target_id: campaignId,
+                        targeting: { regions: targeting.regions }
+                    });
+                    if (res.success) {
+                        results.push(`📍 *المناطق:* تم الضبط إلى (${act.regionsRaw})`);
+                    } else {
+                        results.push(`❌ *المناطق:* ${res.error || 'خطأ في Meta API'}`);
+                    }
+                } else if (targeting.interests) {
+                    const res = await callManageCampaignApi({
+                        action: 'UPDATE_TARGETING',
+                        target_id: campaignId,
+                        targeting: { interests: targeting.interests }
+                    });
+                    if (res.success) {
+                        results.push(`🏷️ *الاهتمامات:* تم الضبط إلى (${act.interestsRaw})`);
+                    } else {
+                        results.push(`❌ *الاهتمامات:* ${res.error || 'خطأ في Meta API'}`);
+                    }
+                }
+            } else if (act.action === 'RENAME') {
+                const res = await callManageCampaignApi({
+                    action: 'RENAME',
+                    target_id: campaignId,
+                    name: act.name
+                });
+                if (res.success) {
+                    results.push(`✏️ *الاسم:* تم تغيير اسم الحملة إلى "${act.name}"`);
+                } else {
+                    results.push(`❌ *الاسم:* تعذر تغيير الاسم (${res.error || 'خطأ في Meta API'})`);
+                }
+            }
+        }
+
+        const allSucceeded = !results.some(r => r.startsWith('❌'));
+        const title = allSucceeded
+            ? `🎯 *تمام يا فندم، نفذتلك جميع الأوامر بنجاح!*`
+            : `⚠️ *تم تنفيذ بعض الأوامر مع وجود تنبيهات:*`;
+
+        let summaryMsg = `${title}\n\n📌 *المعرف:* \`${campaignId}\`\n\n`;
+        summaryMsg += results.join('\n') + '\n\n';
+        summaryMsg += `💡 *جاهز لأي تعديل إضافي تحتاجه يا فندم!* 🚀`;
+
+        await sendGroupReply(sock, remoteJid, { text: summaryMsg });
+        return true;
+    }
 
     // إرشادات فورية ذكية عند عدم اكتمال بارامترات الأمر
     if (action === 'GUIDE_AGE') {
