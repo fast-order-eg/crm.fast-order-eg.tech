@@ -29,8 +29,8 @@ import { handleStaffMessage } from '../services/whatsappProductCreatorService.js
 import { handleCompetitorMessage } from '../services/competitorService.js';
 import { handleFacebookAnalysisMessage } from '../services/facebookAnalysisService.js';
 import { handleReminderGroupMessage } from '../services/reminderService.js';
-import { handleAdsReportGroupMessage } from '../services/adsReportService.js';
-import { handleCampaignTargetingMessage, isCampaignTargetingCommand, isPlainTargetingCommand } from '../services/campaignTargetingService.js';
+import { handleAdsReportGroupMessage, handleCampaignManagementCommand, isCampaignManagementCommand } from '../services/adsReportService.js';
+import { handleCampaignTargetingMessage, isCampaignTargetingCommand, isPlainTargetingCommand, isTargetingStaffAuthorized } from '../services/campaignTargetingService.js';
 
 const handoffMessages = [
     "أهلاً بحضرتك يا فندم! تم تسجيل طلبك وهتتواصل معاك مسؤولة المبيعات أستاذة علا فوراً ✨\n\nتقدر كمان تتصل بيها أو تراسلها واتساب مباشرة:\n📞 هاتف / واتساب: 01070366534\n💬 https://wa.me/201070366534",
@@ -2159,6 +2159,21 @@ export const startSession = async (userId, io, phoneNumber = null) => {
                 }
             }
 
+            // 1.07 Check Campaign Management Command (إيقاف، تشغيل، ميزانية، تمديد، إلخ) for direct/staff messages
+            if (!remoteJid.endsWith('@g.us') && isCampaignManagementCommand(rawStaffText)) {
+                const isDirectControlAuthorized = (staffSenderPhone && (staffSenderPhone.endsWith('1092308465') || await isTargetingStaffAuthorized(staffSenderPhone, userId))) || user.id === 3 || user.username === 'rady';
+                if (isDirectControlAuthorized) {
+                    console.log(`🎯 [Campaign Management Direct] Executing command "${rawStaffText}" from ${staffSenderPhone} for user ${userId}`);
+                    const handled = await handleCampaignManagementCommand({
+                        sock,
+                        remoteJid,
+                        raw: rawStaffText,
+                        senderPhone: staffSenderPhone
+                    });
+                    if (handled) return;
+                }
+            }
+
             // 1.1 Check Facebook Post & Page Analysis (عين السوق 🦅)
             const facebookAnalysisResult = await handleFacebookAnalysisMessage({
                 sock,
@@ -2245,6 +2260,15 @@ export const startSession = async (userId, io, phoneNumber = null) => {
                     || subjectLower.includes("ads")
                     || subjectLower.includes("campaign");
 
+                // Check for "التحكم في الحملات الإعلانية" Group (Campaign Control Group via Saved ID or Name)
+                const configuredCampaignControlGroupJid = (await getSystemSetting('campaign_control_group_jid', userId).catch(() => null))
+                    || (await getSystemSetting('campaign_control_group_jid', 1).catch(() => null))
+                    || (await getSystemSetting('campaign_control_group_jid', 3).catch(() => null));
+
+                const isCampaignControlGroup = (configuredCampaignControlGroupJid && remoteJid === configuredCampaignControlGroupJid)
+                    || rawSubject.includes("تحكم")
+                    || subjectLower.includes("control");
+
                 // استخراج رقم هاتف مرسل رسالة الجروب بدقة متناهية مع دعم كامل للـ Devices و LID و groupMetadata
                 let groupSenderPhone = null;
                 const rawParticipant = msg.key?.participant || msg.participant || '';
@@ -2310,7 +2334,7 @@ export const startSession = async (userId, io, phoneNumber = null) => {
                 }
 
                 // 3. التحقق الاحتياطي: لو مرسل الرسالة في جروب تذكيرات أو تقارير إعلانات هو الأونر/المدير
-                if (!groupSenderPhone && (isReminderGroup || isAdsReportGroup) && groupMetadata) {
+                if (!groupSenderPhone && (isReminderGroup || isAdsReportGroup || isCampaignControlGroup) && groupMetadata) {
                     const owner = groupMetadata.owner || groupMetadata.subjectOwner;
                     const cleanOwner = (owner || '').split(':')[0];
                     if (cleanOwner.includes('201092308465')) {
@@ -2340,6 +2364,22 @@ export const startSession = async (userId, io, phoneNumber = null) => {
 
                 if (isAdsReportGroup) {
                     console.log(`📊 [Ads Report Group] Message received: "${text}" from ${groupSenderPhone || rawParticipant} in group "${rawSubject || remoteJid}"`);
+                    const handled = await handleAdsReportGroupMessage({
+                        sock,
+                        remoteJid,
+                        senderPhone: groupSenderPhone,
+                        participantJid: rawParticipant || remoteJid,
+                        text,
+                        msg,
+                        groupMetadata,
+                        userId,
+                        io
+                    });
+                    if (handled) return;
+                }
+
+                if (isCampaignControlGroup) {
+                    console.log(`🎯 [Campaign Control Group] Message received: "${text}" from ${groupSenderPhone || rawParticipant} in group "${rawSubject || remoteJid}"`);
                     const handled = await handleAdsReportGroupMessage({
                         sock,
                         remoteJid,

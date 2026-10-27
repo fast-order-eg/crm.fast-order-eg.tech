@@ -325,6 +325,26 @@ export const defaultSettingsMeta = {
         defaultValue: [
             { name: 'راضي', phone: '01092308465', isPrimary: true }
         ]
+    },
+
+    // التحكم في الحملات الإعلانية (Meta Ads Control)
+    campaign_control_system_enabled: {
+        type: 'boolean',
+        category: 'campaign_control',
+        label: 'تفعيل نظام التحكم في الحملات الإعلانية في الجروب',
+        defaultValue: true
+    },
+    campaign_control_group_jid: {
+        type: 'text',
+        category: 'campaign_control',
+        label: 'معرف جروب التحكم في الحملات الإعلانية المعتمد',
+        defaultValue: ''
+    },
+    campaign_control_group_name: {
+        type: 'text',
+        category: 'campaign_control',
+        label: 'اسم جروب التحكم في الحملات الإعلانية المعتمد',
+        defaultValue: 'التحكم في الإعلانات'
     }
 };
 

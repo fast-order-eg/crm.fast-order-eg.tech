@@ -200,6 +200,12 @@
                         الاستهدافات
                     </button>
                 </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="campaign-control-tab" data-bs-toggle="pill" data-bs-target="#campaign-control-pane" type="button" role="tab" aria-controls="campaign-control-pane" aria-selected="false">
+                        <i class="bi bi-sliders2-vertical text-warning"></i>
+                        التحكم في الحملات الإعلانية
+                    </button>
+                </li>
             </ul>
 
             <!-- Unified Form for all settings -->
@@ -1622,6 +1628,208 @@
                         </div>
                     </div>
 
+                    <!-- 9. Campaign Control Tab -->
+                    <div class="tab-pane fade" id="campaign-control-pane" role="tabpanel" aria-labelledby="campaign-control-tab">
+                        <div class="d-flex align-items-center justify-content-between mb-4 pb-2 border-bottom flex-wrap gap-2">
+                            <div>
+                                <h5 class="fw-bold mb-1 text-dark d-flex align-items-center">
+                                    <i class="bi bi-sliders2-vertical text-warning me-2"></i>
+                                    نظام التحكم السريع في الحملات الإعلانية (Meta Ads Control)
+                                </h5>
+                                <p class="text-muted small mb-0">تحكم كامل وفوري في حملات ميتا الإعلانية: إيقاف، تشغيل، تعديل ميزانية، تمديد، ضبط السن، النوع، المحافظات، الاهتمامات، وتكرار الحملات مباشرة من جروب الواتساب أو مع لينا.</p>
+                            </div>
+                            <div>
+                                <span class="badge bg-warning bg-opacity-10 text-dark border border-warning border-opacity-25 px-3 py-2 rounded-pill fw-medium">
+                                    <i class="bi bi-shield-check text-success me-1"></i>
+                                    ربط فوري بـ Meta Marketing API 🟢
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="row g-3 g-lg-4">
+                            <!-- Left Column: Group Selection & Integration Settings -->
+                            <div class="col-lg-5">
+                                <!-- Group Selection Card -->
+                                <div class="card border-0 shadow-sm p-3 p-md-4 rounded-4 bg-light mb-3 mb-md-4">
+                                    <div class="d-flex align-items-center justify-content-between mb-3 gap-2">
+                                        <div class="d-flex align-items-center">
+                                            <div class="bg-warning bg-opacity-10 rounded-circle me-2.5 me-md-3 d-flex align-items-center justify-content-center icon-circle-fixed">
+                                                <i class="bi bi-whatsapp text-success fs-5"></i>
+                                            </div>
+                                            <div>
+                                                <h6 class="fw-bold mb-0 text-dark">جروب واتساب للتحكم في الإعلانات</h6>
+                                                <small class="text-muted">الجروب المخصص الذي يتلقى فيه البوت أوامر إدارة الحملات وينفذها فوراً</small>
+                                            </div>
+                                        </div>
+                                        <div class="form-check form-switch mb-0 flex-shrink-0">
+                                            <input class="form-check-input" type="checkbox" name="campaign_control_system_enabled" id="campaign_control_system_enabled" value="true" <%= settings.campaign_control_system_enabled !== false ? 'checked' : '' %> style="width: 2.8rem; height: 1.4rem;">
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold text-secondary small">اختر الجروب من قائمة جروبات البوت:</label>
+                                        <div class="d-flex flex-column flex-sm-row gap-2">
+                                            <select name="campaign_control_group_jid" id="campaignControlGroupSelect" class="form-select border shadow-xs py-2.5 rounded-3 fw-medium flex-grow-1">
+                                                <option value="" <%= !settings.campaign_control_group_jid ? 'selected' : '' %>>⚡ التعرف التلقائي على أي جروب اسمه (التحكم في الإعلانات / تحكم / Control)</option>
+                                                <% if (settings.campaign_control_group_jid) { %>
+                                                    <option value="<%= settings.campaign_control_group_jid %>" selected>📌 الجروب الحالي المحفوظ (<%= settings.campaign_control_group_name || 'التحكم في الإعلانات' %>)</option>
+                                                <% } %>
+                                            </select>
+                                            <button type="button" id="refreshCampaignControlGroupsBtn" class="btn btn-outline-secondary bg-white py-2 px-3 rounded-3 fw-bold text-nowrap" title="تحديث قائمة الجروبات من الواتساب">
+                                                <i class="bi bi-arrow-clockwise me-1"></i> جلب الجروبات
+                                            </button>
+                                        </div>
+                                        <input type="hidden" name="campaign_control_group_name" id="campaignControlGroupName" value="<%= settings.campaign_control_group_name || 'التحكم في الإعلانات' %>">
+                                        <div class="form-text text-muted small mt-1">إذا تركت الخيار التلقائي، سيتعرف البوت تلقائياً على أي جروب يحتوي اسمه على "تحكم" أو "control".</div>
+                                    </div>
+
+                                    <!-- Check Status Button -->
+                                    <div class="d-flex gap-2">
+                                        <button type="button" id="checkCampaignControlGroupBtn" class="btn btn-warning text-dark fw-bold rounded-3 py-2 px-3 shadow-sm flex-grow-1">
+                                            <i class="bi bi-search me-1"></i> فحص حالة جروب التحكم في الإعلانات
+                                        </button>
+                                    </div>
+                                    <div id="checkCampaignControlGroupResult" class="mt-3 small rounded-3" style="display: none;"></div>
+                                </div>
+
+                                <!-- Security & Permissions Notice -->
+                                <div class="card border-0 shadow-sm p-3 p-md-4 rounded-4 bg-white border-start border-4 border-warning mb-3">
+                                    <h6 class="fw-bold text-dark mb-2 d-flex align-items-center">
+                                        <i class="bi bi-shield-lock-fill text-warning me-2"></i>
+                                        أمان الصلاحيات والتنفيذ
+                                    </h6>
+                                    <ul class="text-muted small mb-0 ps-3">
+                                        <li class="mb-1"><strong>داخل جروب التحكم المعتمد:</strong> جميع أعضاء الجروب لديهم صلاحية كاملة لتنفيذ أوامر الإيقاف والتشغيل وتعديل الميزانيات والاستهداف.</li>
+                                        <li class="mb-1"><strong>في الشات المباشر مع البوت (لينا):</strong> الأوامر متاحة فقط للأدمن وفريق الميديا باير المصرح لهم في تبويب الاستهدافات.</li>
+                                        <li><strong>الحماية من الحظر (Anti-Ban):</strong> ينفذ البوت فترات انتظار ذكية ومحاكاة الكتابة البشرية لمنع أي تقييد.</li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <!-- Right Column: Interactive Command Catalog -->
+                            <div class="col-lg-7">
+                                <div class="card border-0 shadow-sm p-3 p-md-4 rounded-4 bg-white border-top border-4 border-warning h-100">
+                                    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+                                        <h6 class="fw-bold text-dark mb-0">
+                                            <i class="bi bi-terminal text-warning me-2"></i>
+                                            دليل أوامر التحكم السريع في الإعلانات عبر الواتساب:
+                                        </h6>
+                                        <span class="badge bg-light text-secondary border small">أوامر مباشرة أو بسلاش /</span>
+                                    </div>
+
+                                    <div class="d-flex flex-column gap-2.5 small">
+                                        <!-- 1. وقف / تشغيل -->
+                                        <div class="p-3 rounded-3 border bg-light shadow-xs">
+                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                <strong class="text-dark">1️⃣ إيقاف وتشغيل الحملات:</strong>
+                                                <span class="badge bg-danger bg-opacity-10 text-danger">UPDATE_STATUS</span>
+                                            </div>
+                                            <div class="d-flex flex-column gap-1.5 mt-2">
+                                                <div class="d-flex align-items-center justify-content-between p-2 rounded-2 bg-white border">
+                                                    <code>وقف 120251807851810053</code>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 copy-cmd-btn" data-cmd="وقف 120251807851810053" title="نسخ الأمر"><i class="bi bi-clipboard"></i> نسخ</button>
+                                                </div>
+                                                <div class="d-flex align-items-center justify-content-between p-2 rounded-2 bg-white border">
+                                                    <code>شغل 120251807851810053</code>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 copy-cmd-btn" data-cmd="شغل 120251807851810053" title="نسخ الأمر"><i class="bi bi-clipboard"></i> نسخ</button>
+                                                </div>
+                                            </div>
+                                            <small class="text-muted d-block mt-1">يقوم بإيقاف مؤقت (PAUSED) أو تفعيل فوري (ACTIVE) للحملة والمجموعات الإعلانية التابعة لها.</small>
+                                        </div>
+
+                                        <!-- 2. الميزانية -->
+                                        <div class="p-3 rounded-3 border bg-light shadow-xs">
+                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                <strong class="text-dark">2️⃣ تعديل الميزانية (يومية / إجمالية):</strong>
+                                                <span class="badge bg-success bg-opacity-10 text-success">UPDATE_BUDGET</span>
+                                            </div>
+                                            <div class="d-flex flex-column gap-1.5 mt-2">
+                                                <div class="d-flex align-items-center justify-content-between p-2 rounded-2 bg-white border">
+                                                    <code>ميزانية 120251807851810053 500</code>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 copy-cmd-btn" data-cmd="ميزانية 120251807851810053 500" title="نسخ الأمر"><i class="bi bi-clipboard"></i> نسخ</button>
+                                                </div>
+                                                <div class="d-flex align-items-center justify-content-between p-2 rounded-2 bg-white border">
+                                                    <code>ميزانية 120251807851810053 3000 كلي</code>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 copy-cmd-btn" data-cmd="ميزانية 120251807851810053 3000 كلي" title="نسخ الأمر"><i class="bi bi-clipboard"></i> نسخ</button>
+                                                </div>
+                                            </div>
+                                            <small class="text-muted d-block mt-1">يعدل الميزانية اليومية فورياً أو الميزانية الإجمالية عند إضافة كلمة (كلي / إجمالي).</small>
+                                        </div>
+
+                                        <!-- 3. تمديد وتاريخ الانتهاء -->
+                                        <div class="p-3 rounded-3 border bg-light shadow-xs">
+                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                <strong class="text-dark">3️⃣ تمديد المدة أو ضبط تاريخ الانتهاء:</strong>
+                                                <span class="badge bg-info bg-opacity-10 text-info">UPDATE_STOP_TIME</span>
+                                            </div>
+                                            <div class="d-flex flex-column gap-1.5 mt-2">
+                                                <div class="d-flex align-items-center justify-content-between p-2 rounded-2 bg-white border">
+                                                    <code>تمديد 120251807851810053 5 ايام</code>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 copy-cmd-btn" data-cmd="تمديد 120251807851810053 5 ايام" title="نسخ الأمر"><i class="bi bi-clipboard"></i> نسخ</button>
+                                                </div>
+                                                <div class="d-flex align-items-center justify-content-between p-2 rounded-2 bg-white border">
+                                                    <code>بدون انتهاء 120251807851810053</code>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 copy-cmd-btn" data-cmd="بدون انتهاء 120251807851810053" title="نسخ الأمر"><i class="bi bi-clipboard"></i> نسخ</button>
+                                                </div>
+                                                <div class="d-flex align-items-center justify-content-between p-2 rounded-2 bg-white border">
+                                                    <code>انتهاء 120251807851810053 2026-11-20</code>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 copy-cmd-btn" data-cmd="انتهاء 120251807851810053 2026-11-20" title="نسخ الأمر"><i class="bi bi-clipboard"></i> نسخ</button>
+                                                </div>
+                                            </div>
+                                            <small class="text-muted d-block mt-1">يمدد نهاية الحملة بعدد أيام محددة أو يجعلها حملة مستمرة بدون انتهاء.</small>
+                                        </div>
+
+                                        <!-- 4. الاستهداف (سن - نوع - مناطق - اهتمامات) -->
+                                        <div class="p-3 rounded-3 border bg-light shadow-xs">
+                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                <strong class="text-dark">4️⃣ تعديل الاستهداف (السن، النوع، المحافظات، الاهتمامات):</strong>
+                                                <span class="badge bg-primary bg-opacity-10 text-primary">UPDATE_TARGETING</span>
+                                            </div>
+                                            <div class="d-flex flex-column gap-1.5 mt-2">
+                                                <div class="d-flex align-items-center justify-content-between p-2 rounded-2 bg-white border">
+                                                    <code>سن 120251807851810053 25-45</code>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 copy-cmd-btn" data-cmd="سن 120251807851810053 25-45" title="نسخ الأمر"><i class="bi bi-clipboard"></i> نسخ</button>
+                                                </div>
+                                                <div class="d-flex align-items-center justify-content-between p-2 rounded-2 bg-white border">
+                                                    <code>نوع 120251807851810053 نساء</code>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 copy-cmd-btn" data-cmd="نوع 120251807851810053 نساء" title="نسخ الأمر"><i class="bi bi-clipboard"></i> نسخ</button>
+                                                </div>
+                                                <div class="d-flex align-items-center justify-content-between p-2 rounded-2 bg-white border">
+                                                    <code>مناطق 120251807851810053 القاهرة, الجيزة, الاسكندرية</code>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 copy-cmd-btn" data-cmd="مناطق 120251807851810053 القاهرة, الجيزة, الاسكندرية" title="نسخ الأمر"><i class="bi bi-clipboard"></i> نسخ</button>
+                                                </div>
+                                                <div class="d-flex align-items-center justify-content-between p-2 rounded-2 bg-white border">
+                                                    <code>اهتمامات 120251807851810053 تسوق, ملابس</code>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 copy-cmd-btn" data-cmd="اهتمامات 120251807851810053 تسوق, ملابس" title="نسخ الأمر"><i class="bi bi-clipboard"></i> نسخ</button>
+                                                </div>
+                                            </div>
+                                            <small class="text-muted d-block mt-1">يطابق الاهتمامات والمناطق تلقائياً مع معايير ميتا الرسمية ويحدث مجموعات الإعلانات فورياً.</small>
+                                        </div>
+
+                                        <!-- 5. التسمية والدبلكييت -->
+                                        <div class="p-3 rounded-3 border bg-light shadow-xs">
+                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                <strong class="text-dark">5️⃣ تغيير الاسم وعمل نسخة مطابقة (Duplicate):</strong>
+                                                <span class="badge bg-secondary bg-opacity-10 text-secondary">RENAME & DUPLICATE</span>
+                                            </div>
+                                            <div class="d-flex flex-column gap-1.5 mt-2">
+                                                <div class="d-flex align-items-center justify-content-between p-2 rounded-2 bg-white border">
+                                                    <code>اسم 120251807851810053 حملة عروض نهاية الشهر</code>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 copy-cmd-btn" data-cmd="اسم 120251807851810053 حملة عروض نهاية الشهر" title="نسخ الأمر"><i class="bi bi-clipboard"></i> نسخ</button>
+                                                </div>
+                                                <div class="d-flex align-items-center justify-content-between p-2 rounded-2 bg-white border">
+                                                    <code>دبلكييت 120251807851810053</code>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 copy-cmd-btn" data-cmd="دبلكييت 120251807851810053" title="نسخ الأمر"><i class="bi bi-clipboard"></i> نسخ</button>
+                                                </div>
+                                            </div>
+                                            <small class="text-muted d-block mt-1">أمر دبلكييت ينسخ كامل الحملة بجميع إعلاناتها ومجموعاتها الإعلانية بحالة متوقفة (PAUSED) ويرسل لك المعرف الجديد فوراً.</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
 
                 <!-- Unified Save Button -->
@@ -2607,6 +2815,116 @@
                     prompt('انسخ الأمر التالي:', cmd);
                 });
             };
+
+            // جلب وفحص جروب التحكم في الحملات الإعلانية
+            const refreshCampaignControlGroupsBtn = document.getElementById('refreshCampaignControlGroupsBtn');
+            const campaignControlGroupSelect = document.getElementById('campaignControlGroupSelect');
+            const campaignControlGroupName = document.getElementById('campaignControlGroupName');
+            const checkCampaignControlGroupBtn = document.getElementById('checkCampaignControlGroupBtn');
+            const checkCampaignControlGroupResult = document.getElementById('checkCampaignControlGroupResult');
+
+            if (refreshCampaignControlGroupsBtn && campaignControlGroupSelect) {
+                refreshCampaignControlGroupsBtn.addEventListener('click', async () => {
+                    refreshCampaignControlGroupsBtn.disabled = true;
+                    refreshCampaignControlGroupsBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> جاري الجلب...';
+
+                    try {
+                        const res = await fetch('/dashboard/settings/whatsapp-groups');
+                        const data = await res.json();
+                        if (data.success && data.groups) {
+                            const currentVal = campaignControlGroupSelect.value;
+                            campaignControlGroupSelect.innerHTML = '<option value="">⚡ التعرف التلقائي على أي جروب اسمه (التحكم في الإعلانات / تحكم / Control)</option>';
+                            data.groups.forEach(g => {
+                                const opt = document.createElement('option');
+                                opt.value = g.id;
+                                opt.textContent = `👥 ${g.subject}`;
+                                if (g.id === currentVal) opt.selected = true;
+                                campaignControlGroupSelect.appendChild(opt);
+                            });
+                            if (currentVal && !data.groups.some(g => g.id === currentVal)) {
+                                const opt = document.createElement('option');
+                                opt.value = currentVal;
+                                opt.textContent = `📌 الجروب المحفوظ (${campaignControlGroupName ? campaignControlGroupName.value : currentVal})`;
+                                opt.selected = true;
+                                campaignControlGroupSelect.appendChild(opt);
+                            }
+                        } else {
+                            alert(data.error || 'فشل جلب الجروبات. تأكد من اتصال البوت بالواتساب.');
+                        }
+                    } catch (e) {
+                        alert('حدث خطأ أثناء جلب الجروبات: ' + e.message);
+                    } finally {
+                        refreshCampaignControlGroupsBtn.disabled = false;
+                        refreshCampaignControlGroupsBtn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i> جلب الجروبات';
+                    }
+                });
+
+                campaignControlGroupSelect.addEventListener('change', () => {
+                    const selectedOpt = campaignControlGroupSelect.options[campaignControlGroupSelect.selectedIndex];
+                    if (campaignControlGroupName && selectedOpt) {
+                        campaignControlGroupName.value = selectedOpt.textContent.replace('👥 ', '').replace('⚡ ', '').trim();
+                    }
+                });
+
+                const campaignControlTabBtn = document.getElementById('campaign-control-tab');
+                if (campaignControlTabBtn) {
+                    campaignControlTabBtn.addEventListener('shown.bs.tab', () => {
+                        if (campaignControlGroupSelect.options.length <= 2 && !refreshCampaignControlGroupsBtn.disabled) {
+                            refreshCampaignControlGroupsBtn.click();
+                        }
+                    });
+                }
+            }
+
+            if (checkCampaignControlGroupBtn && checkCampaignControlGroupResult) {
+                checkCampaignControlGroupBtn.addEventListener('click', async () => {
+                    checkCampaignControlGroupBtn.disabled = true;
+                    checkCampaignControlGroupBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> جاري الفحص...';
+                    checkCampaignControlGroupResult.style.display = 'none';
+
+                    try {
+                        const res = await fetch('/dashboard/settings/check-campaign-control-group');
+                        const data = await res.json();
+                        checkCampaignControlGroupResult.style.display = 'block';
+
+                        if (data.status === 'found') {
+                            checkCampaignControlGroupResult.className = 'mt-3 small p-3 rounded-3 bg-success bg-opacity-10 text-success border border-success';
+                            checkCampaignControlGroupResult.innerHTML = `<div class="d-flex align-items-center fw-bold"><i class="bi bi-check-circle-fill fs-5 me-2"></i> ${data.message}</div>`;
+                        } else if (data.status === 'disconnected') {
+                            checkCampaignControlGroupResult.className = 'mt-3 small p-3 rounded-3 bg-danger text-white';
+                            checkCampaignControlGroupResult.innerHTML = `<i class="bi bi-x-circle me-1"></i> ${data.message}`;
+                        } else {
+                            checkCampaignControlGroupResult.className = 'mt-3 small p-3 rounded-3 bg-warning text-dark border border-warning';
+                            checkCampaignControlGroupResult.innerHTML = `<i class="bi bi-exclamation-triangle me-1"></i> ${data.message}`;
+                        }
+                    } catch (e) {
+                        checkCampaignControlGroupResult.style.display = 'block';
+                        checkCampaignControlGroupResult.className = 'mt-3 small p-3 rounded-3 bg-danger text-white';
+                        checkCampaignControlGroupResult.innerHTML = 'حدث خطأ أثناء الفحص: ' + e.message;
+                    } finally {
+                        checkCampaignControlGroupBtn.disabled = false;
+                        checkCampaignControlGroupBtn.innerHTML = '<i class="bi bi-search me-1"></i> فحص حالة جروب التحكم في الإعلانات';
+                    }
+                });
+            }
+
+            // Copy command buttons
+            document.querySelectorAll('.copy-cmd-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const cmd = btn.getAttribute('data-cmd');
+                    if (cmd) {
+                        navigator.clipboard.writeText(cmd).then(() => {
+                            const originalHtml = btn.innerHTML;
+                            btn.innerHTML = '<i class="bi bi-check2 text-success me-1"></i> تم النسخ!';
+                            setTimeout(() => {
+                                btn.innerHTML = originalHtml;
+                            }, 2000);
+                        }).catch(() => {
+                            prompt('انسخ الأمر التالي:', cmd);
+                        });
+                    }
+                });
+            });
         });
     </script>
 </body>

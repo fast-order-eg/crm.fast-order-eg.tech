@@ -2482,6 +2482,9 @@ router.post('/settings/update', async (req, res) => {
         if (updates.ads_report_system_enabled === undefined) {
             updates.ads_report_system_enabled = 'false';
         }
+        if (updates.campaign_control_system_enabled === undefined) {
+            updates.campaign_control_system_enabled = 'false';
+        }
 
         // Process working hours weekly schedule
         if (updates.working_hours_schedule) {
@@ -2507,7 +2510,7 @@ router.post('/settings/update', async (req, res) => {
             if (defaultSettingsMeta[key] !== undefined) {
                 await setSetting(key, value, userId);
                 // مزامنة إعدادات التذكيرات وتقارير الإعلانات للمستخدم 3 (حساب البوت) لضمان توافقها دائماً
-                if ((key.startsWith('reminder_') || key.startsWith('ads_report_')) && userId !== 3) {
+                if ((key.startsWith('reminder_') || key.startsWith('ads_report_') || key.startsWith('campaign_control_')) && userId !== 3) {
                     await setSetting(key, value, 3);
                 }
             }
@@ -2616,6 +2619,47 @@ router.get('/settings/check-reminder-group', async (req, res) => {
         res.json({ status: 'not_found', message: 'لم يتم العثور على جروب تذكيرات مشترك به البوت. تأكد من إضافة رقم البوت للجروب.' });
     } catch (err) {
         console.error('Error checking reminder group:', err);
+        res.status(500).json({ status: 'error', error: err.message });
+    }
+});
+
+router.get('/settings/check-campaign-control-group', async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const sock = getActiveBaileysSocket(userId);
+        if (!sock || !sock.user) {
+            return res.json({ status: 'disconnected', message: 'بوت الواتساب (رقم البليز) غير متصل حالياً' });
+        }
+
+        let selectedJid = await getSetting('campaign_control_group_jid', userId);
+        if (!selectedJid) selectedJid = await getSetting('campaign_control_group_jid', 3);
+
+        const groups = await sock.groupFetchAllParticipating();
+
+        if (selectedJid && groups[selectedJid]) {
+            return res.json({
+                status: 'found',
+                groupName: groups[selectedJid].subject,
+                groupId: selectedJid,
+                message: `تم العثور على الجروب المختار بنجاح: "${groups[selectedJid].subject}" وبوت التحكم في الحملات الإعلانية متصل به وجاهز لتنفيذ الأوامر.`
+            });
+        }
+
+        for (const gId in groups) {
+            const g = groups[gId];
+            if (g.subject && (g.subject.includes('تحكم') || g.subject.toLowerCase().includes('control') || g.subject.includes('إعلانات') || g.subject.includes('اعلانات'))) {
+                return res.json({
+                    status: 'found',
+                    groupName: g.subject,
+                    groupId: g.id,
+                    message: `تم التعرف التلقائي على جروب "${g.subject}" بنجاح وبوت التحكم في الحملات الإعلانية متصل به وجاهز لتنفيذ الأوامر.`
+                });
+            }
+        }
+
+        res.json({ status: 'not_found', message: 'لم يتم العثور على جروب تحكم بالإعلانات مشترك به البوت. تأكد من إضافة رقم البوت للجروب أو اختياره من القائمة.' });
+    } catch (err) {
+        console.error('Error checking campaign control group:', err);
         res.status(500).json({ status: 'error', error: err.message });
     }
 });
