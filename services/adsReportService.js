@@ -184,7 +184,13 @@ export function extractDatePreset(text = '') {
  */
 export function extractStatusFilter(text = '') {
     const t = text.toLowerCase();
-    if (t.includes('المتوقفة') || t.includes('المتوقفه') || t.includes('متوقف') || t.includes('موقوفة') || t.includes('موقوفه') || t.includes('paused') || t.includes('كل الحملات')) {
+    if (
+        t.includes('المتوقفة') || t.includes('المتوقفه') || t.includes('متوقف') ||
+        t.includes('موقوفة') || t.includes('موقوفه') || t.includes('paused') ||
+        t.includes('كل الحملات') || t.includes('الكل') ||
+        t.includes('المكتملة') || t.includes('المكتمله') || t.includes('المنتهية') || t.includes('المنتهيه') ||
+        t.includes('المرفوضة') || t.includes('المرفوضه') || t.includes('المراجعة') || t.includes('المراجعه')
+    ) {
         return 'ALL';
     }
     return 'ACTIVE';
@@ -348,22 +354,40 @@ export function getStopTimeDetails(stopTimeStr) {
 }
 
 /**
- * فحص هل الحملة شغالة ونشطة حالياً وليست منتهية أو متوقفة
+ * فحص هل الحملة شغالة ونشطة حالياً أو في المراجعة/التحضير/مرفوضة وتحتاج متابعة التاجر
+ * (تستبعد الحملات المؤرشفة، المحذوفة، المتوقفة يدوياً، أو المنتهية/المكتملة)
  */
 export function isCampaignCurrentlyRunning(camp) {
     if (!camp) return false;
     const status = String(camp.status || '').toUpperCase();
     const effStatus = String(camp.effective_status || '').toUpperCase();
-    if (status !== 'ACTIVE') return false;
-    if (effStatus && effStatus !== 'ACTIVE') return false;
 
+    // استبعاد المؤرشفة أو المحذوفة
+    if (status === 'ARCHIVED' || status === 'DELETED' || effStatus === 'ARCHIVED' || effStatus === 'DELETED') {
+        return false;
+    }
+
+    // استبعاد المتوقفة يدوياً
+    if (status === 'PAUSED' || effStatus === 'PAUSED' || effStatus === 'CAMPAIGN_PAUSED') {
+        return false;
+    }
+
+    // إذا كانت الحملة مكتملة أو انتهت فترتها الزمنية
+    if (camp.is_completed) return false;
     if (camp.stop_time) {
         const stopMs = new Date(camp.stop_time).getTime();
         if (!isNaN(stopMs) && stopMs <= Date.now()) {
             return false;
         }
     }
-    return true;
+
+    // إذا كانت الحملة نشطة، أو قيد المراجعة، أو في التحضير، أو تم رفض إعلانها، أو بها مشاكل
+    const relevantStatuses = ['ACTIVE', 'PENDING_REVIEW', 'IN_PROCESS', 'WITH_ISSUES', 'DISAPPROVED'];
+    if (relevantStatuses.includes(effStatus) || relevantStatuses.includes(status)) {
+        return true;
+    }
+
+    return status === 'ACTIVE';
 }
 
 /**
@@ -550,6 +574,14 @@ export function formatCampaignAdsReportMessage(todayData, yesterdayData, request
         msg += `${numPrefix}*${camp.name || 'حملة بدون اسم'}*\n`;
         msg += `• معرف الحملة: \`${camp.id}\`\n`;
         msg += `• الحالة: ${cStatus}\n`;
+        const rejReason = camp.disapproval_reason || camp.primary_ad?.disapproval_reason;
+        if (rejReason) {
+            msg += `• ⚠️ سبب الرفض: *${rejReason}*\n`;
+        }
+        const issSummary = camp.issue_summary || camp.primary_ad?.issue_summary;
+        if (issSummary) {
+            msg += `• ⚠️ تفاصيل المشكلة: *${issSummary}*\n`;
+        }
         msg += `• النوع: *${cObj}*\n`;
         if (budgetStr) {
             msg += `• 💵 الميزانية: *${budgetStr}*\n`;
@@ -727,6 +759,14 @@ export function formatAdsReportMessage(data, requestedId = '', datePreset = 'tod
         msg += `${numPrefix}*${camp.name || 'حملة بدون اسم'}*\n`;
         msg += `• معرف الحملة: \`${camp.id}\`\n`;
         msg += `• الحالة: ${cStatus}\n`;
+        const rejReason = camp.disapproval_reason || camp.primary_ad?.disapproval_reason;
+        if (rejReason) {
+            msg += `• ⚠️ سبب الرفض: *${rejReason}*\n`;
+        }
+        const issSummary = camp.issue_summary || camp.primary_ad?.issue_summary;
+        if (issSummary) {
+            msg += `• ⚠️ تفاصيل المشكلة: *${issSummary}*\n`;
+        }
         msg += `• النوع: *${cObj}*\n`;
         if (budgetStr) {
             msg += `• 💵 الميزانية: *${budgetStr}*\n`;
