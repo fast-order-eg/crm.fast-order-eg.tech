@@ -603,6 +603,17 @@ export function formatCampaignAdsReportMessage(todayData, yesterdayData, request
         const yestCamp = yesterdayCampaigns.find(c => c.id === campId);
         const camp = todayCamp || yestCamp;
 
+        if (camp.status === 'NOT_FOUND' || camp.effective_status === 'NOT_FOUND') {
+            const numPrefix = allCampaignIds.length > 1 ? `${idx + 1}️⃣ ` : '📌 ';
+            msg += `${numPrefix}*${camp.name || 'حملة غير متاحة'}*\n`;
+            msg += `• معرف الحملة: \`${camp.id}\`\n`;
+            msg += `• الحالة: ⚠️ غير مصرح بالوصول (صلاحية ناقصة)\n`;
+            msg += `• 📌 السبب: ${camp.error || 'الحساب الإعلاني لهذه الحملة غير متاح للتوكن الحالي في النظام'}\n`;
+            msg += `• 💡 الحل السريع: من مدير إعلانات ميتا بالحساب المالك للحملة، أضف المستخدم (Rady Mohamed) كمسؤول في الحساب الإعلاني، أو حدث توكن الحساب المالك.\n`;
+            msg += `══════════════\n`;
+            return;
+        }
+
         // 1. البيانات العامة للحملة (تظهر مرة واحدة فقط)
         const cStatus = camp.status_label || (camp.status === 'ACTIVE' ? '🟢 نشطة' : '⏸️ متوقفة');
         const ctaType = camp.ads?.[0]?.creative?.cta_type || camp.primary_ad?.cta_type || '';
@@ -786,6 +797,17 @@ export function formatAdsReportMessage(data, requestedId = '', datePreset = 'tod
     }
 
     campaigns.forEach((camp, idx) => {
+        if (camp.status === 'NOT_FOUND' || camp.effective_status === 'NOT_FOUND') {
+            const numPrefix = campaigns.length > 1 ? `${idx + 1}️⃣ ` : '📌 ';
+            msg += `${numPrefix}*${camp.name || 'حملة غير متاحة'}*\n`;
+            msg += `• معرف الحملة: \`${camp.id}\`\n`;
+            msg += `• الحالة: ⚠️ غير مصرح بالوصول (صلاحية ناقصة)\n`;
+            msg += `• 📌 السبب: ${camp.error || 'الحساب الإعلاني لهذه الحملة غير متاح للتوكن الحالي في النظام'}\n`;
+            msg += `• 💡 الحل السريع: من مدير إعلانات ميتا بالحساب المالك للحملة، أضف المستخدم (Rady Mohamed) كمسؤول في الحساب الإعلاني، أو حدث توكن الحساب المالك.\n`;
+            msg += `══════════════\n`;
+            return;
+        }
+
         // 1. قراءة الحالة من campaign.status_label المباشرة من الـ API
         const cStatus = camp.status_label || (camp.status === 'ACTIVE' ? '🟢 نشطة' : '⏸️ متوقفة');
         const ctaType = camp.ads?.[0]?.creative?.cta_type || camp.primary_ad?.cta_type || '';
