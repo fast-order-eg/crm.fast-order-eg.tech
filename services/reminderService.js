@@ -265,9 +265,12 @@ async function callGeminiToParseReminder(userText) {
 {
   "action": "create_reminder" | "list_reminders" | "cancel_reminder" | "edit_reminder" | "add_admin" | "remove_admin" | "list_admins" | "help",
   "remindAt": "YYYY-MM-DD HH:mm:ss",
-  "reminderText": "نص التذكير الصافي بعد استبعاد كلمات الأوامر والوقت واسم الموظف",
+  "reminderText": "نص التذكير الصافي بعد استبعاد كلمات الأوامر والوقت واسم الموظف والتكرار",
   "targetEmployee": "اسم الموظف المطلوب تذكيره لو ذكر بالاسم (مثل: ساهر، أحمد، محمد) أو null",
+  "isRecurring": true | false,
+  "recurrenceInterval": "daily" | "weekly" | "monthly",
   "reminderId": 12,
+  "rawEdit": "باقي نص التعديل إن وجد",
   "adminPhone": "010xxxxxxxx",
   "adminName": "اسم المشرف إن وجد (مثل: خدمة العملاء)"
 }
@@ -283,14 +286,21 @@ async function callGeminiToParseReminder(userText) {
    - "العشا" أو "بليل": 20:30 مساءً.
    - إذا حدد ساعة صريحة مثل "الساعة 4" أو "الساعة 5 م" أو "الساعة 10 بليل": احسبها بدقة بتنسيق 24 ساعة (16:00 أو 17:00 أو 22:00).
    - "كمان ساعة" أو "بعد نص ساعة": احسبها بالنسبة للتوقيت الحالي بالضبط.
-   - إذا تم تحديد تاريخ فقط بدون تحديد ساعة معينة (مثال: بتاريخ 8-11-2026 أو يوم 15 نوفمبر): اجعل الساعة الافتراضية 10:00:00 صباحاً.
-4. إذا طلب المستخدم عرض التذكيرات (مثال: "التذكيرات"، "المجدول"، "فكرني باللي جاي"): action = "list_reminders".
-5. إذا طلب الإلغاء أو الحذف (مثال: "الغاء 5"، "احذف تذكير 3"): action = "cancel_reminder", reminderId = 5.
-6. إذا طلب تعديل تذكير (مثال: "عدل 5 خليه بكرة الساعة 4"): action = "edit_reminder", reminderId = 5, remindAt = "الوقت الجديد", reminderText = "النص الجديد".
-7. إذا طلب السماح لرقم أو إضافة مشرف (مثال: "اسمح للرقم دا 01012027705 لرقم خدمة العملاء"): action = "add_admin", adminPhone = "01012027705", adminName = "خدمة العملاء".
-8. إذا طلب حذف مشرف (مثال: "احذف المشرف 01012027705"): action = "remove_admin", adminPhone = "01012027705".
-9. إذا طلب معرفة المشرفين أو المصرح لهم (مثال: "المشرفين"): action = "list_admins".
-10. إذا لم يكن هناك تاريخ أو وقت محدد في أمر إنشاء التذكير، اجعل remindAt = null.`;
+   - إذا تم تحديد تاريخ فقط بدون تحديد ساعة معينة: اجعل الساعة الافتراضية 10:00:00 صباحاً.
+4. التذكيرات المتجددة تلقائياً:
+   - إذا ذكر المستخدم "تذكير متجدد" أو "متجدد" أو "تذكير يومي" أو "كل يوم" أو "يومياً": اجعل isRecurring = true و recurrenceInterval = "daily".
+   - إذا ذكر "كل أسبوع" أو "أسبوعي" أو "أسبوعياً": اجعل isRecurring = true و recurrenceInterval = "weekly".
+   - إذا ذكر "كل شهر" أو "شهري" أو "شهرياً": اجعل isRecurring = true و recurrenceInterval = "monthly".
+   - إذا طلب تذكير متجدد يومي ولم يحدد ساعة أو تاريخ معين (مثل: "تذكير متجدد متابعة اعلان احمد سمير"):
+     اجعل الميعاد الافتراضي 10:00:00 صباحاً (إذا كان التوقيت الحالي قبل 10:00 ص فليكن اليوم 10:00 ص، وإن كان بعد 10:00 ص فليكن غداً 10:00 ص).
+5. إذا طلب المستخدم عرض التذكيرات (مثال: "التذكيرات"، "المجدول"، "فكرني باللي جاي"): action = "list_reminders".
+6. إذا طلب الإلغاء أو الحذف (مثال: "الغاء 5"، "احذف تذكير 3"): action = "cancel_reminder", reminderId = 5.
+7. إذا طلب تعديل تذكير (مثال: "عدل 5 خليه بكرة الساعة 4" أو "تعديل رقم 13 الموضوع متابعة كذا"):
+   action = "edit_reminder", reminderId = 5, rawEdit = "نص التعديل بعد استبعاد أمر التعديل ورقم التذكير".
+8. إذا طلب السماح لرقم أو إضافة مشرف (مثال: "اسمح للرقم دا 01012027705 لرقم خدمة العملاء"): action = "add_admin", adminPhone = "01012027705", adminName = "خدمة العملاء".
+9. إذا طلب حذف مشرف (مثال: "احذف المشرف 01012027705"): action = "remove_admin", adminPhone = "01012027705".
+10. إذا طلب معرفة المشرفين أو المصرح لهم (مثال: "المشرفين"): action = "list_admins".
+11. إذا لم يكن هناك تاريخ أو وقت محدد في أمر إنشاء التذكير ولم يكن متجدداً، اجعل remindAt = null.`;
 
     const url = CONFIG.getVertexUrl();
     const payload = {
@@ -344,6 +354,90 @@ async function callGeminiToParseReminder(userText) {
 }
 
 /**
+ * تحليل تعديل التذكير بذكاء بمقارنة البيانات الحالية بطلب التعديل
+ */
+async function callGeminiToEditReminder(existingReminder, editInstruction) {
+    const { cairoDateStr, dayName } = getCairoDateTimeInfo();
+    const existingDateStr = formatArabicDateTime(new Date(existingReminder.remindAt));
+
+    const prompt = `أنت مساعد ذكي مخصص لتعديل تذكيرات واتساب بالعامية المصرية.
+التاريخ والوقت الحالي في جمهورية مصر العربية: "${cairoDateStr}".
+اليوم هو: "${dayName}".
+
+بيانات التذكير الأصلي قبل التعديل:
+- رقم التذكير: #${existingReminder.id}
+- الموضوع الحالي: "${existingReminder.reminderText}"
+- الموعد الحالي بتوقيت مصر: "${existingDateStr}"
+- الموظف المسؤول الحالي: "${existingReminder.targetEmployeeName || 'الجميع'}"
+- هل هو متجدد حالياً: ${existingReminder.isRecurring ? 'نعم (' + (existingReminder.recurrenceInterval || 'daily') + ')' : 'لا (مرة واحدة)'}
+
+طلب المستخدم لتعديل هذا التذكير: "${editInstruction}"
+
+المطلوب استخراج الحقول المطلوب تعديلها فقط بتنسيق JSON حصرياً:
+{
+  "newRemindAt": "YYYY-MM-DD HH:mm:ss" أو null إذا لم يطلب المستخدم تعديل الوقت,
+  "newReminderText": "الموضوع الجديد الصافي" أو null إذا لم يطلب المستخدم تغيير الموضوع,
+  "newTargetEmployee": "اسم الموظف الجديد" أو null إذا لم يطلب تغيير الموظف المسؤول,
+  "newIsRecurring": true | false | null إذا لم يطلب تغيير حالة التكرار,
+  "newRecurrenceInterval": "daily" | "weekly" | "monthly" | null
+}
+
+قواعد صارمة جداً:
+1. إذا قال المستخدم "خليه بكرة الساعة 4" أو "أجله ليوم الأحد" أو "الساعة 5 م" أو "كمان ساعتين": هذا تعديل للميعاد فقط! لا تضع عبارات الوقت كموضوع جديد واجعل newReminderText = null وحافظ على الموضوع الأصلي تماماً.
+2. إذا قال المستخدم "غير الموضوع إلى كذا" أو "اكتب فيه متابعة كذا" أو "خليه بدل كذا كذا": هذا تعديل للموضوع فقط! اجعل newRemindAt = null وحافظ على الميعاد الأصلي.
+3. إذا طلب جعله متجدد (مثل: "خليه متجدد يومياً" أو "خليه يومي"): اجعل newIsRecurring = true و newRecurrenceInterval = "daily".
+4. إذا طلب إيقاف التكرار (مثل: "خليه مرة واحدة" أو "وقف التجديد"): اجعل newIsRecurring = false.
+5. إذا ذكر اسم موظف جديد (مثل: "خليه لساهر" أو "ابعته لأحمد"): اجعل newTargetEmployee = "ساهر".`;
+
+    const url = CONFIG.getVertexUrl();
+    const payload = {
+        contents: [
+            {
+                role: "user",
+                parts: [{ text: prompt }]
+            }
+        ],
+        generationConfig: {
+            temperature: 0.1,
+            topP: 0.8,
+            responseMimeType: "application/json"
+        }
+    };
+
+    try {
+        const auth = new GoogleAuth({
+            keyFilename: CONFIG.GOOGLE_CREDENTIALS || process.env.GOOGLE_APPLICATION_CREDENTIALS || 'fast-order-505012-2adde4c0badf.json',
+            scopes: ['https://www.googleapis.com/auth/cloud-platform']
+        });
+        const client = await auth.getClient();
+        const accessToken = await client.getAccessToken();
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken.token}`
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            const err = await response.text();
+            throw new Error(`Vertex AI edit error: ${err}`);
+        }
+
+        const data = await response.json();
+        const textPart = data.candidates?.[0]?.content?.parts?.find(p => p.text && !p.thought) || data.candidates?.[0]?.content?.parts?.[0];
+        const rawJson = textPart?.text || '';
+        const clean = rawJson.replace(/^```json\s*/, "").replace(/\s*```$/, "").trim();
+        return JSON.parse(clean);
+    } catch (e) {
+        console.error('Error in callGeminiToEditReminder:', e.message);
+        return null;
+    }
+}
+
+/**
  * تحليل رسالة التذكير عبر القواعد السريعة أولاً ثم الذكاء الاصطناعي
  */
 export async function parseReminderInput(text) {
@@ -363,25 +457,19 @@ export async function parseReminderInput(text) {
         return { action: 'help' };
     }
 
-    const cancelMatch = raw.match(/^(?:الغاء|إلغاء|حذف|مسح)\s*(?:تذكير\s*)?#?(\d+)/i);
+    const cancelMatch = raw.match(/^(?:الغاء|إلغاء|حذف|مسح)\s*(?:تذكير\s*|رقم\s*|تذكير\s*رقم\s*)?#?(\d+)/i);
     if (cancelMatch) {
         return { action: 'cancel_reminder', reminderId: parseInt(cancelMatch[1], 10) };
     }
 
-    const editMatch = raw.match(/^(?:تعديل|عدل)\s*(?:تذكير\s*)?#?(\d+)(?:\s+(.*))?$/i);
+    const editMatch = raw.match(/^(?:تعديل|عدل)\s*(?:تذكير\s*|رقم\s*|تذكير\s*رقم\s*)?#?(\d+)(?:\s+(.*))?$/i);
     if (editMatch) {
         const remId = parseInt(editMatch[1], 10);
         const remBody = (editMatch[2] || '').trim();
-        if (!remBody) {
-            return { action: 'edit_reminder', reminderId: remId, rawEdit: '' };
-        }
-        const subParsed = await callGeminiToParseReminder(`فكرنا ${remBody}`);
         return {
             action: 'edit_reminder',
             reminderId: remId,
-            remindAt: subParsed?.remindAt || null,
-            reminderText: subParsed?.reminderText || remBody,
-            targetEmployee: subParsed?.targetEmployee || null
+            rawEdit: remBody
         };
     }
 
@@ -560,7 +648,7 @@ export async function handleReminderGroupMessage({
                     remindAt: { [Op.gte]: now }
                 },
                 order: [['remindAt', 'ASC']],
-                limit: 20
+                limit: 50
             });
 
             if (reminders.length === 0) {
@@ -574,9 +662,13 @@ export async function handleReminderGroupMessage({
             reminders.forEach((r, idx) => {
                 const dateStr = formatArabicDateTime(new Date(r.remindAt));
                 const empStr = r.targetEmployeeName ? ` (👤 مسؤول: ${r.targetEmployeeName})` : '';
-                reply += `${idx + 1}️⃣ *[#${r.id}]* ${dateStr}\n📌 *الموضوع:* ${r.reminderText}${empStr}\n\n`;
+                let recBadge = '';
+                if (r.isRecurring) {
+                    recBadge = r.recurrenceInterval === 'weekly' ? ' 🔄 *(متجدد أسبوعياً)*' : r.recurrenceInterval === 'monthly' ? ' 🔄 *(متجدد شهرياً)*' : ' 🔄 *(متجدد يومياً)*';
+                }
+                reply += `${idx + 1}️⃣ *[#${r.id}]* ${dateStr}${recBadge}\n📌 *الموضوع:* ${r.reminderText}${empStr}\n\n`;
             });
-            reply += `➖➖➖➖➖➖➖➖\n💡 *للإلغاء:* اكتب "الغاء [رقم التذكير]" (مثال: الغاء ${reminders[0].id})`;
+            reply += `➖➖➖➖➖➖➖➖\n💡 *للإلغاء:* اكتب "الغاء [رقم التذكير]" (مثال: الغاء ${reminders[0].id})\n✏️ *للتعديل:* اكتب "تعديل رقم [الرقم]" (مثال: تعديل رقم ${reminders[0].id} خليه بكرة 4 العصر)`;
 
             await sendGroupReply(sock, remoteJid, { text: reply });
             return true;
@@ -597,15 +689,16 @@ export async function handleReminderGroupMessage({
             reminder.status = 'cancelled';
             await reminder.save();
 
+            const recNote = reminder.isRecurring ? ' (تذكير متجدد تم إيقافه نهائياً)' : '';
             await sendGroupReply(sock, remoteJid, {
-                text: `🗑️ *تم إلغاء التذكير رقم #${reminder.id} بنجاح.*\n📌 الموضوع الملغي: ${reminder.reminderText}`
+                text: `🗑️ *تم إلغاء التذكير رقم #${reminder.id} بنجاح.*${recNote}\n📌 الموضوع الملغي: ${reminder.reminderText}`
             });
             return true;
         }
 
         case 'edit_reminder': {
             if (!parsed.reminderId) {
-                await sendGroupReply(sock, remoteJid, { text: `⚠️ يرجى تحديد رقم التذكير المراد تعديله (مثال: عدل 5 خليه بكرة الساعة 4)` });
+                await sendGroupReply(sock, remoteJid, { text: `⚠️ يرجى تحديد رقم التذكير المراد تعديله (مثال: تعديل رقم 13 خليه بكرة الساعة 4)` });
                 return true;
             }
 
@@ -615,43 +708,84 @@ export async function handleReminderGroupMessage({
                 return true;
             }
 
+            const rawEdit = (parsed.rawEdit || '').trim();
+
+            // إذا أرسل المستخدم "تعديل رقم 13" فقط بدون نص تعديل، نعرض له بيانات التاسك وخيارات التعديل
+            if (!rawEdit) {
+                const recType = reminder.isRecurring 
+                    ? (reminder.recurrenceInterval === 'weekly' ? 'متجدد أسبوعياً 🔄' : reminder.recurrenceInterval === 'monthly' ? 'متجدد شهرياً 🔄' : 'متجدد يومياً 🔄') 
+                    : 'مرة واحدة فقط ⏹️';
+
+                const reply = `📌 *بيانات التذكير الحالي رقم #${reminder.id}:*\n\n` +
+                    `📝 *الموضوع:* ${reminder.reminderText}\n` +
+                    `🕒 *الموعد:* ${formatArabicDateTime(new Date(reminder.remindAt))}\n` +
+                    `👤 *المسؤول:* ${reminder.targetEmployeeName || 'الجميع'}\n` +
+                    `🔄 *نوع التذكير:* ${recType}\n\n` +
+                    `✍️ *لتعديل أي جزء اكتب:* \n` +
+                    `▫️ لتعديل الميعاد: "عدل ${reminder.id} خليه بكرة الساعة 5 م"\n` +
+                    `▫️ لتعديل الموضوع: "عدل ${reminder.id} غير الموضوع إلى [النص الجديد]"\n` +
+                    `▫️ لتعديل الموظف: "عدل ${reminder.id} لساهر"\n` +
+                    `▫️ لجعله متجدد يومياً: "عدل ${reminder.id} خليه متجدد يومياً"`;
+
+                await sendGroupReply(sock, remoteJid, { text: reply });
+                return true;
+            }
+
+            // تحليل التعديل المطلوب بذكاء بمقارنته مع البيانات السابقة
+            const editResult = await callGeminiToEditReminder(reminder, rawEdit);
             let updatedFields = [];
 
-            if (parsed.remindAt) {
-                const newDate = parseCairoDateTime(parsed.remindAt);
+            if (editResult?.newRemindAt) {
+                const newDate = parseCairoDateTime(editResult.newRemindAt);
                 if (newDate && !isNaN(newDate.getTime()) && newDate.getTime() > Date.now()) {
                     reminder.remindAt = newDate;
                     updatedFields.push(`🕒 الموعد الجديد: *${formatArabicDateTime(newDate)}*`);
                 }
             }
 
-            if (parsed.reminderText && parsed.reminderText.trim().length > 0) {
-                reminder.reminderText = parsed.reminderText.trim();
-                updatedFields.push(`📌 الموضوع: *${reminder.reminderText}*`);
+            if (editResult?.newReminderText && editResult.newReminderText.trim().length > 0) {
+                reminder.reminderText = editResult.newReminderText.trim();
+                updatedFields.push(`📌 الموضوع الجديد: *${reminder.reminderText}*`);
             }
 
-            if (parsed.targetEmployee) {
-                const { targetName, targetPhone, targetJid } = await resolveTargetEmployee(parsed.targetEmployee, mentionedJids);
+            if (editResult?.newTargetEmployee) {
+                const { targetName, targetPhone, targetJid } = await resolveTargetEmployee(editResult.newTargetEmployee, mentionedJids);
                 if (targetName) {
                     reminder.targetEmployeeName = targetName;
                     reminder.targetEmployeePhone = targetPhone;
                     reminder.targetEmployeeJid = targetJid;
-                    updatedFields.push(`👤 مسؤول: *${targetName}*`);
+                    updatedFields.push(`👤 مسؤول جديد: *${targetName}*`);
                 }
+            }
+
+            if (editResult?.newIsRecurring !== null && editResult?.newIsRecurring !== undefined) {
+                reminder.isRecurring = editResult.newIsRecurring === true;
+                if (editResult.newRecurrenceInterval) {
+                    reminder.recurrenceInterval = editResult.newRecurrenceInterval;
+                }
+                const recLabel = reminder.isRecurring 
+                    ? (reminder.recurrenceInterval === 'weekly' ? 'متجدد أسبوعياً 🔄' : reminder.recurrenceInterval === 'monthly' ? 'متجدد شهرياً 🔄' : 'متجدد يومياً 🔄') 
+                    : 'مرة واحدة فقط ⏹️';
+                updatedFields.push(`🔄 حالة التكرار: *${recLabel}*`);
             }
 
             if (updatedFields.length === 0) {
                 await sendGroupReply(sock, remoteJid, {
-                    text: `⚠️ يرجى توضيح التعديل المطلوب (الميعاد الجديد أو نص التذكير)، مثال:\n"عدل ${reminder.id} خليه بكرة الساعة 4 العصر"`
+                    text: `⚠️ يرجى توضيح التعديل المطلوب (الميعاد، الموضوع، الموظف، أو التكرار)، مثال:\n"تعديل رقم ${reminder.id} خليه بكرة الساعة 4 العصر"`
                 });
                 return true;
             }
 
             await reminder.save();
 
-            await sendGroupReply(sock, remoteJid, {
-                text: `✏️ *تم تعديل التذكير رقم #${reminder.id} بنجاح!*\n\n${updatedFields.join('\n')}`
-            });
+            const confirmText = `✏️ *تم تعديل التذكير رقم #${reminder.id} بنجاح!*\n\n` +
+                `📝 *الموضوع الحالي:* ${reminder.reminderText}\n` +
+                `🕒 *الموعد الحالي:* ${formatArabicDateTime(new Date(reminder.remindAt))}\n` +
+                `👤 *المسؤول:* ${reminder.targetEmployeeName || 'الجميع'}\n` +
+                `🔄 *التكرار:* ${reminder.isRecurring ? 'متجدد ' + (reminder.recurrenceInterval === 'weekly' ? 'أسبوعياً' : reminder.recurrenceInterval === 'monthly' ? 'شهرياً' : 'يومياً') : 'مرة واحدة'}\n\n` +
+                `✨ *التعديلات التي تم حفظها:*\n${updatedFields.join('\n')}`;
+
+            await sendGroupReply(sock, remoteJid, { text: confirmText });
             return true;
         }
 
@@ -682,36 +816,62 @@ export async function handleReminderGroupMessage({
 
         case 'help': {
             const helpText = `🤖 *دليل استخدام جروب التذكيرات:*\n\n` +
-                `1️⃣ *لإضافة تذكير:* اكتب مباشرة بالعامية:\n` +
+                `1️⃣ *لإضافة تذكير عادي:* اكتب بالعامية:\n` +
                 `   - "فكرنا بكرة الساعة 3 نبعت تقرير للعميل أحمد"\n` +
-                `   - "فكر ساهر يوم الأحد 10 الصبح اشتراك العميل كذا هيخلص"\n` +
-                `   - "تذكير بعد ساعتين مكالمة مع فلان"\n\n` +
-                `2️⃣ *لعرض التذكيرات القادمة:* اكتب "التذكيرات" أو "المجدول"\n\n` +
-                `3️⃣ *لتعديل تذكير:* اكتب "عدل [الرقم] [التعديل]" (مثال: عدل 3 خليه بكرة 4 العصر)\n\n` +
-                `4️⃣ *لإلغاء أو حذف تذكير:* اكتب "الغاء [الرقم]" أو "حذف [الرقم]"\n\n` +
+                `   - "فكر ساهر يوم الأحد 10 الصبح اشتراك العميل كذا هيخلص"\n\n` +
+                `2️⃣ *لإضافة تذكير متجدد تلقائياً (🔄):*\n` +
+                `   - "تذكير متجدد متابعة إعلان أحمد سمير"\n` +
+                `   - "تذكير يومي الساعة 10 الصبح متابعة حملات ساهر"\n` +
+                `   - "تذكير أسبوعي كل جمعة إرسال التقرير المالي"\n\n` +
+                `3️⃣ *لتعديل تذكير (✏️):*\n` +
+                `   - "تعديل رقم 13 خليه بكرة 4 العصر"\n` +
+                `   - "عدل 13 الموضوع: متابعة حملة الشتاء"\n` +
+                `   - أو اكتب فقط "تعديل رقم 13" لعرض بياناته وخيارات تعديله.\n\n` +
+                `4️⃣ *لعرض التذكيرات القادمة:* اكتب "التذكيرات" أو "المجدول"\n\n` +
+                `5️⃣ *لإلغاء تذكير نهائياً:* اكتب "الغاء [الرقم]" أو "حذف [الرقم]"\n\n` +
                 `💡 *ملاحظة:* جميع أعضاء هذا الجروب يمتلكون صلاحية كاملة تلقائياً لإضافة، تعديل، وحذف التذكيرات.`;
             await sendGroupReply(sock, remoteJid, { text: helpText });
             return true;
         }
 
         case 'create_reminder': {
-            if (!parsed.remindAt) {
+            let remindAtStr = parsed.remindAt;
+
+            // إذا كان التذكير متجدد ولم يحدد وقت، نحدد 10:00 صباحاً كتوقيت افتراضي
+            if (!remindAtStr && parsed.isRecurring) {
+                const { cairoDateStr } = getCairoDateTimeInfo();
+                const nowCairo = new Date();
+                const cairoHour = (nowCairo.getUTCHours() + 3) % 24; // توقيت القاهرة
+                const targetDay = new Date();
+                if (cairoHour >= 10) {
+                    targetDay.setDate(targetDay.getDate() + 1);
+                }
+                const year = targetDay.getFullYear();
+                const month = String(targetDay.getMonth() + 1).padStart(2, '0');
+                const day = String(targetDay.getDate()).padStart(2, '0');
+                remindAtStr = `${year}-${month}-${day} 10:00:00`;
+            }
+
+            if (!remindAtStr) {
                 await sendGroupReply(sock, remoteJid, {
                     text: `⚠️ مقدرتش أحدد الميعاد بدقة من الرسالة.\nيرجى توضيح اليوم والساعة، مثلاً:\n"فكرنا بكرة الساعة 3 العصر نبعت تقرير للعميل أحمد" 👍`
                 });
                 return true;
             }
 
-            const remindDate = parseCairoDateTime(parsed.remindAt);
+            const remindDate = parseCairoDateTime(remindAtStr);
             if (!remindDate || isNaN(remindDate.getTime()) || remindDate.getTime() <= Date.now()) {
                 await sendGroupReply(sock, remoteJid, {
-                    text: `⚠️ الموعد المحدد (${parsed.remindAt}) غير صالح أو وقت ماضي. يرجى تحديد موعد مستقبلي.`
+                    text: `⚠️ الموعد المحدد (${remindAtStr}) غير صالح أو وقت ماضي. يرجى تحديد موعد مستقبلي.`
                 });
                 return true;
             }
 
             // مطابقة الموظف المسؤول
             const { targetName, targetPhone, targetJid } = await resolveTargetEmployee(parsed.targetEmployee, mentionedJids);
+
+            const isRec = parsed.isRecurring === true;
+            const recInterval = parsed.recurrenceInterval || 'daily';
 
             // حفظ التذكير في قاعدة البيانات
             const newReminder = await GroupReminder.create({
@@ -724,17 +884,25 @@ export async function handleReminderGroupMessage({
                 targetEmployeeJid: targetJid,
                 remindAt: remindDate,
                 status: 'pending',
-                UserId: userId
+                UserId: userId,
+                isRecurring: isRec,
+                recurrenceInterval: recInterval
             });
 
             const formattedDate = formatArabicDateTime(remindDate);
+            let recSnippet = '';
+            if (isRec) {
+                const recIntervalAr = recInterval === 'weekly' ? 'أسبوعياً 🔄' : recInterval === 'monthly' ? 'شهرياً 🔄' : 'يومياً 🔄';
+                recSnippet = `\n🔄 *التكرار:* يتجدد تلقائياً ${recIntervalAr}`;
+            }
 
             // الرد بالتأكيد في الجروب
             const confirmMsg = `✅ *تم تسجيل التذكير بنجاح!*\n\n` +
                 `📌 *الموضوع:* ${newReminder.reminderText}\n` +
                 `🕒 *الموعد:* ${formattedDate}\n` +
                 `👤 *المسؤول:* ${targetName || 'الجميع'}\n` +
-                `🆔 *رقم التذكير:* #${newReminder.id}`;
+                `🆔 *رقم التذكير:* #${newReminder.id}${recSnippet}\n\n` +
+                `💡 للإلغاء في أي وقت: "الغاء ${newReminder.id}"`;
 
             await sendGroupReply(sock, remoteJid, { text: confirmMsg });
             return true;
@@ -742,7 +910,7 @@ export async function handleReminderGroupMessage({
 
         default: {
             await sendGroupReply(sock, remoteJid, {
-                text: `لتسجيل تذكير تقدر تكتب بالعامية مباشرة، مثلاً:\n"فكرنا بكرة الساعة 3 نبعت تقرير للعميل كذا"\nأو اكتب "التذكيرات" لمعرفة المجدول 🌟`
+                text: `لتسجيل تذكير تقدر تكتب بالعامية مباشرة، مثلاً:\n"فكرنا بكرة الساعة 3 نبعت تقرير للعميل كذا"\nأو "تذكير متجدد متابعة كذا"\nأو اكتب "التذكيرات" لمعرفة المجدول 🌟`
             });
             return true;
         }
@@ -796,11 +964,17 @@ export async function checkDueReminders(io) {
                     employeeSnippet = `👤 *المسؤول:* @${cleanPhone}${namePart}`;
                 }
 
+                let recurringFooter = '';
+                if (reminder.isRecurring) {
+                    const recAr = reminder.recurrenceInterval === 'weekly' ? 'أسبوعياً' : reminder.recurrenceInterval === 'monthly' ? 'شهرياً' : 'يومياً';
+                    recurringFooter = `\n\n🔄 *تذكير متجدد ${recAr}* | للإلغاء اكتب: "الغاء ${reminder.id}"`;
+                }
+
                 const alertMsg = `⏰🔔 *تذكير هــام الآن!*\n\n` +
                     `📌 *الموضوع:* ${reminder.reminderText}\n` +
                     `🕒 *الموعد:* ${formatArabicDateTime(new Date(reminder.remindAt))}\n` +
                     `${employeeSnippet}\n\n` +
-                    `يرجى التنفيذ فوراً وإفادتنا بالنتيجة ✨`;
+                    `يرجى التنفيذ فوراً وإفادتنا بالنتيجة ✨${recurringFooter}`;
 
                 // محاكاة كتابة بشرية طبيعية قبل الإرسال (Anti-Ban Protection)
                 try {
@@ -817,11 +991,44 @@ export async function checkDueReminders(io) {
                     mentions: mentions
                 });
 
-                reminder.status = 'sent';
-                reminder.sentAt = new Date();
-                await reminder.save();
+                if (reminder.isRecurring) {
+                    // تجديد الميعاد تلقائياً لليوم التالي أو الفترة المحددة مع الحفاظ على نفس الوقت
+                    reminder.lastSentAt = new Date();
 
-                console.log(`✅ [Reminder Cron] Successfully dispatched reminder #${reminder.id} to group ${reminder.groupJid}`);
+                    const nextDate = new Date(reminder.remindAt);
+                    if (reminder.recurrenceInterval === 'weekly') {
+                        nextDate.setDate(nextDate.getDate() + 7);
+                    } else if (reminder.recurrenceInterval === 'monthly') {
+                        nextDate.setMonth(nextDate.getMonth() + 1);
+                    } else {
+                        // daily
+                        nextDate.setDate(nextDate.getDate() + 1);
+                    }
+
+                    // في حال كان السيرفر متوقفاً لفترة، نقفز للميعاد المستقبلي القادم بنفس الساعة
+                    const nowCheck = new Date();
+                    while (nextDate <= nowCheck) {
+                        if (reminder.recurrenceInterval === 'weekly') {
+                            nextDate.setDate(nextDate.getDate() + 7);
+                        } else if (reminder.recurrenceInterval === 'monthly') {
+                            nextDate.setMonth(nextDate.getMonth() + 1);
+                        } else {
+                            nextDate.setDate(nextDate.getDate() + 1);
+                        }
+                    }
+
+                    reminder.remindAt = nextDate;
+                    reminder.status = 'pending'; // يظل معلقاً للميعاد القادم
+                    await reminder.save();
+
+                    console.log(`🔄 [Reminder Cron] Rolled forward recurring reminder #${reminder.id} to ${nextDate.toISOString()}`);
+                } else {
+                    reminder.status = 'sent';
+                    reminder.sentAt = new Date();
+                    await reminder.save();
+
+                    console.log(`✅ [Reminder Cron] Successfully dispatched reminder #${reminder.id} to group ${reminder.groupJid}`);
+                }
 
                 if (io) {
                     io.emit('reminder_sent', { reminderId: reminder.id });

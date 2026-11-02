@@ -56,6 +56,21 @@ const GroupReminder = sequelize.define('GroupReminder', {
         type: DataTypes.DATE,
         allowNull: true
     },
+    isRecurring: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+        comment: 'هل التذكير متجدد تلقائياً'
+    },
+    recurrenceInterval: {
+        type: DataTypes.STRING,
+        defaultValue: 'daily',
+        comment: 'فترة التكرار (daily, weekly, monthly)'
+    },
+    lastSentAt: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        comment: 'تاريخ آخر إرسال للتذكير المتجدد'
+    },
     UserId: {
         type: DataTypes.INTEGER,
         allowNull: true,
