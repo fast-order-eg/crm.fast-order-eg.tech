@@ -268,15 +268,19 @@ export async function startObserverSession(userId = 3, phoneNumber = null, io = 
             if (!upsert.messages || upsert.messages.length === 0) return;
 
             for (const msg of upsert.messages) {
-                // تجاهل رسائل الحالة أو البث
+                // تجاهل رسائل الحالة أو البث أو رسائل أجهزة الـ LID الداخلية
                 const remoteJid = msg.key?.remoteJid || '';
-                if (!remoteJid || remoteJid === 'status@broadcast') continue;
+                if (!remoteJid || remoteJid === 'status@broadcast' || remoteJid.endsWith('@lid')) continue;
 
                 const messageId = msg.key?.id;
                 if (!messageId) continue;
 
                 // فحص نوع الرسالة والوسائط
-                const actualMsg = msg.message?.ephemeralMessage?.message || msg.message?.viewOnceMessage?.message || msg.message || {};
+                const actualMsg = msg.message?.ephemeralMessage?.message || 
+                    msg.message?.viewOnceMessage?.message || 
+                    msg.message?.viewOnceMessageV2?.message ||
+                    msg.message?.documentWithCaptionMessage?.message ||
+                    msg.message || {};
 
                 // استبعاد رسائل البرتوكول والمزامنة الداخلية والتفاعلات التي لا تحوي محتوى حقيقي
                 if (
@@ -417,8 +421,8 @@ export async function startObserverSession(userId = 3, phoneNumber = null, io = 
                     messageType = 'other';
                     content = '👤 جهة اتصال';
                 } else {
-                    messageType = 'other';
-                    content = 'رسالة أخرى';
+                    // استبعاد أي رسائل داخلية غير معروفة لعدم تلويث السجل
+                    continue;
                 }
 
                 // مطابقة الموظف من قاعدة بيانات الموظفين المعرفين
