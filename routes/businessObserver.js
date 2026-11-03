@@ -124,7 +124,7 @@ router.get('/messages', async (req, res) => {
  */
 router.post('/employees', async (req, res) => {
     try {
-        const { name, phone, role, notes } = req.body;
+        const { name, phone, role, notes, rating, evaluation, evidence } = req.body;
         if (!name || !phone) {
             return res.status(400).json({ success: false, message: 'الاسم ورقم الهاتف مطلوبان' });
         }
@@ -134,12 +134,65 @@ router.post('/employees', async (req, res) => {
             phone: phone.trim(),
             role: (role || 'موظف').trim(),
             notes: (notes || '').trim(),
+            rating: (rating || '').trim(),
+            evaluation: (evaluation || '').trim(),
+            evidence: (evidence || '').trim(),
             UserId: req.user.id
         });
 
         res.json({ success: true, message: 'تمت إضافة الموظف بنجاح', employee });
     } catch (err) {
         console.error('❌ Error adding employee:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+/**
+ * 7.1 جلب بيانات موظف محدد
+ */
+router.get('/employees/:id', async (req, res) => {
+    try {
+        const employee = await BusinessObserverEmployee.findOne({
+            where: { id: req.params.id, UserId: req.user.id }
+        });
+        if (!employee) {
+            return res.status(404).json({ success: false, message: 'الموظف غير موجود' });
+        }
+        res.json({ success: true, employee });
+    } catch (err) {
+        console.error('❌ Error fetching employee details:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+/**
+ * 7.2 تحديث بيانات وتقييم موظف
+ */
+router.post('/employees/:id/update', async (req, res) => {
+    try {
+        const { name, phone, role, notes, rating, evaluation, evidence, isActive } = req.body;
+        const employee = await BusinessObserverEmployee.findOne({
+            where: { id: req.params.id, UserId: req.user.id }
+        });
+
+        if (!employee) {
+            return res.status(404).json({ success: false, message: 'الموظف غير موجود' });
+        }
+
+        if (name !== undefined) employee.name = name.trim();
+        if (phone !== undefined) employee.phone = phone.trim();
+        if (role !== undefined) employee.role = role.trim();
+        if (notes !== undefined) employee.notes = notes.trim();
+        if (rating !== undefined) employee.rating = rating.trim();
+        if (evaluation !== undefined) employee.evaluation = evaluation.trim();
+        if (evidence !== undefined) employee.evidence = evidence.trim();
+        if (isActive !== undefined) employee.isActive = Boolean(isActive);
+
+        await employee.save();
+
+        res.json({ success: true, message: 'تم تحديث بيانات وتقييم الموظف بنجاح', employee });
+    } catch (err) {
+        console.error('❌ Error updating employee:', err);
         res.status(500).json({ success: false, message: err.message });
     }
 });

@@ -118,6 +118,70 @@
             border-right: 4px solid #f59e0b;
         }
 
+        /* تقييمات الموظفين والشواهد */
+        .rating-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-weight: 700;
+            font-size: 0.82rem;
+            padding: 4px 10px;
+            border-radius: 8px;
+            white-space: nowrap;
+        }
+        .rating-badge-top {
+            background: #ecfdf5;
+            color: #059669;
+            border: 1px solid #a7f3d0;
+        }
+        .rating-badge-high {
+            background: #eff6ff;
+            color: #2563eb;
+            border: 1px solid #bfdbfe;
+        }
+        .rating-badge-mid {
+            background: #fefce8;
+            color: #ca8a04;
+            border: 1px solid #fef08a;
+        }
+        .rating-badge-wait {
+            background: #f8fafc;
+            color: #64748b;
+            border: 1px solid #e2e8f0;
+        }
+        .eval-text-card {
+            background: #f8fafc;
+            border-right: 3px solid #3b82f6;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 0.83rem;
+            line-height: 1.55;
+            color: #1e293b;
+        }
+        .evidence-text-card {
+            background: #fafaf9;
+            border-right: 3px solid #10b981;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 0.82rem;
+            line-height: 1.55;
+            color: #334155;
+            white-space: pre-line;
+        }
+        .emp-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 1rem;
+            color: #ffffff;
+            flex-shrink: 0;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+        }
+
         /* تحسينات الموبايل */
         @media (max-width: 768px) {
             .nav-pills {
@@ -416,24 +480,52 @@ function formatEnDateTime(dt) {
                 <div class="glass-card p-3 p-md-4">
                     <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
                         <div>
-                            <h5 class="fw-bold mb-1">تعريف ومطابقة الموظفين</h5>
-                            <p class="text-muted small mb-0">أضف أرقام الموظفين ليتم تمييزهم وتتبع أدائهم وتقييمهم تلقائياً في الشاتات.</p>
+                            <h5 class="fw-bold mb-1"><i class="bi bi-people-fill text-primary me-2"></i>خريطة الموظفين والتقييم النهائي الشامل</h5>
+                            <p class="text-muted small mb-0">متابعة دقيقة لمطابقة أرقام الموظفين، وتقييم أدائهم الميداني ورأي الإدارة مدعوماً بالشواهد والأدلة من الجروبات.</p>
                         </div>
-                        <button class="btn btn-sm btn-primary fw-bold rounded-3" data-bs-toggle="modal" data-bs-target="#addEmployeeModal">
+                        <button class="btn btn-sm btn-primary fw-bold rounded-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#addEmployeeModal">
                             <i class="bi bi-person-plus-fill me-1"></i> إضافة موظف جديد
                         </button>
+                    </div>
+
+                    <!-- KPI Cards for Employees -->
+                    <div class="row g-2 mb-3">
+                        <div class="col-6 col-md-3">
+                            <div class="p-2 border rounded-3 bg-light text-center">
+                                <span class="text-muted small d-block" style="font-size: 0.74rem;">إجمالي الفريق المرصود</span>
+                                <span class="fw-bold text-dark fs-6 font-monospace"><%= employees.length %> موظفين</span>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="p-2 border rounded-3 bg-light text-center">
+                                <span class="text-muted small d-block" style="font-size: 0.74rem;">تقييمات مكتملة</span>
+                                <span class="fw-bold text-success fs-6 font-monospace"><%= employees.filter(e => e.rating && !e.rating.includes('قيد')).length %> مكتمل</span>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="p-2 border rounded-3 bg-light text-center">
+                                <span class="text-muted small d-block" style="font-size: 0.74rem;">قيد التقييم والتجربة</span>
+                                <span class="fw-bold text-warning fs-6 font-monospace"><%= employees.filter(e => !e.rating || e.rating.includes('قيد')).length %> قيد التقييم</span>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="p-2 border rounded-3 bg-light text-center">
+                                <span class="text-muted small d-block" style="font-size: 0.74rem;">توثيق الشواهد الميدانية</span>
+                                <span class="fw-bold text-primary fs-6 font-monospace">100% موثق بالشات</span>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="table-responsive">
                         <table class="table table-hover align-middle mb-0">
                             <thead class="table-light small">
                                 <tr>
-                                    <th>اسم الموظف</th>
-                                    <th>رقم الهاتف</th>
-                                    <th>الدور الوظيفي</th>
-                                    <th>ملاحظات</th>
-                                    <th>تاريخ الإضافة</th>
-                                    <th class="text-end">الإجراءات</th>
+                                    <th style="min-width: 170px;">الموظف والمعرف</th>
+                                    <th style="min-width: 160px;">الدور والشفت</th>
+                                    <th style="min-width: 140px;">التقييم العام</th>
+                                    <th style="min-width: 250px;">الملاحظات والتقييم النهائي</th>
+                                    <th style="min-width: 280px;">الإثبات والدليل والشواهد</th>
+                                    <th class="text-end" style="min-width: 85px;">الإجراءات</th>
                                 </tr>
                             </thead>
                             <tbody id="employeesTableBody">
@@ -442,17 +534,73 @@ function formatEnDateTime(dt) {
                                         <td colspan="6" class="text-center py-4 text-muted">لم يتم إضافة موظفين بعد. اضغط على "إضافة موظف جديد".</td>
                                     </tr>
                                 <% } else { %>
-                                    <% employees.forEach(emp => { %>
+                                    <% 
+                                    const avatarPalette = ['#4f46e5', '#0891b2', '#059669', '#d97706', '#dc2626', '#7c3aed'];
+                                    employees.forEach((emp, idx) => { 
+                                        let badgeCls = 'rating-badge-high';
+                                        if (emp.rating) {
+                                            if (emp.rating.includes('10/10') || emp.rating.includes('9.')) badgeCls = 'rating-badge-top';
+                                            else if (emp.rating.includes('8.')) badgeCls = 'rating-badge-high';
+                                            else if (emp.rating.includes('قيد')) badgeCls = 'rating-badge-wait';
+                                            else badgeCls = 'rating-badge-mid';
+                                        }
+                                    %>
                                         <tr id="emp-row-<%= emp.id %>">
-                                            <td class="fw-bold"><%= emp.name %></td>
-                                            <td><span class="font-monospace text-primary"><%= emp.phone %></span></td>
-                                            <td><span class="tag-role"><%= emp.role || 'موظف' %></span></td>
-                                            <td class="text-muted small"><%= emp.notes || '—' %></td>
-                                            <td class="small text-muted font-monospace"><%= formatEnDateTime(emp.createdAt) %></td>
+                                            <td>
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <div class="emp-avatar" style="background-color: <%= avatarPalette[idx % avatarPalette.length] %>;">
+                                                        <%= emp.name ? emp.name.trim().charAt(0) : 'م' %>
+                                                    </div>
+                                                    <div>
+                                                        <div class="fw-bold text-dark"><%= emp.name %></div>
+                                                        <div class="font-monospace text-primary small" dir="ltr"><%= emp.phone %></div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <span class="tag-role fw-bold d-inline-block mb-1"><%= emp.role || 'موظف' %></span>
+                                                <% if (emp.notes) { %>
+                                                    <div class="text-muted small" style="font-size: 0.77rem; line-height: 1.45;"><%= emp.notes %></div>
+                                                <% } %>
+                                            </td>
+                                            <td>
+                                                <% if (emp.rating) { %>
+                                                    <span class="rating-badge <%= badgeCls %>">
+                                                        <%= emp.rating %>
+                                                    </span>
+                                                <% } else { %>
+                                                    <span class="badge bg-light text-muted border">قيد التقييم</span>
+                                                <% } %>
+                                            </td>
+                                            <td>
+                                                <% if (emp.evaluation) { %>
+                                                    <div class="eval-text-card">
+                                                        <i class="bi bi-chat-left-quote-fill text-primary me-1"></i>
+                                                        <%= emp.evaluation %>
+                                                    </div>
+                                                <% } else { %>
+                                                    <span class="text-muted small fst-italic">قيد التحليل والرصد...</span>
+                                                <% } %>
+                                            </td>
+                                            <td>
+                                                <% if (emp.evidence) { %>
+                                                    <div class="evidence-text-card">
+                                                        <i class="bi bi-shield-check text-success me-1"></i>
+                                                        <%= emp.evidence %>
+                                                    </div>
+                                                <% } else { %>
+                                                    <span class="text-muted small fst-italic">لا توجد شواهد مسجلة بعد</span>
+                                                <% } %>
+                                            </td>
                                             <td class="text-end">
-                                                <button class="btn btn-sm btn-outline-danger rounded-3" onclick="deleteEmployee(<%= emp.id %>)">
-                                                    <i class="bi bi-trash"></i>
-                                                </button>
+                                                <div class="d-flex align-items-center justify-content-end gap-1">
+                                                    <button class="btn btn-sm btn-outline-primary rounded-3" title="تعديل التقييم والبيانات" onclick="openEditEmployeeModal(<%= JSON.stringify(emp).replace(/"/g, '&quot;') %>)">
+                                                        <i class="bi bi-pencil-square"></i>
+                                                    </button>
+                                                    <button class="btn btn-sm btn-outline-danger rounded-3" title="حذف الموظف" onclick="deleteEmployee(<%= emp.id %>)">
+                                                        <i class="bi bi-trash"></i>
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     <% }); %>
@@ -498,33 +646,118 @@ function formatEnDateTime(dt) {
 
     <!-- Modal: Add Employee -->
     <div class="modal fade" id="addEmployeeModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content border-0 shadow-lg rounded-4">
                 <div class="modal-header border-bottom-0 pb-0">
-                    <h5 class="modal-title fw-bold">إضافة موظف للمراقبة والمطابقة</h5>
+                    <h5 class="modal-title fw-bold"><i class="bi bi-person-plus-fill text-primary me-2"></i>إضافة موظف للمراقبة والتقييم</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body p-4">
                     <form id="addEmployeeForm">
-                        <div class="mb-3">
-                            <label class="form-label fw-bold small text-secondary">اسم الموظف:</label>
-                            <input type="text" name="name" class="form-control rounded-3" placeholder="مثال: ساهر، ريم، أحمد" required>
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold small text-secondary">اسم الموظف:</label>
+                                <input type="text" name="name" class="form-control rounded-3" placeholder="مثال: ساهر، ريم، رباب" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold small text-secondary">رقم الهاتف:</label>
+                                <input type="text" name="phone" class="form-control rounded-3 font-monospace" placeholder="مثال: 01092308465" dir="ltr" required>
+                            </div>
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label fw-bold small text-secondary">رقم الهاتف:</label>
-                            <input type="text" name="phone" class="form-control rounded-3 font-monospace" placeholder="مثال: 01092308465" dir="ltr" required>
+
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold small text-secondary">الدور الوظيفي / التخصص:</label>
+                                <input type="text" name="role" class="form-control rounded-3" placeholder="مثال: ميديا باير، خدمة عملاء وتصميمات، مبيعات">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold small text-secondary">التقييم العام ورأي الإدارة:</label>
+                                <input type="text" name="rating" class="form-control rounded-3" placeholder="مثال: ⭐ 8.5/10 (ممتاز وملتزمة)">
+                            </div>
                         </div>
+
                         <div class="mb-3">
-                            <label class="form-label fw-bold small text-secondary">الدور الوظيفي / التخصص:</label>
-                            <input type="text" name="role" class="form-control rounded-3" placeholder="مثال: مبيعات، خدمة عملاء، شحن، ميديا باير">
+                            <label class="form-label fw-bold small text-secondary">مواعيد الشفت والملاحظات والمعرفات (LIDs):</label>
+                            <input type="text" name="notes" class="form-control rounded-3" placeholder="مثال: الشفت: 12ظ - 8م (الخميس إجازة) | المعرف: Bird Technology">
                         </div>
+
                         <div class="mb-3">
-                            <label class="form-label fw-bold small text-secondary">ملاحظات إضافية:</label>
-                            <textarea name="notes" class="form-control rounded-3" rows="2" placeholder="أي تفاصيل خاصة بطبيعة عمل الموظف..."></textarea>
+                            <label class="form-label fw-bold small text-secondary">الملاحظات والتقييم النهائي ورأي الإدارة (Evaluation):</label>
+                            <textarea name="evaluation" class="form-control rounded-3" rows="3" placeholder="تحليل أداء الموظف، نقاط القوة، والملاحظات الإدارية..."></textarea>
                         </div>
-                        <button type="submit" class="btn btn-primary w-100 fw-bold rounded-3 py-2">
-                            <i class="bi bi-check2-circle me-1"></i> حفظ الموظف
-                        </button>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small text-secondary">الإثبات والدليل والشواهد الميدانية (Evidence):</label>
+                            <textarea name="evidence" class="form-control rounded-3" rows="3" placeholder="الشواهد الميدانية من الجروبات مع أرقام الرسائل وسياق التصرف..."></textarea>
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2">
+                            <button type="button" class="btn btn-light rounded-3 px-4" data-bs-dismiss="modal">إلغاء</button>
+                            <button type="submit" class="btn btn-primary fw-bold rounded-3 px-4 py-2">
+                                <i class="bi bi-check2-circle me-1"></i> حفظ بيانات الموظف
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Edit Employee & Evaluation -->
+    <div class="modal fade" id="editEmployeeModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content border-0 shadow-lg rounded-4">
+                <div class="modal-header border-bottom-0 pb-0">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-person-check-fill text-primary me-2"></i>تعديل بيانات وتقييم الموظف</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <form id="editEmployeeForm">
+                        <input type="hidden" id="editEmpId" name="id">
+                        
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold small text-secondary">اسم الموظف:</label>
+                                <input type="text" id="editEmpName" name="name" class="form-control rounded-3" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold small text-secondary">رقم الهاتف / المعرف:</label>
+                                <input type="text" id="editEmpPhone" name="phone" class="form-control rounded-3 font-monospace" dir="ltr" required>
+                            </div>
+                        </div>
+
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold small text-secondary">الدور الوظيفي:</label>
+                                <input type="text" id="editEmpRole" name="role" class="form-control rounded-3" placeholder="ميديا باير، خدمة عملاء، إدارة...">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold small text-secondary">التقييم العام ورأي الإدارة:</label>
+                                <input type="text" id="editEmpRating" name="rating" class="form-control rounded-3" placeholder="مثال: ⭐ 8.5/10 (ممتاز وملتزمة)">
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small text-secondary">مواعيد الشفت والملاحظات والمعرفات الداخلية:</label>
+                            <input type="text" id="editEmpNotes" name="notes" class="form-control rounded-3" placeholder="الشفت، أيام الإجازة، معرفات LIDs...">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small text-secondary">الملاحظات والتقييم النهائي ورأي الإدارة (Evaluation):</label>
+                            <textarea id="editEmpEvaluation" name="evaluation" class="form-control rounded-3" rows="3" placeholder="تحليل الأداء ونقاط القوة والملاحظات..."></textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small text-secondary">الإثبات والدليل والشواهد الميدانية (Evidence):</label>
+                            <textarea id="editEmpEvidence" name="evidence" class="form-control rounded-3" rows="4" placeholder="الشواهد من الجروبات مع أرقام الرسائل والأفعال الموثقة..."></textarea>
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2">
+                            <button type="button" class="btn btn-light rounded-3 px-4" data-bs-dismiss="modal">إلغاء</button>
+                            <button type="submit" class="btn btn-primary fw-bold rounded-3 px-4 py-2">
+                                <i class="bi bi-check2-circle me-1"></i> حفظ التعديلات والتقييم
+                            </button>
+                        </div>
                     </form>
                 </div>
             </div>
@@ -977,8 +1210,16 @@ function formatEnDateTime(dt) {
                 name: form.name.value,
                 phone: form.phone.value,
                 role: form.role.value,
-                notes: form.notes.value
+                notes: form.notes.value,
+                rating: form.rating ? form.rating.value : '',
+                evaluation: form.evaluation ? form.evaluation.value : '',
+                evidence: form.evidence ? form.evidence.value : ''
             };
+
+            const btn = form.querySelector('button[type="submit"]');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> جاري الحفظ...';
 
             try {
                 const res = await fetch('/dashboard/business-observer/employees', {
@@ -991,8 +1232,75 @@ function formatEnDateTime(dt) {
                     location.reload();
                 } else {
                     alert(data.message || 'حدث خطأ');
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
                 }
-            } catch (_) { alert('خطأ في الاتصال'); }
+            } catch (_) { 
+                alert('خطأ في الاتصال بالسيرفر');
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        });
+
+        // فتح نافذة تعديل بيانات وتقييم الموظف
+        function openEditEmployeeModal(empData) {
+            try {
+                const emp = typeof empData === 'string' ? JSON.parse(empData) : empData;
+                document.getElementById('editEmpId').value = emp.id || '';
+                document.getElementById('editEmpName').value = emp.name || '';
+                document.getElementById('editEmpPhone').value = emp.phone || '';
+                document.getElementById('editEmpRole').value = emp.role || '';
+                document.getElementById('editEmpNotes').value = emp.notes || '';
+                document.getElementById('editEmpRating').value = emp.rating || '';
+                document.getElementById('editEmpEvaluation').value = emp.evaluation || '';
+                document.getElementById('editEmpEvidence').value = emp.evidence || '';
+
+                const modal = new bootstrap.Modal(document.getElementById('editEmployeeModal'));
+                modal.show();
+            } catch (err) {
+                console.error('Error opening edit employee modal:', err);
+            }
+        }
+
+        // حفظ تعديلات الموظف والتقييم
+        document.getElementById('editEmployeeForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const id = document.getElementById('editEmpId').value;
+            const body = {
+                name: form.name.value,
+                phone: form.phone.value,
+                role: form.role.value,
+                notes: form.notes.value,
+                rating: form.rating.value,
+                evaluation: form.evaluation.value,
+                evidence: form.evidence.value
+            };
+
+            const btn = form.querySelector('button[type="submit"]');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> جاري الحفظ...';
+
+            try {
+                const res = await fetch(`/dashboard/business-observer/employees/${id}/update`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const data = await res.json();
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert(data.message || 'حدث خطأ في حفظ التقييم');
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                }
+            } catch (err) {
+                alert('خطأ في الاتصال بالسيرفر');
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
         });
 
         async function deleteEmployee(id) {

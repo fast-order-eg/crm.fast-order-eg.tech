@@ -24,10 +24,25 @@ const BusinessObserverEmployee = sequelize.define('BusinessObserverEmployee', {
         defaultValue: 'موظف',
         comment: 'الدور الوظيفي (مبيعات، خدمة عملاء، شحن، ميديا باير، إدارة)'
     },
+    rating: {
+        type: DataTypes.STRING(100),
+        allowNull: true,
+        comment: 'التقييم العام ورأي الإدارة / AI (مثل: 8.5/10 - ممتاز)'
+    },
     notes: {
         type: DataTypes.TEXT,
         allowNull: true,
         comment: 'ملاحظات أو مهام الموظف'
+    },
+    evaluation: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+        comment: 'الملاحظات التحليلية والتقييم النهائي للأداء'
+    },
+    evidence: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+        comment: 'الإثبات والدليل والشواهد من المحادثات والجروبات'
     },
     isActive: {
         type: DataTypes.BOOLEAN,
