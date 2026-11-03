@@ -179,6 +179,18 @@
             </a>
         </li>
 
+                <!-- راصد ومحلل الأعمال (Business Observer) -->
+        <% if (typeof user !== "undefined" && user && (user.role === "admin" || user.role === "superadmin" || user.id === 3 || user.id === 1)) { %>
+        <li class="sidebar-item <%= typeof page !== "undefined" && page === "business_observer" ? "active" : "" %>">
+            <a href="/dashboard/business-observer" class="sidebar-link">
+                <div class="sidebar-icon">
+                    <i class="bi bi-eye-fill text-info" style="font-size: 1.25rem;"></i>
+                </div>
+                <span class="sidebar-label">راصد ومحلل الأعمال</span>
+            </a>
+        </li>
+        <% } %>
+
         <!-- Instructions -->
         <li class="sidebar-item <%= page === 'instructions' ? 'active' : '' %>">
             <a href="/dashboard/instructions" class="sidebar-link">

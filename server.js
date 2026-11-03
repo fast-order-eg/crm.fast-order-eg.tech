@@ -45,6 +45,10 @@ import PushSubscription from './models/PushSubscription.js';
 import GroupReminder from './models/GroupReminder.js';
 import { checkDueReminders } from './services/reminderService.js';
 // Routes
+import BusinessObserverMessage from './models/BusinessObserverMessage.js';
+import BusinessObserverEmployee from './models/BusinessObserverEmployee.js';
+import BusinessObserverGroup from './models/BusinessObserverGroup.js';
+import businessObserverRoutes from './routes/businessObserver.js';
 import authRoutes from './routes/auth.js';
 import adminRoutes from './routes/admin.js';
 import apiDashboardRoutes from './routes/api_dashboard.js';
@@ -111,6 +115,7 @@ const io = new Server(httpServer, {
         methods: ["GET", "POST"]
     }
 });
+app.set('io', io);
 
 // CORS Middleware for Express
 app.use((req, res, next) => {
@@ -276,6 +281,7 @@ app.use((req, res, next) => {
 // Routes
 app.use('/', authRoutes);
 app.use('/admin', adminRoutes);
+app.use('/dashboard/business-observer', businessObserverRoutes);
 app.use('/dashboard', dashboardRoutes);
 app.use('/api/bot', apiDashboardRoutes);
 app.use('/', messengerRoutes);

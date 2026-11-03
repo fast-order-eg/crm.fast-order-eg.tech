@@ -1,0 +1,562 @@
+import { 
+    makeWASocket, 
+    useMultiFileAuthState, 
+    DisconnectReason, 
+    fetchLatestBaileysVersion, 
+    makeCacheableSignalKeyStore, 
+    downloadMediaMessage, 
+    Browsers 
+} from '@whiskeysockets/baileys';
+import pino from 'pino';
+import fs from 'fs';
+import path from 'path';
+import { Op } from 'sequelize';
+import { GoogleAuth } from 'google-auth-library';
+import { CONFIG } from '../config.js';
+import BusinessObserverMessage from '../models/BusinessObserverMessage.js';
+import BusinessObserverEmployee from '../models/BusinessObserverEmployee.js';
+import BusinessObserverGroup from '../models/BusinessObserverGroup.js';
+
+const logger = pino({ level: 'silent' });
+
+// الخريطة المركزية لجلسات المراقب الصامت حسب معرف المستخدم
+const observerSessions = new Map();
+
+/**
+ * تنظيف رقم الهاتف ومقارنته بمرونة (آخر 10 أرقام للموبايل المصري أو العربي)
+ */
+export function normalizePhoneDigits(phone) {
+    if (!phone) return '';
+    const digits = String(phone).replace(/[^0-9]/g, '');
+    if (digits.length >= 10) {
+        return digits.slice(-10);
+    }
+    return digits;
+}
+
+/**
+ * جلب حالة جلسة المراقب الحالية
+ */
+export function getObserverStatus(userId = 3) {
+    const session = observerSessions.get(parseInt(userId, 10)) || observerSessions.get(String(userId));
+    if (!session) {
+        return {
+            status: 'disconnected',
+            phone: null,
+            name: null,
+            qr: null,
+            pairingCode: null
+        };
+    }
+    return {
+        status: session.status || 'disconnected',
+        phone: session.phone || null,
+        name: session.name || null,
+        qr: session.qr || null,
+        pairingCode: session.pairingCode || null
+    };
+}
+
+/**
+ * تحويل التسجيل الصوتي إلى نص بالعامية المصرية باستخدام Gemini Multimodal
+ */
+async function transcribeAudioWithGemini(audioBuffer, mimeType = 'audio/ogg') {
+    if (!audioBuffer || audioBuffer.length === 0) return null;
+    try {
+        const url = CONFIG.getVertexUrl();
+        const cleanMime = mimeType.split(';')[0] || 'audio/ogg';
+
+        const payload = {
+            contents: [
+                {
+                    role: "user",
+                    parts: [
+                        {
+                            inline_data: {
+                                mime_type: cleanMime,
+                                data: audioBuffer.toString("base64")
+                            }
+                        },
+                        {
+                            text: "أنت مفرغ صوتي محترف. فرغ هذا التسجيل الصوتي بالعامية المصرية بدقة واكتب النص المنطوق فقط بدون أي مقدمات أو شروحات."
+                        }
+                    ]
+                }
+            ],
+            generationConfig: {
+                temperature: 0.1,
+                topP: 0.8
+            }
+        };
+
+        const auth = new GoogleAuth({
+            keyFilename: CONFIG.GOOGLE_CREDENTIALS || process.env.GOOGLE_APPLICATION_CREDENTIALS || 'fast-order-505012-2adde4c0badf.json',
+            scopes: ['https://www.googleapis.com/auth/cloud-platform']
+        });
+        const client = await auth.getClient();
+        const accessToken = await client.getAccessToken();
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken.token}`
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            const err = await response.text();
+            console.error('❌ [Observer Audio Transcribe] API Error:', err);
+            return null;
+        }
+
+        const data = await response.json();
+        const textPart = data.candidates?.[0]?.content?.parts?.find(p => p.text && !p.thought) || data.candidates?.[0]?.content?.parts?.[0];
+        const result = (textPart?.text || '').trim();
+        return result || null;
+    } catch (e) {
+        console.error('❌ [Observer Audio Transcribe] Error:', e.message);
+        return null;
+    }
+}
+
+/**
+ * بدء وتشغيل جلسة المراقب الصامت
+ */
+export async function startObserverSession(userId = 3, phoneNumber = null, io = null) {
+    const uId = parseInt(userId, 10);
+    console.log(`🕵️‍♂️ [Observer] Starting session for User ${uId}... Phone: ${phoneNumber || 'QR mode'}`);
+
+    // إيقاف وتنظيف أي سوكت سابق
+    const existing = observerSessions.get(uId);
+    if (existing && existing.sock) {
+        try {
+            if (existing.sock.ev) existing.sock.ev.removeAllListeners();
+            if (typeof existing.sock.end === 'function') existing.sock.end(undefined);
+        } catch (_) {}
+    }
+
+    const authPath = path.join(process.cwd(), 'sessions', `observer_${uId}`);
+    if (phoneNumber) {
+        // عند طلب كود ربط جديد، ننظف مجلد الجلسة للحصول على كود جديد تماماً
+        try {
+            if (fs.existsSync(authPath)) {
+                fs.rmSync(authPath, { recursive: true, force: true });
+            }
+        } catch (_) {}
+    }
+
+    if (!fs.existsSync(authPath)) fs.mkdirSync(authPath, { recursive: true });
+
+    const { state, saveCreds } = await useMultiFileAuthState(authPath);
+    const { version } = await fetchLatestBaileysVersion();
+
+    const sessionData = {
+        sock: null,
+        status: 'connecting',
+        phone: null,
+        name: null,
+        qr: null,
+        pairingCode: null
+    };
+    observerSessions.set(uId, sessionData);
+
+    const sock = makeWASocket({
+        version,
+        logger,
+        auth: {
+            creds: state.creds,
+            keys: makeCacheableSignalKeyStore(state.keys, logger),
+        },
+        browser: Browsers.ubuntu('Chrome'),
+        generateHighQualityLinkPreview: false,
+        syncFullHistory: false
+    });
+
+    sessionData.sock = sock;
+
+    // حفظ بيانات الاعتماد
+    sock.ev.on('creds.update', saveCreds);
+
+    // طلب كود الربط إذا تم إدخال رقم هاتف
+    if (phoneNumber && !sock.authState.creds.registered) {
+        const cleanPhone = phoneNumber.replace(/[^0-9]/g, '');
+        setTimeout(async () => {
+            try {
+                console.log(`🕵️‍♂️ [Observer] Requesting pairing code for: ${cleanPhone}`);
+                const code = await sock.requestPairingCode(cleanPhone);
+                console.log(`🕵️‍♂️ [Observer] Pairing Code generated: ${code}`);
+                sessionData.status = 'pairing_code';
+                sessionData.pairingCode = code;
+                if (io) {
+                    io.to(`user_${uId}`).emit('observer_pairing_code', { code });
+                }
+            } catch (err) {
+                console.error("❌ [Observer] Pairing Code Error:", err);
+                sessionData.status = 'error';
+                if (io) {
+                    io.to(`user_${uId}`).emit('observer_error', { message: 'فشل توليد كود الربط: ' + err.message });
+                }
+            }
+        }, 1500);
+    }
+
+    // مراقبة تحديثات الاتصال
+    sock.ev.on('connection.update', async (update) => {
+        const { connection, lastDisconnect, qr } = update;
+
+        if (qr && !phoneNumber) {
+            sessionData.status = 'qr';
+            sessionData.qr = qr;
+            if (io) {
+                io.to(`user_${uId}`).emit('observer_qr', { qr });
+            }
+        }
+
+        if (connection === 'open') {
+            const rawPhone = sock.user?.id ? sock.user.id.split(':')[0].split('@')[0] : '';
+            sessionData.status = 'connected';
+            sessionData.phone = rawPhone;
+            sessionData.name = sock.user?.name || 'مراقب الأعمال';
+            sessionData.qr = null;
+            sessionData.pairingCode = null;
+
+            console.log(`✅ [Observer] Connected successfully as ${rawPhone} (${sessionData.name})`);
+            if (io) {
+                io.to(`user_${uId}`).emit('observer_status', {
+                    status: 'connected',
+                    phone: rawPhone,
+                    name: sessionData.name
+                });
+            }
+        } else if (connection === 'close') {
+            const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+            console.log(`⚠️ [Observer] Connection closed. Reason:`, lastDisconnect?.error?.message, `Should reconnect: ${shouldReconnect}`);
+
+            if (shouldReconnect) {
+                sessionData.status = 'connecting';
+                if (io) {
+                    io.to(`user_${uId}`).emit('observer_status', { status: 'connecting' });
+                }
+                setTimeout(() => startObserverSession(uId, null, io), 5000);
+            } else {
+                sessionData.status = 'disconnected';
+                sessionData.phone = null;
+                sessionData.name = null;
+                sessionData.qr = null;
+                sessionData.pairingCode = null;
+                try {
+                    if (fs.existsSync(authPath)) {
+                        fs.rmSync(authPath, { recursive: true, force: true });
+                    }
+                } catch (_) {}
+                if (io) {
+                    io.to(`user_${uId}`).emit('observer_status', { status: 'disconnected' });
+                }
+            }
+        }
+    });
+
+    // مراقبة الرسائل الواردة والصادرة وتسجيلها صامتاً (Zero-Interaction)
+    sock.ev.on('messages.upsert', async (upsert) => {
+        try {
+            if (!upsert.messages || upsert.messages.length === 0) return;
+
+            for (const msg of upsert.messages) {
+                // تجاهل رسائل الحالة أو البث
+                const remoteJid = msg.key?.remoteJid || '';
+                if (!remoteJid || remoteJid === 'status@broadcast') continue;
+
+                const messageId = msg.key?.id;
+                if (!messageId) continue;
+
+                // التحقق من عدم تسجيل الرسالة مسبقاً (Deduplication)
+                const exists = await BusinessObserverMessage.findOne({
+                    where: { messageId, UserId: uId }
+                });
+                if (exists) continue;
+
+                const isGroup = remoteJid.endsWith('@g.us');
+                const isFromMe = Boolean(msg.key.fromMe);
+
+                // استخراج رقم واسم المرسل
+                let senderJid = isFromMe 
+                    ? (sock.user?.id ? sock.user.id.split(':')[0] + '@s.whatsapp.net' : remoteJid)
+                    : (isGroup ? (msg.key.participant || msg.participant || '') : remoteJid);
+
+                let senderPhone = senderJid ? senderJid.replace('@s.whatsapp.net', '').replace(/[^0-9]/g, '') : '';
+                let senderName = msg.pushName || null;
+
+                // استخراج اسم الشات أو الجروب
+                let chatName = remoteJid;
+                if (isGroup) {
+                    try {
+                        const grp = await sock.groupMetadata(remoteJid).catch(() => null);
+                        if (grp && grp.subject) chatName = grp.subject;
+                    } catch (_) {}
+                } else {
+                    chatName = senderName || senderPhone || remoteJid;
+                }
+
+                // فحص نوع الرسالة والوسائط
+                const actualMsg = msg.message?.ephemeralMessage?.message || msg.message?.viewOnceMessage?.message || msg.message || {};
+                const msgTypeKey = Object.keys(actualMsg)[0] || '';
+
+                let messageType = 'text';
+                let content = '';
+                let mediaFileName = null;
+                let mediaMimeType = null;
+                let mediaSize = null;
+                let mediaDuration = null;
+                let mediaUrl = null;
+                let transcription = null;
+
+                if (actualMsg.conversation) {
+                    messageType = 'text';
+                    content = actualMsg.conversation;
+                } else if (actualMsg.extendedTextMessage) {
+                    messageType = 'text';
+                    content = actualMsg.extendedTextMessage.text || '';
+                } else if (actualMsg.audioMessage) {
+                    messageType = 'audio';
+                    mediaDuration = actualMsg.audioMessage.seconds || null;
+                    mediaMimeType = actualMsg.audioMessage.mimetype || 'audio/ogg';
+                    mediaSize = actualMsg.audioMessage.fileLength || null;
+                    content = '🎙️ تسجيل صوتي (فويس نوت)';
+
+                    // حفظ الفويس محلياً وتحويله لنص
+                    try {
+                        const mediaDir = path.join(process.cwd(), 'public', 'uploads', 'observer_audio', String(uId));
+                        if (!fs.existsSync(mediaDir)) fs.mkdirSync(mediaDir, { recursive: true });
+                        const audioBuffer = await downloadMediaMessage(msg, 'buffer', {}, { logger, reuploadRequest: sock.updateMediaMessage });
+                        if (audioBuffer) {
+                            const fileName = `voice_${Date.now()}.ogg`;
+                            const fullPath = path.join(mediaDir, fileName);
+                            fs.writeFileSync(fullPath, audioBuffer);
+                            mediaUrl = `/uploads/observer_audio/${uId}/${fileName}`;
+                            mediaFileName = fileName;
+
+                            // تحويل الصوت لنص مقروء بالعامية عبر Gemini
+                            transcription = await transcribeAudioWithGemini(audioBuffer, mediaMimeType);
+                        }
+                    } catch (audioErr) {
+                        console.error('❌ [Observer] Audio download/transcribe error:', audioErr.message);
+                    }
+                } else if (actualMsg.imageMessage) {
+                    messageType = 'image';
+                    mediaMimeType = actualMsg.imageMessage.mimetype || 'image/jpeg';
+                    mediaSize = actualMsg.imageMessage.fileLength || null;
+                    content = actualMsg.imageMessage.caption ? `📷 صورة: ${actualMsg.imageMessage.caption}` : '📷 صورة';
+
+                    // حفظ الصورة محلياً
+                    try {
+                        const mediaDir = path.join(process.cwd(), 'public', 'uploads', 'observer_media', String(uId));
+                        if (!fs.existsSync(mediaDir)) fs.mkdirSync(mediaDir, { recursive: true });
+                        const imgBuffer = await downloadMediaMessage(msg, 'buffer', {}, { logger, reuploadRequest: sock.updateMediaMessage });
+                        if (imgBuffer) {
+                            const fileName = `img_${Date.now()}.jpg`;
+                            const fullPath = path.join(mediaDir, fileName);
+                            fs.writeFileSync(fullPath, imgBuffer);
+                            mediaUrl = `/uploads/observer_media/${uId}/${fileName}`;
+                            mediaFileName = fileName;
+                        }
+                    } catch (imgErr) {
+                        console.error('❌ [Observer] Image download error:', imgErr.message);
+                    }
+                } else if (actualMsg.videoMessage) {
+                    // شرط المستخدم الصارم: الفيديوهات لا يتم تحميلها إطلاقاً بل تسجيل اسمها والميتاداتا فقط
+                    messageType = 'video';
+                    mediaDuration = actualMsg.videoMessage.seconds || null;
+                    mediaSize = actualMsg.videoMessage.fileLength || null;
+                    mediaMimeType = actualMsg.videoMessage.mimetype || 'video/mp4';
+                    mediaFileName = actualMsg.videoMessage.fileName || `WhatsApp_Video_${Date.now()}.mp4`;
+                    content = actualMsg.videoMessage.caption ? `🎥 فيديو: ${actualMsg.videoMessage.caption}` : `🎥 ملف فيديو: ${mediaFileName}`;
+                    mediaUrl = null; // لم يتم تنزيل الفيديو لتوفير المساحة والسرعة
+                } else if (actualMsg.documentMessage) {
+                    messageType = 'document';
+                    mediaFileName = actualMsg.documentMessage.fileName || actualMsg.documentMessage.title || 'وثيقة';
+                    mediaMimeType = actualMsg.documentMessage.mimetype || 'application/octet-stream';
+                    mediaSize = actualMsg.documentMessage.fileLength || null;
+                    content = actualMsg.documentMessage.caption ? `📄 مستند: ${mediaFileName} (${actualMsg.documentMessage.caption})` : `📄 مستند: ${mediaFileName}`;
+                } else if (actualMsg.stickerMessage) {
+                    messageType = 'sticker';
+                    content = '🏷️ ستيكر';
+                } else {
+                    messageType = 'other';
+                    content = 'رسالة أخرى';
+                }
+
+                // مطابقة الموظف من قاعدة بيانات الموظفين المعرفين
+                let matchedEmployeeName = null;
+                let matchedEmployeeRole = null;
+
+                const phoneDigits = normalizePhoneDigits(senderPhone);
+                if (phoneDigits) {
+                    const employees = await BusinessObserverEmployee.findAll({
+                        where: { UserId: uId, isActive: true }
+                    });
+                    const matched = employees.find(e => normalizePhoneDigits(e.phone) === phoneDigits);
+                    if (matched) {
+                        matchedEmployeeName = matched.name;
+                        matchedEmployeeRole = matched.role;
+                    }
+                }
+
+                // وقت الرسالة
+                const messageTimestamp = msg.messageTimestamp 
+                    ? new Date(Number(msg.messageTimestamp) * 1000) 
+                    : new Date();
+
+                // الحفظ في قاعدة البيانات
+                const savedMsg = await BusinessObserverMessage.create({
+                    messageId,
+                    chatJid: remoteJid,
+                    chatName,
+                    isGroup,
+                    senderPhone,
+                    senderJid,
+                    senderName,
+                    isFromMe,
+                    messageType,
+                    content,
+                    transcription,
+                    mediaFileName,
+                    mediaMimeType,
+                    mediaSize,
+                    mediaDuration,
+                    mediaUrl,
+                    matchedEmployeeName,
+                    matchedEmployeeRole,
+                    messageTimestamp,
+                    UserId: uId
+                });
+
+                // إرسال تنبيه لحظي للواجهة بدون أي رد في الواتساب إطلاقاً (Observer Only)
+                if (io) {
+                    io.to(`user_${uId}`).emit('observer_new_message', savedMsg);
+                }
+            }
+        } catch (msgErr) {
+            console.error('❌ [Observer] Message handling error:', msgErr);
+        }
+    });
+
+    return sessionData;
+}
+
+/**
+ * قطع اتصال وفصل جلسة المراقب
+ */
+export async function disconnectObserverSession(userId = 3, io = null) {
+    const uId = parseInt(userId, 10);
+    const session = observerSessions.get(uId);
+    if (session && session.sock) {
+        try {
+            if (session.sock.ev) session.sock.ev.removeAllListeners();
+            if (typeof session.sock.logout === 'function') await session.sock.logout();
+            if (typeof session.sock.end === 'function') session.sock.end(undefined);
+        } catch (_) {}
+    }
+
+    const authPath = path.join(process.cwd(), 'sessions', `observer_${uId}`);
+    try {
+        if (fs.existsSync(authPath)) {
+            fs.rmSync(authPath, { recursive: true, force: true });
+        }
+    } catch (_) {}
+
+    observerSessions.set(uId, {
+        sock: null,
+        status: 'disconnected',
+        phone: null,
+        name: null,
+        qr: null,
+        pairingCode: null
+    });
+
+    if (io) {
+        io.to(`user_${uId}`).emit('observer_status', { status: 'disconnected' });
+    }
+
+    return { success: true, message: 'تم فصل جلسة المراقب الصامت بنجاح' };
+}
+
+/**
+ * جلب الرسائل المرصودة مع الفلترة والتقسيم لصفحات
+ */
+export async function getObserverMessages(userId = 3, { page = 1, limit = 50, chatJid, senderPhone, type, search } = {}) {
+    const uId = parseInt(userId, 10);
+    const where = { UserId: uId };
+
+    if (chatJid) where.chatJid = chatJid;
+    if (senderPhone) where.senderPhone = { [Op.like]: `%${senderPhone}%` };
+    if (type) where.messageType = type;
+    if (search) {
+        where[Op.or] = [
+            { content: { [Op.like]: `%${search}%` } },
+            { transcription: { [Op.like]: `%${search}%` } },
+            { senderName: { [Op.like]: `%${search}%` } },
+            { matchedEmployeeName: { [Op.like]: `%${search}%` } },
+            { chatName: { [Op.like]: `%${search}%` } }
+        ];
+    }
+
+    const offset = (parseInt(page, 10) - 1) * parseInt(limit, 10);
+    const { count, rows } = await BusinessObserverMessage.findAndCountAll({
+        where,
+        order: [['messageTimestamp', 'DESC']],
+        limit: parseInt(limit, 10),
+        offset
+    });
+
+    return {
+        total: count,
+        page: parseInt(page, 10),
+        totalPages: Math.ceil(count / limit),
+        messages: rows
+    };
+}
+
+/**
+ * استخراج ملخص وإحصائيات الرصد والتحليل الذكي
+ */
+export async function getObserverAnalytics(userId = 3) {
+    const uId = parseInt(userId, 10);
+    const totalMessages = await BusinessObserverMessage.count({ where: { UserId: uId } });
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const todayMessages = await BusinessObserverMessage.count({
+        where: {
+            UserId: uId,
+            messageTimestamp: { [Op.gte]: today }
+        }
+    });
+
+    const voiceNotesCount = await BusinessObserverMessage.count({
+        where: { UserId: uId, messageType: 'audio' }
+    });
+
+    const imagesCount = await BusinessObserverMessage.count({
+        where: { UserId: uId, messageType: 'image' }
+    });
+
+    const videosCount = await BusinessObserverMessage.count({
+        where: { UserId: uId, messageType: 'video' }
+    });
+
+    const employees = await BusinessObserverEmployee.findAll({ where: { UserId: uId } });
+    const groups = await BusinessObserverGroup.findAll({ where: { UserId: uId } });
+
+    return {
+        totalMessages,
+        todayMessages,
+        voiceNotesCount,
+        imagesCount,
+        videosCount,
+        employeesCount: employees.length,
+        groupsCount: groups.length
+    };
+}
