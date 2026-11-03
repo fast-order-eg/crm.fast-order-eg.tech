@@ -20,23 +20,27 @@
         }
         .main-content {
             margin-right: 260px;
-            padding: 30px 25px;
+            padding: 24px 20px;
             transition: all 0.3s;
         }
         @media (max-width: 991px) {
-            .main-content { margin-right: 0; padding: 15px; }
+            .main-content { margin-right: 0; padding: 14px 10px; }
         }
         .glass-card {
             background: #ffffff;
-            border-radius: 18px;
-            border: 1px solid rgba(226, 232, 240, 0.8);
-            box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
+            border-radius: 16px;
+            border: 1px solid rgba(226, 232, 240, 0.9);
+            box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.04);
+        }
+        .nav-pills {
+            gap: 8px;
         }
         .nav-pills .nav-link {
             border-radius: 12px;
             font-weight: 700;
-            padding: 10px 18px;
+            padding: 9px 16px;
             color: #64748b;
+            font-size: 0.92rem;
             transition: all 0.2s;
         }
         .nav-pills .nav-link.active {
@@ -48,6 +52,7 @@
             background: rgba(16, 185, 129, 0.12);
             color: #059669;
             border: 1px solid rgba(16, 185, 129, 0.25);
+            font-size: 0.82rem;
         }
         .code-box {
             font-family: 'Courier New', Courier, monospace;
@@ -63,7 +68,7 @@
         }
         .feed-item {
             border-bottom: 1px solid #f1f5f9;
-            padding: 14px 16px;
+            padding: 13px 15px;
             transition: background 0.15s;
         }
         .feed-item:hover {
@@ -95,141 +100,222 @@
             font-size: 0.88rem;
             color: #92400e;
         }
+        .group-card {
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 14px;
+            background: #ffffff;
+            transition: all 0.2s;
+        }
+        .group-card:hover {
+            border-color: #cbd5e1;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+        }
+        .group-card.is-saved {
+            border-right: 4px solid #10b981;
+        }
+        .group-card.is-unsaved {
+            border-right: 4px solid #f59e0b;
+        }
+
+        /* تحسينات الموبايل */
+        @media (max-width: 768px) {
+            .nav-pills {
+                flex-wrap: nowrap !important;
+                overflow-x: auto !important;
+                padding-bottom: 6px;
+                -webkit-overflow-scrolling: touch;
+            }
+            .nav-pills .nav-link {
+                white-space: nowrap;
+                font-size: 0.82rem;
+                padding: 7px 12px;
+            }
+            .header-title {
+                font-size: 1.18rem !important;
+            }
+            .badge-stealth {
+                font-size: 0.74rem !important;
+                padding: 4px 8px !important;
+            }
+            .glass-card {
+                padding: 14px !important;
+            }
+        }
     </style>
 </head>
 <body>
+<%
+function formatEnDateTime(dt) {
+    if (!dt) return '—';
+    const d = new Date(dt);
+    if (isNaN(d.getTime())) return '—';
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    let h = d.getHours();
+    const min = String(d.getMinutes()).padStart(2, '0');
+    const ap = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 || 12;
+    return `${y}-${m}-${day} ${String(h).padStart(2, '0')}:${min} ${ap}`;
+}
+%>
+
     <%- include('partials/navbar') %>
     <%- include('partials/sidebar') %>
 
     <div class="main-content">
-        <!-- Header -->
-        <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-3">
+        <!-- Header (Mobile-Optimized) -->
+        <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
             <div>
-                <h3 class="fw-black mb-1 text-dark d-flex align-items-center gap-2">
-                    <i class="bi bi-eye-fill text-info fs-3"></i>
+                <h4 class="fw-black mb-1 text-dark d-flex align-items-center gap-2 header-title">
+                    <i class="bi bi-eye-fill text-info"></i>
                     راصد ومحلل الأعمال الذكي
-                </h3>
-                <p class="text-muted small mb-0">المراقب الصامت للمحادثات والجروبات لجمع وتحليل الأداء وأتمتة المهام بالذكاء الاصطناعي</p>
+                </h4>
+                <p class="text-muted small mb-0 d-none d-sm-block">المراقب الصامت للمحادثات والجروبات لجمع وتحليل الأداء وأتمتة المهام</p>
             </div>
             <div>
-                <span class="badge badge-stealth px-3 py-2 rounded-pill fw-bold d-flex align-items-center gap-1.5">
+                <span class="badge badge-stealth px-2.5 py-1.5 rounded-pill fw-bold d-flex align-items-center gap-1.5">
                     <i class="bi bi-shield-lock-fill"></i>
                     وضع المراقبة الصامتة (Zero-Interaction 🤫)
                 </span>
             </div>
         </div>
 
-        <!-- Connection Status Card -->
-        <div class="glass-card p-4 mb-4">
-            <div class="row align-items-center g-3">
-                <div class="col-lg-6">
-                    <div class="d-flex align-items-center gap-3">
-                        <div id="statusIconWrap" class="rounded-circle p-3 d-flex align-items-center justify-content-center <%= status.status === 'connected' ? 'bg-success bg-opacity-10 text-success' : 'bg-warning bg-opacity-10 text-warning' %>" style="width: 60px; height: 60px;">
-                            <i id="statusIcon" class="bi <%= status.status === 'connected' ? 'bi-whatsapp fs-3' : 'bi-exclamation-triangle-fill fs-3' %>"></i>
-                        </div>
-                        <div>
-                            <h5 class="fw-bold mb-1" id="statusTitle">
+        <!-- Connection Status Card (Collapsible when connected) -->
+        <div class="glass-card p-3 mb-4" id="connectionCard">
+            <!-- Compact Bar (Always Visible) -->
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <div class="d-flex align-items-center gap-2.5">
+                    <div id="statusBadgeDot" class="d-flex align-items-center justify-content-center rounded-circle <%= status.status === 'connected' ? 'bg-success text-white' : (status.status === 'connecting' ? 'bg-warning text-dark' : 'bg-secondary text-white') %>" style="width: 28px; height: 28px; font-size: 0.85rem;">
+                        <i id="statusDotIcon" class="bi <%= status.status === 'connected' ? 'bi-whatsapp' : (status.status === 'connecting' ? 'bi-arrow-repeat' : 'bi-power') %>"></i>
+                    </div>
+                    <div>
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <span class="fw-bold text-dark" id="statusTitleCompact">
                                 <%= status.status === 'connected' ? 'المراقب متصل ونشط 🟢' : (status.status === 'connecting' ? 'جاري الاتصال... 🟡' : 'المراقب غير متصل ⚪') %>
-                            </h5>
-                            <div class="text-muted small" id="statusDesc">
+                            </span>
+                            <span class="text-muted small font-monospace" id="statusPhoneCompact">
                                 <% if (status.status === 'connected') { %>
-                                    الرقم المراقب: <strong>+<%= status.phone %></strong> (<%= status.name %>)
-                                <% } else { %>
-                                    قم بربط رقم المراقبة بكود الربط (Pairing Code) أو بمسح الـ QR للبدء في الرصد التلقائي.
+                                    (+<%= status.phone %> <%= status.name ? '- ' + status.name : '' %>)
                                 <% } %>
-                            </div>
+                            </span>
                         </div>
                     </div>
                 </div>
 
-                <div class="col-lg-6 text-lg-end">
-                    <div class="d-flex gap-2 justify-content-lg-end flex-wrap">
-                        <button type="button" class="btn btn-outline-primary fw-bold rounded-3 px-3 py-2" data-bs-toggle="modal" data-bs-target="#pairingModal">
-                            <i class="bi bi-phone me-1"></i> كود الربط (Pairing Code)
-                        </button>
-                        <button type="button" class="btn btn-outline-secondary fw-bold rounded-3 px-3 py-2" id="btnRequestQr">
-                            <i class="bi bi-qr-code me-1"></i> مسح كود QR
-                        </button>
-                        <button type="button" class="btn btn-danger fw-bold rounded-3 px-3 py-2 <%= status.status === 'connected' ? '' : 'd-none' %>" id="btnDisconnect">
-                            <i class="bi bi-power me-1"></i> قطع الاتصال
-                        </button>
-                    </div>
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-3 fw-bold" data-bs-toggle="collapse" data-bs-target="#connectionCollapse" aria-expanded="<%= status.status === 'connected' ? 'false' : 'true' %>">
+                        <i class="bi bi-sliders me-1"></i>
+                        <span id="toggleDetailsText">إدارة الاتصال / فتح</span>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-danger rounded-pill px-3 fw-bold <%= status.status === 'connected' ? '' : 'd-none' %>" id="btnQuickDisconnect">
+                        <i class="bi bi-power me-1"></i> قطع الاتصال
+                    </button>
                 </div>
             </div>
 
-            <!-- QR Container if active -->
-            <div id="qrBoxContainer" class="mt-4 pt-3 border-top text-center <%= status.qr ? '' : 'd-none' %>">
-                <h6 class="fw-bold mb-2 text-dark">امسح كود QR من تطبيق واتساب (الأجهزة المرتبطة):</h6>
-                <div class="d-inline-block p-3 bg-white rounded-3 shadow-xs border">
-                    <canvas id="qrCanvas"></canvas>
+            <!-- Expandable Detailed Settings Area -->
+            <div class="collapse <%= status.status === 'connected' ? '' : 'show' %> mt-3 pt-3 border-top" id="connectionCollapse">
+                <div class="row align-items-center g-3">
+                    <div class="col-lg-6">
+                        <div class="text-muted small" id="statusDesc">
+                            <% if (status.status === 'connected') { %>
+                                جلسة المراقب متصلة برقم <strong>+<%= status.phone %></strong>. يقوم النظام برصد الرسائل الواردة والصادرة في الخلفية تلقائياً دون أي تفاعل مرئي.
+                            <% } else { %>
+                                قم بربط رقم المراقبة بكود الربط (Pairing Code) أو بمسح الـ QR للبدء في الرصد التلقائي.
+                            <% } %>
+                        </div>
+                    </div>
+                    <div class="col-lg-6 text-lg-end">
+                        <div class="d-flex gap-2 justify-content-lg-end flex-wrap">
+                            <button type="button" class="btn btn-outline-primary fw-bold rounded-3 px-3 py-1.5 btn-sm" data-bs-toggle="modal" data-bs-target="#pairingModal">
+                                <i class="bi bi-phone me-1"></i> كود الربط (Pairing Code)
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary fw-bold rounded-3 px-3 py-1.5 btn-sm" id="btnRequestQr">
+                                <i class="bi bi-qr-code me-1"></i> مسح كود QR
+                            </button>
+                            <button type="button" class="btn btn-danger fw-bold rounded-3 px-3 py-1.5 btn-sm <%= status.status === 'connected' ? '' : 'd-none' %>" id="btnDisconnect">
+                                <i class="bi bi-power me-1"></i> قطع الاتصال
+                            </button>
+                        </div>
+                    </div>
                 </div>
-                <div class="small text-muted mt-2">الكود يتجدد تلقائياً كل 20 ثانية</div>
+
+                <!-- QR Container if active -->
+                <div id="qrBoxContainer" class="mt-3 pt-3 border-top text-center <%= status.qr ? '' : 'd-none' %>">
+                    <h6 class="fw-bold mb-2 text-dark small">امسح كود QR من تطبيق واتساب (الأجهزة المرتبطة):</h6>
+                    <div class="d-inline-block p-2 bg-white rounded-3 shadow-xs border">
+                        <canvas id="qrCanvas"></canvas>
+                    </div>
+                    <div class="small text-muted mt-1" style="font-size: 0.78rem;">الكود يتجدد تلقائياً كل 20 ثانية</div>
+                </div>
             </div>
         </div>
 
         <!-- Quick Metrics -->
-        <div class="row g-3 mb-4">
-            <div class="col-sm-6 col-xl-3">
-                <div class="glass-card p-3 d-flex align-items-center gap-3">
-                    <div class="rounded-3 bg-primary bg-opacity-10 text-primary p-3">
-                        <i class="bi bi-chat-dots-fill fs-4"></i>
+        <div class="row g-2 g-md-3 mb-4">
+            <div class="col-6 col-xl-3">
+                <div class="glass-card p-3 d-flex align-items-center gap-2.5">
+                    <div class="rounded-3 bg-primary bg-opacity-10 text-primary p-2.5">
+                        <i class="bi bi-chat-dots-fill fs-5"></i>
                     </div>
                     <div>
-                        <span class="text-muted small d-block">إجمالي الرسائل المرصودة</span>
-                        <h4 class="fw-bold mb-0 text-dark" id="statTotal"><%= analytics.totalMessages %></h4>
+                        <span class="text-muted small d-block" style="font-size: 0.78rem;">إجمالي الرسائل</span>
+                        <h5 class="fw-bold mb-0 text-dark font-monospace" id="statTotal"><%= analytics.totalMessages %></h5>
                     </div>
                 </div>
             </div>
-            <div class="col-sm-6 col-xl-3">
-                <div class="glass-card p-3 d-flex align-items-center gap-3">
-                    <div class="rounded-3 bg-success bg-opacity-10 text-success p-3">
-                        <i class="bi bi-clock-history fs-4"></i>
+            <div class="col-6 col-xl-3">
+                <div class="glass-card p-3 d-flex align-items-center gap-2.5">
+                    <div class="rounded-3 bg-success bg-opacity-10 text-success p-2.5">
+                        <i class="bi bi-clock-history fs-5"></i>
                     </div>
                     <div>
-                        <span class="text-muted small d-block">رسائل اليوم</span>
-                        <h4 class="fw-bold mb-0 text-dark" id="statToday"><%= analytics.todayMessages %></h4>
+                        <span class="text-muted small d-block" style="font-size: 0.78rem;">رسائل اليوم</span>
+                        <h5 class="fw-bold mb-0 text-dark font-monospace" id="statToday"><%= analytics.todayMessages %></h5>
                     </div>
                 </div>
             </div>
-            <div class="col-sm-6 col-xl-3">
-                <div class="glass-card p-3 d-flex align-items-center gap-3">
-                    <div class="rounded-3 bg-warning bg-opacity-10 text-warning p-3">
-                        <i class="bi bi-mic-fill fs-4"></i>
+            <div class="col-6 col-xl-3">
+                <div class="glass-card p-3 d-flex align-items-center gap-2.5">
+                    <div class="rounded-3 bg-warning bg-opacity-10 text-warning p-2.5">
+                        <i class="bi bi-mic-fill fs-5"></i>
                     </div>
                     <div>
-                        <span class="text-muted small d-block">فويس نوت مفرغة</span>
-                        <h4 class="fw-bold mb-0 text-dark" id="statVoice"><%= analytics.voiceNotesCount %></h4>
+                        <span class="text-muted small d-block" style="font-size: 0.78rem;">فويس مفرغ</span>
+                        <h5 class="fw-bold mb-0 text-dark font-monospace" id="statVoice"><%= analytics.voiceNotesCount %></h5>
                     </div>
                 </div>
             </div>
-            <div class="col-sm-6 col-xl-3">
-                <div class="glass-card p-3 d-flex align-items-center gap-3">
-                    <div class="rounded-3 bg-info bg-opacity-10 text-info p-3">
-                        <i class="bi bi-people-fill fs-4"></i>
+            <div class="col-6 col-xl-3">
+                <div class="glass-card p-3 d-flex align-items-center gap-2.5">
+                    <div class="rounded-3 bg-info bg-opacity-10 text-info p-2.5">
+                        <i class="bi bi-people-fill fs-5"></i>
                     </div>
                     <div>
-                        <span class="text-muted small d-block">الموظفين المعرفين</span>
-                        <h4 class="fw-bold mb-0 text-dark" id="statEmployees"><%= analytics.employeesCount %></h4>
+                        <span class="text-muted small d-block" style="font-size: 0.78rem;">الموظفين</span>
+                        <h5 class="fw-bold mb-0 text-dark font-monospace" id="statEmployees"><%= analytics.employeesCount %></h5>
                     </div>
                 </div>
             </div>
         </div>
 
         <!-- Navigation Tabs -->
-        <ul class="nav nav-pills mb-4 gap-2" id="observerTabs" role="tablist">
+        <ul class="nav nav-pills mb-3" id="observerTabs" role="tablist">
             <li class="nav-item" role="presentation">
                 <button class="nav-link active" id="feed-tab" data-bs-toggle="pill" data-bs-target="#feed-pane" type="button" role="tab">
-                    <i class="bi bi-broadcast me-1"></i> التغذية المباشرة للرسائل
-                </button>
-            </li>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link" id="employees-tab" data-bs-toggle="pill" data-bs-target="#employees-pane" type="button" role="tab">
-                    <i class="bi bi-person-badge-fill me-1"></i> خريطة الموظفين (<span id="empCountBadge"><%= employees.length %></span>)
+                    <i class="bi bi-broadcast me-1"></i> التغذية المباشرة
                 </button>
             </li>
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="groups-tab" data-bs-toggle="pill" data-bs-target="#groups-pane" type="button" role="tab">
                     <i class="bi bi-collection-fill me-1"></i> خريطة الجروبات ومجالات العمل (<span id="grpCountBadge"><%= groups.length %></span>)
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="employees-tab" data-bs-toggle="pill" data-bs-target="#employees-pane" type="button" role="tab">
+                    <i class="bi bi-person-badge-fill me-1"></i> خريطة الموظفين (<span id="empCountBadge"><%= employees.length %></span>)
                 </button>
             </li>
         </ul>
@@ -238,17 +324,17 @@
         <div class="tab-content" id="observerTabContent">
             <!-- 1. Live Feed Pane -->
             <div class="tab-pane fade show active" id="feed-pane" role="tabpanel">
-                <div class="glass-card p-4">
+                <div class="glass-card p-3 p-md-4">
                     <!-- Filters & Search -->
                     <div class="row g-2 mb-3">
                         <div class="col-md-5">
-                            <div class="input-group">
+                            <div class="input-group input-group-sm">
                                 <span class="input-group-text bg-light border-0"><i class="bi bi-search"></i></span>
-                                <input type="text" id="feedSearch" class="form-control border-0 bg-light rounded-end-3" placeholder="ابحث بالنص، اسم الموظف، الجروب، أو الرقم...">
+                                <input type="text" id="feedSearch" class="form-control border-0 bg-light" placeholder="ابحث بالنص، اسم الموظف، الجروب، أو الرقم...">
                             </div>
                         </div>
-                        <div class="col-md-3">
-                            <select id="feedTypeFilter" class="form-select border-0 bg-light rounded-3">
+                        <div class="col-md-4 col-8">
+                            <select id="feedTypeFilter" class="form-select form-select-sm border-0 bg-light rounded-3">
                                 <option value="">كل أنواع الوسائط</option>
                                 <option value="text">نصوص فقط</option>
                                 <option value="audio">تسجيلات صوتية (فويس)</option>
@@ -257,8 +343,8 @@
                                 <option value="document">مستندات</option>
                             </select>
                         </div>
-                        <div class="col-md-4 text-md-end">
-                            <button id="btnRefreshFeed" class="btn btn-outline-secondary rounded-3 px-3">
+                        <div class="col-md-3 col-4 text-end">
+                            <button id="btnRefreshFeed" class="btn btn-sm btn-outline-secondary rounded-3 px-3 w-100">
                                 <i class="bi bi-arrow-clockwise me-1"></i> تحديث
                             </button>
                         </div>
@@ -274,22 +360,73 @@
                 </div>
             </div>
 
-            <!-- 2. Employees Directory Pane -->
+            <!-- 2. Groups Directory Pane (Dynamic 10-batch Explorer) -->
+            <div class="tab-pane fade" id="groups-pane" role="tabpanel">
+                <div class="glass-card p-3 p-md-4">
+                    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+                        <div>
+                            <h5 class="fw-bold mb-1">خريطة وتخصصات جروبات واتساب</h5>
+                            <p class="text-muted small mb-0">حدد تخصص وطبيعة كل جروب مباشرة ليفهم الذكاء الاصطناعي مهام وسياق كل محادثة.</p>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button id="btnRefreshGroups" class="btn btn-sm btn-outline-primary fw-bold rounded-3">
+                                <i class="bi bi-arrow-clockwise me-1"></i> تحديث الجروبات
+                            </button>
+                            <button class="btn btn-sm btn-primary fw-bold rounded-3" data-bs-toggle="modal" data-bs-target="#addGroupModal">
+                                <i class="bi bi-plus-circle-fill me-1"></i> إضافة يدوي
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Filter Bar -->
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-8">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-light border-0"><i class="bi bi-search"></i></span>
+                                <input type="text" id="groupsSearchInput" class="form-control border-0 bg-light" placeholder="ابحث في أسماء الجروبات أو التخصصات...">
+                            </div>
+                        </div>
+                        <div class="col-md-4 text-md-end text-muted small d-flex align-items-center justify-content-md-end">
+                            <span id="groupsCountSummary">جاري تحميل الجروبات...</span>
+                        </div>
+                    </div>
+
+                    <!-- Dynamic Groups Container -->
+                    <div id="groupsListContainer" class="d-flex flex-column gap-2.5">
+                        <div class="text-center py-5 text-muted">
+                            <i class="bi bi-hourglass-split fs-2 d-block mb-2"></i>
+                            جاري جلب أحدث الجروبات من واتساب...
+                        </div>
+                    </div>
+
+                    <!-- Load More Button (10 by 10) -->
+                    <div class="text-center mt-3">
+                        <button id="btnLoadMoreGroups" class="btn btn-outline-primary fw-bold rounded-3 px-4 py-2 d-none">
+                            <i class="bi bi-arrow-down-circle me-1"></i> المزيد (عرض 10 جروبات أخرى)
+                        </button>
+                        <div id="groupsEndOfList" class="small text-muted py-2 d-none">
+                            <i class="bi bi-check-all text-success me-1"></i> تم عرض جميع الجروبات المتاحة.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. Employees Directory Pane -->
             <div class="tab-pane fade" id="employees-pane" role="tabpanel">
-                <div class="glass-card p-4">
-                    <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+                <div class="glass-card p-3 p-md-4">
+                    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
                         <div>
                             <h5 class="fw-bold mb-1">تعريف ومطابقة الموظفين</h5>
                             <p class="text-muted small mb-0">أضف أرقام الموظفين ليتم تمييزهم وتتبع أدائهم وتقييمهم تلقائياً في الشاتات.</p>
                         </div>
-                        <button class="btn btn-primary fw-bold rounded-3" data-bs-toggle="modal" data-bs-target="#addEmployeeModal">
+                        <button class="btn btn-sm btn-primary fw-bold rounded-3" data-bs-toggle="modal" data-bs-target="#addEmployeeModal">
                             <i class="bi bi-person-plus-fill me-1"></i> إضافة موظف جديد
                         </button>
                     </div>
 
                     <div class="table-responsive">
                         <table class="table table-hover align-middle mb-0">
-                            <thead class="table-light">
+                            <thead class="table-light small">
                                 <tr>
                                     <th>اسم الموظف</th>
                                     <th>رقم الهاتف</th>
@@ -311,59 +448,9 @@
                                             <td><span class="font-monospace text-primary"><%= emp.phone %></span></td>
                                             <td><span class="tag-role"><%= emp.role || 'موظف' %></span></td>
                                             <td class="text-muted small"><%= emp.notes || '—' %></td>
-                                            <td class="small text-muted"><%= new Date(emp.createdAt).toLocaleDateString('ar-EG') %></td>
+                                            <td class="small text-muted font-monospace"><%= formatEnDateTime(emp.createdAt) %></td>
                                             <td class="text-end">
                                                 <button class="btn btn-sm btn-outline-danger rounded-3" onclick="deleteEmployee(<%= emp.id %>)">
-                                                    <i class="bi bi-trash"></i>
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    <% }); %>
-                                <% } %>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 3. Groups Directory Pane -->
-            <div class="tab-pane fade" id="groups-pane" role="tabpanel">
-                <div class="glass-card p-4">
-                    <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
-                        <div>
-                            <h5 class="fw-bold mb-1">تعريف الجروبات وطبيعة العمل</h5>
-                            <p class="text-muted small mb-0">سجل أسماء وطبيعة كل جروب لتمكين الذكاء الاصطناعي من فهم سياق العمل والمشاكل بسهولة.</p>
-                        </div>
-                        <button class="btn btn-primary fw-bold rounded-3" data-bs-toggle="modal" data-bs-target="#addGroupModal">
-                            <i class="bi bi-plus-circle-fill me-1"></i> تعريف جروب جديد
-                        </button>
-                    </div>
-
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>اسم الجروب</th>
-                                    <th>معرف الجروب (JID)</th>
-                                    <th>وصف وطبيعة عمل الجروب</th>
-                                    <th>تاريخ الإضافة</th>
-                                    <th class="text-end">الإجراءات</th>
-                                </tr>
-                            </thead>
-                            <tbody id="groupsTableBody">
-                                <% if (groups.length === 0) { %>
-                                    <tr>
-                                        <td colspan="5" class="text-center py-4 text-muted">لم يتم إضافة جروبات بعد. اضغط على "تعريف جروب جديد".</td>
-                                    </tr>
-                                <% } else { %>
-                                    <% groups.forEach(grp => { %>
-                                        <tr id="grp-row-<%= grp.id %>">
-                                            <td class="fw-bold text-dark"><i class="bi bi-whatsapp text-success me-1"></i> <%= grp.groupName %></td>
-                                            <td><span class="font-monospace small text-muted"><%= grp.groupJid || 'تعرف بالاسم' %></span></td>
-                                            <td><%= grp.groupDescription || '—' %></td>
-                                            <td class="small text-muted"><%= new Date(grp.createdAt).toLocaleDateString('ar-EG') %></td>
-                                            <td class="text-end">
-                                                <button class="btn btn-sm btn-outline-danger rounded-3" onclick="deleteGroup(<%= grp.id %>)">
                                                     <i class="bi bi-trash"></i>
                                                 </button>
                                             </td>
@@ -444,12 +531,12 @@
         </div>
     </div>
 
-    <!-- Modal: Add Group -->
+    <!-- Modal: Add Group Manual Fallback -->
     <div class="modal fade" id="addGroupModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow-lg rounded-4">
                 <div class="modal-header border-bottom-0 pb-0">
-                    <h5 class="modal-title fw-bold">تعريف جروب وطبيعة عمله</h5>
+                    <h5 class="modal-title fw-bold">تعريف جروب يدوي</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body p-4">
@@ -482,6 +569,25 @@
         const socket = io();
         const currentUserId = <%= user.id %>;
         socket.emit('join_room', 'user_' + currentUserId);
+
+        // تنسيق التاريخ والوقت الإنجليزي بنظام 12 ساعة الصارم
+        function formatEnglishDateTime(dateInput) {
+            if (!dateInput) return '—';
+            const d = new Date(dateInput);
+            if (isNaN(d.getTime())) return '—';
+
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+
+            let hours = d.getHours();
+            const minutes = String(d.getMinutes()).padStart(2, '0');
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12 || 12;
+            const formattedHours = String(hours).padStart(2, '0');
+
+            return `${year}-${month}-${day} ${formattedHours}:${minutes} ${ampm}`;
+        }
 
         // الاستماع لأحداث الراصد المباشرة عبر السوكت
         socket.on('observer_status', (data) => {
@@ -522,31 +628,40 @@
         }
 
         function updateStatusUI(data) {
-            const iconWrap = document.getElementById('statusIconWrap');
-            const icon = document.getElementById('statusIcon');
-            const title = document.getElementById('statusTitle');
+            const dot = document.getElementById('statusBadgeDot');
+            const dotIcon = document.getElementById('statusDotIcon');
+            const titleCompact = document.getElementById('statusTitleCompact');
+            const phoneCompact = document.getElementById('statusPhoneCompact');
             const desc = document.getElementById('statusDesc');
             const btnDisconnect = document.getElementById('btnDisconnect');
+            const btnQuickDisconnect = document.getElementById('btnQuickDisconnect');
             const qrContainer = document.getElementById('qrBoxContainer');
 
             if (data.status === 'connected') {
-                iconWrap.className = 'rounded-circle p-3 d-flex align-items-center justify-content-center bg-success bg-opacity-10 text-success';
-                icon.className = 'bi bi-whatsapp fs-3';
-                title.innerText = 'المراقب متصل ونشط 🟢';
-                desc.innerHTML = `الرقم المراقب: <strong>+${data.phone}</strong> (${data.name || ''})`;
+                dot.className = 'd-flex align-items-center justify-content-center rounded-circle bg-success text-white';
+                dotIcon.className = 'bi bi-whatsapp';
+                titleCompact.innerText = 'المراقب متصل ونشط 🟢';
+                phoneCompact.innerText = `(+${data.phone} ${data.name ? '- ' + data.name : ''})`;
+                desc.innerHTML = `جلسة المراقب متصلة برقم <strong>+${data.phone}</strong> (${data.name || ''}). يرصد الرسائل تلقائياً في الخلفية.`;
                 btnDisconnect.classList.remove('d-none');
+                btnQuickDisconnect.classList.remove('d-none');
                 qrContainer.classList.add('d-none');
             } else if (data.status === 'connecting') {
-                iconWrap.className = 'rounded-circle p-3 d-flex align-items-center justify-content-center bg-warning bg-opacity-10 text-warning';
-                icon.className = 'bi bi-arrow-repeat fs-3';
-                title.innerText = 'جاري الاتصال... 🟡';
+                dot.className = 'd-flex align-items-center justify-content-center rounded-circle bg-warning text-dark';
+                dotIcon.className = 'bi bi-arrow-repeat';
+                titleCompact.innerText = 'جاري الاتصال... 🟡';
+                phoneCompact.innerText = '';
                 desc.innerText = 'جاري مزامنة وربط جلسة المراقب الصامت...';
+                btnDisconnect.classList.add('d-none');
+                btnQuickDisconnect.classList.add('d-none');
             } else {
-                iconWrap.className = 'rounded-circle p-3 d-flex align-items-center justify-content-center bg-secondary bg-opacity-10 text-secondary';
-                icon.className = 'bi bi-exclamation-triangle-fill fs-3';
-                title.innerText = 'المراقب غير متصل ⚪';
+                dot.className = 'd-flex align-items-center justify-content-center rounded-circle bg-secondary text-white';
+                dotIcon.className = 'bi bi-power';
+                titleCompact.innerText = 'المراقب غير متصل ⚪';
+                phoneCompact.innerText = '';
                 desc.innerText = 'قم بربط رقم المراقبة بكود الربط (Pairing Code) أو بمسح الـ QR للبدء في الرصد التلقائي.';
                 btnDisconnect.classList.add('d-none');
+                btnQuickDisconnect.classList.add('d-none');
             }
         }
 
@@ -587,12 +702,14 @@
         });
 
         // قطع الاتصال
-        document.getElementById('btnDisconnect').addEventListener('click', async () => {
+        async function doDisconnect() {
             if (!confirm('هل أنت متأكد من رغبتك في قطع اتصال جلسة المراقب؟')) return;
             try {
                 await fetch('/dashboard/business-observer/disconnect', { method: 'POST' });
             } catch (_) {}
-        });
+        }
+        document.getElementById('btnDisconnect').addEventListener('click', doDisconnect);
+        document.getElementById('btnQuickDisconnect').addEventListener('click', doDisconnect);
 
         // تحميل الرسائل المرصودة
         async function loadMessagesFeed() {
@@ -636,8 +753,7 @@
             const div = document.createElement('div');
             div.className = 'feed-item';
 
-            const timeStr = new Date(msg.messageTimestamp).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
-            const dateStr = new Date(msg.messageTimestamp).toLocaleDateString('ar-EG');
+            const dateTimeStr = formatEnglishDateTime(msg.messageTimestamp);
 
             let senderTag = msg.isFromMe ? '<span class="badge bg-secondary">الرقم المراقب</span>' : '';
             if (msg.matchedEmployeeName) {
@@ -663,19 +779,195 @@
 
             div.innerHTML = `
                 <div class="d-flex align-items-center justify-content-between mb-1">
-                    <div class="d-flex align-items-center gap-2">
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
                         ${typeIcon}
                         <strong class="text-dark">${msg.chatName || msg.chatJid}</strong>
                         ${msg.isGroup ? '<span class="badge bg-light text-secondary border">جروب</span>' : ''}
                         ${senderTag}
                     </div>
-                    <span class="small text-muted font-monospace">${dateStr} ${timeStr}</span>
+                    <span class="small text-muted font-monospace">${dateTimeStr}</span>
                 </div>
                 <div class="text-secondary small mt-1" style="white-space: pre-wrap; word-break: break-word;">${msg.content || ''}</div>
                 ${mediaSnippet}
             `;
             return div;
         }
+
+        // ==========================================
+        // خريطة الجروبات ومجالات العمل (10 في 10)
+        // ==========================================
+        let currentGroupPage = 1;
+        let hasMoreGroups = false;
+        let isGroupLoading = false;
+
+        async function fetchGroups(page = 1, append = false) {
+            if (isGroupLoading) return;
+            isGroupLoading = true;
+
+            const container = document.getElementById('groupsListContainer');
+            const summary = document.getElementById('groupsCountSummary');
+            const btnMore = document.getElementById('btnLoadMoreGroups');
+            const endText = document.getElementById('groupsEndOfList');
+            const search = document.getElementById('groupsSearchInput').value.trim();
+
+            if (!append) {
+                container.innerHTML = '<div class="text-center py-5 text-muted"><i class="bi bi-hourglass-split fs-2 d-block mb-2"></i> جاري جلب الجروبات...</div>';
+            } else {
+                btnMore.disabled = true;
+                btnMore.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> جاري جلب المزيد...';
+            }
+
+            try {
+                const params = new URLSearchParams({ page, limit: 10 });
+                if (search) params.append('search', search);
+
+                const res = await fetch(`/dashboard/business-observer/whatsapp-groups?${params.toString()}`);
+                const data = await res.json();
+
+                if (!data.success) {
+                    if (!append) container.innerHTML = `<div class="text-center py-4 text-danger">${data.message || 'فشل جلب الجروبات'}</div>`;
+                    return;
+                }
+
+                if (!append) container.innerHTML = '';
+
+                summary.innerText = `إجمالي الجروبات: ${data.total} | المعروض: ${page * 10 > data.total ? data.total : page * 10}`;
+
+                if (data.groups.length === 0 && !append) {
+                    container.innerHTML = '<div class="text-center py-5 text-muted"><i class="bi bi-chat-square-dots fs-2 d-block mb-2"></i> لا توجد جروبات مطابقة أو لم يتم اكتشاف جروبات بعد.</div>';
+                    btnMore.classList.add('d-none');
+                    endText.classList.add('d-none');
+                    return;
+                }
+
+                data.groups.forEach(grp => {
+                    const el = createGroupCard(grp);
+                    container.appendChild(el);
+                });
+
+                hasMoreGroups = data.hasMore;
+                currentGroupPage = page;
+
+                if (hasMoreGroups) {
+                    btnMore.classList.remove('d-none');
+                    btnMore.disabled = false;
+                    btnMore.innerHTML = '<i class="bi bi-arrow-down-circle me-1"></i> المزيد (عرض 10 جروبات أخرى)';
+                    endText.classList.add('d-none');
+                } else {
+                    btnMore.classList.add('d-none');
+                    endText.classList.remove('d-none');
+                }
+            } catch (err) {
+                if (!append) container.innerHTML = '<div class="text-center py-4 text-danger">حدث خطأ أثناء جلب الجروبات</div>';
+            } finally {
+                isGroupLoading = false;
+            }
+        }
+
+        function createGroupCard(grp) {
+            const div = document.createElement('div');
+            div.className = `group-card ${grp.isSaved ? 'is-saved' : 'is-unsaved'}`;
+
+            const badgeHtml = grp.isSaved 
+                ? '<span class="badge bg-success bg-opacity-10 text-success fw-bold"><i class="bi bi-check2-circle me-1"></i> محدد له تخصص</span>'
+                : '<span class="badge bg-warning bg-opacity-10 text-warning fw-bold"><i class="bi bi-exclamation-circle me-1"></i> جديد بدون تخصص</span>';
+
+            const participantsBadge = grp.participantsCount > 0 
+                ? `<span class="badge bg-light text-secondary border font-monospace"><i class="bi bi-people me-1"></i> ${grp.participantsCount} عضو</span>` 
+                : '';
+
+            div.innerHTML = `
+                <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-whatsapp text-success fs-5"></i>
+                        <strong class="text-dark fs-6">${grp.groupName}</strong>
+                        ${participantsBadge}
+                        ${badgeHtml}
+                    </div>
+                    <div class="font-monospace text-muted small" style="font-size: 0.75rem;">
+                        ${grp.groupJid || 'معرف الجروب غير متوفر'}
+                    </div>
+                </div>
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-9">
+                        <label class="form-label text-muted small mb-1">تخصص وطبيعة عمل الجروب وملاحظاتك عنه:</label>
+                        <input type="text" class="form-control form-control-sm rounded-3 grp-desc-input" 
+                            placeholder="اكتب هنا: مخصص لخدمة عملاء ديفو، متابعة شحن، أسئلة أسعار..." 
+                            value="${grp.groupDescription || ''}">
+                    </div>
+                    <div class="col-md-3 text-md-end">
+                        <button type="button" class="btn btn-sm btn-primary w-100 fw-bold rounded-3 btn-save-spec">
+                            <i class="bi bi-floppy2-flat me-1"></i> حفظ التخصص
+                        </button>
+                    </div>
+                </div>
+                <div class="save-status-msg small mt-1 font-monospace text-success d-none"></div>
+            `;
+
+            const btnSave = div.querySelector('.btn-save-spec');
+            const descInput = div.querySelector('.grp-desc-input');
+            const statusMsg = div.querySelector('.save-status-msg');
+
+            btnSave.addEventListener('click', async () => {
+                const description = descInput.value.trim();
+                btnSave.disabled = true;
+                btnSave.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> جاري الحفظ...';
+
+                try {
+                    const res = await fetch('/dashboard/business-observer/groups/save-specialization', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            groupJid: grp.groupJid,
+                            groupName: grp.groupName,
+                            groupDescription: description
+                        })
+                    });
+                    const resData = await res.json();
+                    if (resData.success) {
+                        div.className = 'group-card is-saved';
+                        statusMsg.className = 'save-status-msg small mt-1 text-success fw-bold';
+                        statusMsg.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> تم حفظ التخصص بنجاح!';
+                        statusMsg.classList.remove('d-none');
+                        setTimeout(() => statusMsg.classList.add('d-none'), 3000);
+                    } else {
+                        alert(resData.message || 'حدث خطأ أثناء الحفظ');
+                    }
+                } catch (e) {
+                    alert('خطأ في الاتصال بالسيرفر');
+                } finally {
+                    btnSave.disabled = false;
+                    btnSave.innerHTML = '<i class="bi bi-floppy2-flat me-1"></i> حفظ التخصص';
+                }
+            });
+
+            return div;
+        }
+
+        function loadMoreGroups() {
+            if (hasMoreGroups && !isGroupLoading) {
+                fetchGroups(currentGroupPage + 1, true);
+            }
+        }
+
+        document.getElementById('btnLoadMoreGroups').addEventListener('click', loadMoreGroups);
+        document.getElementById('btnRefreshGroups').addEventListener('click', () => fetchGroups(1, false));
+
+        document.getElementById('groupsSearchInput').addEventListener('input', () => {
+            clearTimeout(window.grpSearchTimeout);
+            window.grpSearchTimeout = setTimeout(() => {
+                fetchGroups(1, false);
+            }, 400);
+        });
+
+        // تشغيل جلب الجروبات عند فتح التاب لأول مرة
+        let groupsLoadedOnce = false;
+        document.getElementById('groups-tab').addEventListener('shown.bs.tab', () => {
+            if (!groupsLoadedOnce) {
+                fetchGroups(1, false);
+                groupsLoadedOnce = true;
+            }
+        });
 
         // إضافة موظف
         document.getElementById('addEmployeeForm').addEventListener('submit', async (e) => {
@@ -715,7 +1007,7 @@
             } catch (_) {}
         }
 
-        // إضافة جروب
+        // إضافة جروب يدوي
         document.getElementById('addGroupForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const form = e.target;
@@ -733,24 +1025,15 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    location.reload();
+                    const modalEl = document.getElementById('addGroupModal');
+                    const modalInstance = bootstrap.Modal.getInstance(modalEl);
+                    if (modalInstance) modalInstance.hide();
+                    fetchGroups(1, false);
                 } else {
                     alert(data.message || 'حدث خطأ');
                 }
             } catch (_) { alert('خطأ في الاتصال'); }
         });
-
-        async function deleteGroup(id) {
-            if (!confirm('هل تريد حذف هذا الجروب من قائمة المراقبة؟')) return;
-            try {
-                const res = await fetch(`/dashboard/business-observer/groups/${id}/delete`, { method: 'POST' });
-                const data = await res.json();
-                if (data.success) {
-                    const row = document.getElementById('grp-row-' + id);
-                    if (row) row.remove();
-                }
-            } catch (_) {}
-        }
 
         document.getElementById('btnRefreshFeed').addEventListener('click', loadMessagesFeed);
         document.getElementById('feedSearch').addEventListener('input', () => {

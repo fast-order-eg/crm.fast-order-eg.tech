@@ -16,6 +16,7 @@ import { CONFIG } from '../config.js';
 import BusinessObserverMessage from '../models/BusinessObserverMessage.js';
 import BusinessObserverEmployee from '../models/BusinessObserverEmployee.js';
 import BusinessObserverGroup from '../models/BusinessObserverGroup.js';
+import { sessions as botSessions } from '../controllers/botController.js';
 
 const logger = pino({ level: 'silent' });
 
@@ -40,8 +41,11 @@ export function normalizePhoneDigits(phone) {
 export function getObserverStatus(userId = 3) {
     const session = observerSessions.get(parseInt(userId, 10)) || observerSessions.get(String(userId));
     if (!session) {
+        // فحص هل الجلسة موجودة على القرص
+        const authPath = path.join(process.cwd(), 'sessions', `observer_${parseInt(userId, 10)}`);
+        const isAuthSaved = fs.existsSync(path.join(authPath, 'creds.json'));
         return {
-            status: 'disconnected',
+            status: isAuthSaved ? 'connecting' : 'disconnected',
             phone: null,
             name: null,
             qr: null,
@@ -126,7 +130,7 @@ async function transcribeAudioWithGemini(audioBuffer, mimeType = 'audio/ogg') {
  */
 export async function startObserverSession(userId = 3, phoneNumber = null, io = null) {
     const uId = parseInt(userId, 10);
-    console.log(`🕵️‍♂️ [Observer] Starting session for User ${uId}... Phone: ${phoneNumber || 'QR mode'}`);
+    console.log(`🕵️‍♂️ [Observer] Starting session for User ${uId}... Phone: ${phoneNumber || 'QR / Restore mode'}`);
 
     // إيقاف وتنظيف أي سوكت سابق
     const existing = observerSessions.get(uId);
@@ -271,6 +275,34 @@ export async function startObserverSession(userId = 3, phoneNumber = null, io = 
                 const messageId = msg.key?.id;
                 if (!messageId) continue;
 
+                // فحص نوع الرسالة والوسائط
+                const actualMsg = msg.message?.ephemeralMessage?.message || msg.message?.viewOnceMessage?.message || msg.message || {};
+
+                // استبعاد رسائل البرتوكول والمزامنة الداخلية والتفاعلات التي لا تحوي محتوى حقيقي
+                if (
+                    actualMsg.protocolMessage || 
+                    actualMsg.senderKeyDistributionMessage || 
+                    actualMsg.messageContextInfo || 
+                    actualMsg.reactionMessage ||
+                    actualMsg.keepAliveMessage ||
+                    actualMsg.keyExpiration
+                ) {
+                    continue;
+                }
+
+                // التأكد من وجود محتوى حقيقي (نص، صوت، صورة، فيديو، ملف، لوكيشن، كونتكت)
+                const hasRealContent = actualMsg.conversation || 
+                    actualMsg.extendedTextMessage || 
+                    actualMsg.audioMessage || 
+                    actualMsg.imageMessage || 
+                    actualMsg.videoMessage || 
+                    actualMsg.documentMessage || 
+                    actualMsg.stickerMessage ||
+                    actualMsg.contactMessage ||
+                    actualMsg.locationMessage;
+
+                if (!hasRealContent) continue;
+
                 // التحقق من عدم تسجيل الرسالة مسبقاً (Deduplication)
                 const exists = await BusinessObserverMessage.findOne({
                     where: { messageId, UserId: uId }
@@ -298,10 +330,6 @@ export async function startObserverSession(userId = 3, phoneNumber = null, io = 
                 } else {
                     chatName = senderName || senderPhone || remoteJid;
                 }
-
-                // فحص نوع الرسالة والوسائط
-                const actualMsg = msg.message?.ephemeralMessage?.message || msg.message?.viewOnceMessage?.message || msg.message || {};
-                const msgTypeKey = Object.keys(actualMsg)[0] || '';
 
                 let messageType = 'text';
                 let content = '';
@@ -382,6 +410,12 @@ export async function startObserverSession(userId = 3, phoneNumber = null, io = 
                 } else if (actualMsg.stickerMessage) {
                     messageType = 'sticker';
                     content = '🏷️ ستيكر';
+                } else if (actualMsg.locationMessage) {
+                    messageType = 'other';
+                    content = '📍 موقع جغرافي';
+                } else if (actualMsg.contactMessage) {
+                    messageType = 'other';
+                    content = '👤 جهة اتصال';
                 } else {
                     messageType = 'other';
                     content = 'رسالة أخرى';
@@ -483,6 +517,176 @@ export async function disconnectObserverSession(userId = 3, io = null) {
 }
 
 /**
+ * استعادة جلسات المراقبة النشطة تلقائياً عند إعادة تشغيل السيرفر
+ */
+export async function restoreObserverSessions(io = null) {
+    try {
+        const sessionsDir = path.join(process.cwd(), 'sessions');
+        if (!fs.existsSync(sessionsDir)) return;
+
+        const entries = fs.readdirSync(sessionsDir, { withFileTypes: true });
+        for (const entry of entries) {
+            if (entry.isDirectory() && entry.name.startsWith('observer_')) {
+                const uIdStr = entry.name.replace('observer_', '');
+                const uId = parseInt(uIdStr, 10);
+                if (uId && fs.existsSync(path.join(sessionsDir, entry.name, 'creds.json'))) {
+                    console.log(`♻️ [Observer] Auto-restoring observer session for User ${uId}...`);
+                    startObserverSession(uId, null, io).catch(err => {
+                        console.error(`❌ [Observer] Failed to auto-restore session for User ${uId}:`, err.message);
+                    });
+                }
+            }
+        }
+    } catch (e) {
+        console.error('❌ [Observer] Error in restoreObserverSessions:', e);
+    }
+}
+
+/**
+ * جلب قائمة الجروبات من الواتساب والمحادثات المرصودة لتحديد مجالات العمل
+ */
+export async function getObserverWhatsAppGroups(userId = 3) {
+    const uId = parseInt(userId, 10);
+    const session = observerSessions.get(uId);
+    const groupsMap = new Map();
+
+    // 1. جلب الجروبات المشارك فيها حساب المراقب مباشرة من الواتساب
+    if (session && session.sock && session.status === 'connected') {
+        try {
+            const participating = await session.sock.groupFetchAllParticipating();
+            if (participating) {
+                for (const [id, g] of Object.entries(participating)) {
+                    groupsMap.set(id, {
+                        groupJid: id,
+                        groupName: g.subject || id,
+                        participantsCount: g.participants?.length || 0,
+                        creation: g.creation ? new Date(g.creation * 1000) : null
+                    });
+                }
+            }
+        } catch (err) {
+            console.error('❌ [Observer] Error fetching participating groups from socket:', err.message);
+        }
+    }
+
+    // 1.5. في حال لم نجد جروبات من سوكت المراقب، تجربة جلبها من سوكت البوت الرئيسي كـ fallback
+    if (groupsMap.size === 0 && botSessions) {
+        try {
+            const bSession = botSessions.get(uId) || botSessions.get(3) || botSessions.get('3');
+            if (bSession && bSession.user && typeof bSession.groupFetchAllParticipating === 'function') {
+                const bGroups = await bSession.groupFetchAllParticipating();
+                if (bGroups) {
+                    for (const [id, g] of Object.entries(bGroups)) {
+                        groupsMap.set(id, {
+                            groupJid: id,
+                            groupName: g.subject || id,
+                            participantsCount: g.participants?.length || 0,
+                            creation: g.creation ? new Date(g.creation * 1000) : null
+                        });
+                    }
+                }
+            }
+        } catch (botErr) {
+            console.error('❌ [Observer] Error fetching fallback groups from bot socket:', botErr.message);
+        }
+    }
+
+    // 2. دمج الجروبات المسجلة في الرسائل المرصودة
+    try {
+        const recordedGroups = await BusinessObserverMessage.findAll({
+            where: { UserId: uId, isGroup: true },
+            attributes: ['chatJid', 'chatName'],
+            group: ['chatJid', 'chatName']
+        });
+        for (const rg of recordedGroups) {
+            if (!groupsMap.has(rg.chatJid)) {
+                groupsMap.set(rg.chatJid, {
+                    groupJid: rg.chatJid,
+                    groupName: rg.chatName || rg.chatJid,
+                    participantsCount: 0,
+                    creation: null
+                });
+            }
+        }
+    } catch (_) {}
+
+    // 3. مطابقة البيانات مع جدول التخصصات المحفوظة
+    const savedGroups = await BusinessObserverGroup.findAll({ where: { UserId: uId } });
+    const savedByJid = new Map();
+    const savedByName = new Map();
+
+    for (const sg of savedGroups) {
+        if (sg.groupJid) savedByJid.set(sg.groupJid, sg);
+        if (sg.groupName) savedByName.set(sg.groupName.trim().toLowerCase(), sg);
+    }
+
+    const result = [];
+    for (const [jid, g] of groupsMap.entries()) {
+        const saved = savedByJid.get(jid) || savedByName.get(g.groupName.trim().toLowerCase());
+        result.push({
+            groupJid: jid,
+            groupName: g.groupName,
+            groupDescription: saved ? saved.groupDescription : '',
+            isSaved: Boolean(saved),
+            savedId: saved ? saved.id : null,
+            participantsCount: g.participantsCount
+        });
+    }
+
+    for (const sg of savedGroups) {
+        if (!result.some(r => r.savedId === sg.id || r.groupJid === sg.groupJid)) {
+            result.push({
+                groupJid: sg.groupJid,
+                groupName: sg.groupName,
+                groupDescription: sg.groupDescription,
+                isSaved: true,
+                savedId: sg.id,
+                participantsCount: 0
+            });
+        }
+    }
+
+    // الترتيب: المحفوظ أولاً ثم أبجدياً
+    result.sort((a, b) => (b.isSaved ? 1 : 0) - (a.isSaved ? 1 : 0) || a.groupName.localeCompare(b.groupName, 'ar'));
+    return result;
+}
+
+/**
+ * حفظ أو تحديث تخصص وطبيعة عمل الجروب
+ */
+export async function saveOrUpdateObserverGroup(userId = 3, { groupJid, groupName, groupDescription }) {
+    const uId = parseInt(userId, 10);
+    if (!groupName) throw new Error('اسم الجروب مطلوب');
+
+    let group = null;
+    if (groupJid) {
+        group = await BusinessObserverGroup.findOne({
+            where: { groupJid, UserId: uId }
+        });
+    }
+    if (!group) {
+        group = await BusinessObserverGroup.findOne({
+            where: { groupName: groupName.trim(), UserId: uId }
+        });
+    }
+
+    if (group) {
+        group.groupDescription = (groupDescription || '').trim();
+        if (groupJid && !group.groupJid) group.groupJid = groupJid;
+        await group.save();
+    } else {
+        group = await BusinessObserverGroup.create({
+            groupJid: groupJid || '',
+            groupName: groupName.trim(),
+            groupDescription: (groupDescription || '').trim(),
+            UserId: uId
+        });
+    }
+
+    return group;
+}
+
+/**
  * جلب الرسائل المرصودة مع الفلترة والتقسيم لصفحات
  */
 export async function getObserverMessages(userId = 3, { page = 1, limit = 50, chatJid, senderPhone, type, search } = {}) {
@@ -523,7 +727,12 @@ export async function getObserverMessages(userId = 3, { page = 1, limit = 50, ch
  */
 export async function getObserverAnalytics(userId = 3) {
     const uId = parseInt(userId, 10);
-    const totalMessages = await BusinessObserverMessage.count({ where: { UserId: uId } });
+    const totalMessages = await BusinessObserverMessage.count({ 
+        where: { 
+            UserId: uId,
+            messageType: { [Op.ne]: 'other' }
+        } 
+    });
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -531,6 +740,7 @@ export async function getObserverAnalytics(userId = 3) {
     const todayMessages = await BusinessObserverMessage.count({
         where: {
             UserId: uId,
+            messageType: { [Op.ne]: 'other' },
             messageTimestamp: { [Op.gte]: today }
         }
     });

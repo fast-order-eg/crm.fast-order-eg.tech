@@ -8,7 +8,9 @@ import {
     startObserverSession,
     disconnectObserverSession,
     getObserverMessages,
-    getObserverAnalytics
+    getObserverAnalytics,
+    getObserverWhatsAppGroups,
+    saveOrUpdateObserverGroup
 } from '../services/businessObserverService.js';
 
 const router = express.Router();
@@ -197,7 +199,72 @@ router.post('/groups/:id/delete', async (req, res) => {
 });
 
 /**
- * 11. إحصائيات سريعة للرصد
+ * 11. جلب جروبات الواتساب مع دعم البحث والصفحات (10 في 10)
+ */
+router.get('/whatsapp-groups', async (req, res) => {
+    try {
+        const page = parseInt(req.query.page, 10) || 1;
+        const limit = parseInt(req.query.limit, 10) || 10;
+        const search = (req.query.search || '').trim().toLowerCase();
+
+        const allGroups = await getObserverWhatsAppGroups(req.user.id);
+
+        let filtered = allGroups;
+        if (search) {
+            filtered = allGroups.filter(g =>
+                (g.groupName && g.groupName.toLowerCase().includes(search)) ||
+                (g.groupDescription && g.groupDescription.toLowerCase().includes(search))
+            );
+        }
+
+        const total = filtered.length;
+        const startIndex = (page - 1) * limit;
+        const paginated = filtered.slice(startIndex, startIndex + limit);
+        const hasMore = startIndex + limit < total;
+
+        res.json({
+            success: true,
+            groups: paginated,
+            total,
+            page,
+            limit,
+            hasMore
+        });
+    } catch (err) {
+        console.error('❌ Error fetching observer WhatsApp groups:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+/**
+ * 12. حفظ أو تحديث تخصص جروب مباشرة
+ */
+router.post('/groups/save-specialization', async (req, res) => {
+    try {
+        const { groupJid, groupName, groupDescription } = req.body;
+        if (!groupName) {
+            return res.status(400).json({ success: false, message: 'اسم الجروب مطلوب' });
+        }
+
+        const group = await saveOrUpdateObserverGroup(req.user.id, {
+            groupJid,
+            groupName,
+            groupDescription
+        });
+
+        res.json({
+            success: true,
+            message: 'تم حفظ تخصص الجروب بنجاح',
+            group
+        });
+    } catch (err) {
+        console.error('❌ Error saving group specialization:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+/**
+ * 13. إحصائيات سريعة للرصد
  */
 router.get('/analytics', async (req, res) => {
     try {

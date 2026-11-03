@@ -2,6 +2,7 @@ import express from 'express';
 import session from 'express-session';
 import Redis from 'ioredis';
 import { restoreSessions, checkSocketHealth, checkSubscriptionExpiry, checkPauseTimer, checkInactivitySummary, checkNoActionCustomers, generateDailyKPI } from './controllers/botController.js';
+import { restoreObserverSessions } from './services/businessObserverService.js';
 import { checkScheduledFollowUps, checkPendingFollowUps } from './services/followUpService.js';
 import cron from 'node-cron';
 import { checkScheduledCampaigns } from './controllers/broadcastController.js';
@@ -419,6 +420,7 @@ sequelize.sync().then(async () => {
         console.log(`🚀 [V6_SIGNATURE] Server running on http://localhost:${PORT}`);
         // ⚠️ تم التفعيل بناءً على طلبك لتعمل على السيرفر (ممكن توقفها محلياً لو بتعمل تيست)
         restoreSessions(io);
+        restoreObserverSessions(io);
 
         // Initial Checks
         checkSubscriptionExpiry(io);
