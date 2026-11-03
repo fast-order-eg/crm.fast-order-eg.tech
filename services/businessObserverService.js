@@ -444,11 +444,24 @@ export async function startObserverSession(userId = 3, phoneNumber = null, io = 
                 let matchedEmployeeRole = null;
 
                 const phoneDigits = normalizePhoneDigits(senderPhone);
-                if (phoneDigits) {
+                if (phoneDigits || senderPhone || senderName) {
                     const employees = await BusinessObserverEmployee.findAll({
                         where: { UserId: uId, isActive: true }
                     });
-                    const matched = employees.find(e => normalizePhoneDigits(e.phone) === phoneDigits);
+                    const matched = employees.find(e => {
+                        const eNorm = normalizePhoneDigits(e.phone);
+                        if (phoneDigits && eNorm && eNorm === phoneDigits) return true;
+                        if (e.phone && senderPhone && (e.phone.includes(senderPhone) || senderPhone.includes(e.phone))) return true;
+                        if (e.notes && senderPhone && e.notes.includes(senderPhone)) return true;
+                        if (senderName && e.name) {
+                            const sName = senderName.toLowerCase();
+                            const eName = e.name.toLowerCase();
+                            if (sName.includes(eName) || eName.includes(sName)) return true;
+                            // دعم كتابة الاسم بالإنجليزي (مثل Reem -> ريم)
+                            if (sName.includes('reem') && eName.includes('ريم')) return true;
+                        }
+                        return false;
+                    });
                     if (matched) {
                         matchedEmployeeName = matched.name;
                         matchedEmployeeRole = matched.role;
