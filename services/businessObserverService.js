@@ -23,6 +23,25 @@ const logger = pino({ level: 'silent' });
 // الخريطة المركزية لجلسات المراقب الصامت حسب معرف المستخدم
 const observerSessions = new Map();
 
+// ذاكرة تخزين مؤقت لميتاداتا الجروبات لتسريع المعالجة وتفادي الحظر
+const groupMetadataCache = new Map();
+
+async function getCachedGroupMetadata(sock, jid) {
+    if (!sock || !jid) return null;
+    const cached = groupMetadataCache.get(jid);
+    if (cached && (Date.now() - cached.timestamp < 3600000)) { // 1 ساعة
+        return cached.data;
+    }
+    try {
+        const data = await sock.groupMetadata(jid).catch(() => null);
+        if (data) {
+            groupMetadataCache.set(jid, { data, timestamp: Date.now() });
+            return data;
+        }
+    } catch (_) {}
+    return cached?.data || null;
+}
+
 /**
  * تنظيف رقم الهاتف ومقارنته بمرونة (آخر 10 أرقام للموبايل المصري أو العربي)
  */
@@ -268,9 +287,9 @@ export async function startObserverSession(userId = 3, phoneNumber = null, io = 
             if (!upsert.messages || upsert.messages.length === 0) return;
 
             for (const msg of upsert.messages) {
-                // تجاهل رسائل الحالة أو البث أو رسائل أجهزة الـ LID الداخلية
+                // تجاهل رسائل الحالة أو البث فقط
                 const remoteJid = msg.key?.remoteJid || '';
-                if (!remoteJid || remoteJid === 'status@broadcast' || remoteJid.endsWith('@lid')) continue;
+                if (!remoteJid || remoteJid === 'status@broadcast') continue;
 
                 const messageId = msg.key?.id;
                 if (!messageId) continue;
@@ -323,14 +342,15 @@ export async function startObserverSession(userId = 3, phoneNumber = null, io = 
 
                 let senderPhone = senderJid ? senderJid.replace('@s.whatsapp.net', '').replace(/[^0-9]/g, '') : '';
                 let senderName = msg.pushName || null;
+                if (isFromMe && !senderName) {
+                    senderName = sessionData.name || 'م/ راضي';
+                }
 
                 // استخراج اسم الشات أو الجروب
                 let chatName = remoteJid;
                 if (isGroup) {
-                    try {
-                        const grp = await sock.groupMetadata(remoteJid).catch(() => null);
-                        if (grp && grp.subject) chatName = grp.subject;
-                    } catch (_) {}
+                    const grp = await getCachedGroupMetadata(sock, remoteJid);
+                    if (grp && grp.subject) chatName = grp.subject;
                 } else {
                     chatName = senderName || senderPhone || remoteJid;
                 }
@@ -471,6 +491,7 @@ export async function startObserverSession(userId = 3, phoneNumber = null, io = 
                 });
 
                 // إرسال تنبيه لحظي للواجهة بدون أي رد في الواتساب إطلاقاً (Observer Only)
+                console.log(`🕵️‍♂️ [Observer Saved #${savedMsg.id}] ${isGroup ? 'Group: ' + chatName : 'Chat: ' + chatName} | From: ${senderName || senderPhone} | Type: ${messageType}`);
                 if (io) {
                     io.to(`user_${uId}`).emit('observer_new_message', savedMsg);
                 }
