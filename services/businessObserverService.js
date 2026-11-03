@@ -246,6 +246,21 @@ export async function startObserverSession(userId = 3, phoneNumber = null, io = 
             sessionData.pairingCode = null;
 
             console.log(`✅ [Observer] Connected successfully as ${rawPhone} (${sessionData.name})`);
+
+            // جلب وطباعة كل الجروبات المشارك فيها الحساب فورياً للمطابقة
+            try {
+                const parts = await sock.groupFetchAllParticipating();
+                if (parts) {
+                    const groupNames = [];
+                    for (const [jid, g] of Object.entries(parts)) {
+                        groupMetadataCache.set(jid, { data: g, timestamp: Date.now() });
+                        groupNames.push(g.subject || jid);
+                    }
+                    console.log(`📋 [Observer Groups (${groupNames.length})]:\n${groupNames.map(n => '  - ' + n).join('\n')}`);
+                }
+            } catch (gErr) {
+                console.error('❌ [Observer Group Fetch Error]:', gErr.message);
+            }
             if (io) {
                 io.to(`user_${uId}`).emit('observer_status', {
                     status: 'connected',
