@@ -475,6 +475,10 @@ export async function startObserverSession(userId = 3, phoneNumber = null, io = 
                             // دعم كتابة الاسم بالإنجليزي (مثل Reem -> ريم)
                             if (sName.includes('reem') && eName.includes('ريم')) return true;
                         }
+                        if (senderName) {
+                            const sName = senderName.toLowerCase();
+                            if (sName.includes('bird technology') && e.name.includes('رباب')) return true;
+                        }
                         return false;
                     });
                     if (matched) {
