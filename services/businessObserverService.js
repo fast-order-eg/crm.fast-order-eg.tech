@@ -288,8 +288,8 @@ export async function startObserverSession(userId = 3, phoneNumber = null, io = 
             console.log(`📨 [Observer Event] Upsert type: ${upsert.type} | Count: ${upsert.messages.length} | JID: ${upsert.messages[0]?.key?.remoteJid}`);
 
             for (const msg of upsert.messages) {
-                // تجاهل رسائل الحالة أو البث فقط
                 const remoteJid = msg.key?.remoteJid || '';
+                console.log(`🔍 [Observer Msg Debug] JID: ${remoteJid} | Keys in msg.message: ${Object.keys(msg.message || {})}`);
                 if (!remoteJid || remoteJid === 'status@broadcast') continue;
 
                 const messageId = msg.key?.id;
@@ -302,17 +302,10 @@ export async function startObserverSession(userId = 3, phoneNumber = null, io = 
                     msg.message?.documentWithCaptionMessage?.message ||
                     msg.message || {};
 
-                // استبعاد رسائل البرتوكول والمزامنة الداخلية والتفاعلات التي لا تحوي محتوى حقيقي
-                if (
-                    actualMsg.protocolMessage || 
-                    actualMsg.senderKeyDistributionMessage || 
-                    actualMsg.messageContextInfo || 
-                    actualMsg.reactionMessage ||
-                    actualMsg.keepAliveMessage ||
-                    actualMsg.keyExpiration
-                ) {
-                    continue;
-                }
+                // التأكد من وجود محتوى حقيقي (نص، صوت، صورة، فيديو، ملف، لوكيشن، كونتكت)
+                // استبعاد الرسائل الفارغة أو التي تحوي تفاعلات/بروتوكول فقط بدون أي محتوى
+                if (actualMsg.protocolMessage && !actualMsg.conversation && !actualMsg.extendedTextMessage) continue;
+                if (actualMsg.reactionMessage) continue; // تفاعلات الإيموجي لا تسجل كرسائل منفصلة
 
                 // التأكد من وجود محتوى حقيقي (نص، صوت، صورة، فيديو، ملف، لوكيشن، كونتكت)
                 const hasRealContent = actualMsg.conversation || 
