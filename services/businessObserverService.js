@@ -285,6 +285,7 @@ export async function startObserverSession(userId = 3, phoneNumber = null, io = 
     sock.ev.on('messages.upsert', async (upsert) => {
         try {
             if (!upsert.messages || upsert.messages.length === 0) return;
+            console.log(`📨 [Observer Event] Upsert type: ${upsert.type} | Count: ${upsert.messages.length} | JID: ${upsert.messages[0]?.key?.remoteJid}`);
 
             for (const msg of upsert.messages) {
                 // تجاهل رسائل الحالة أو البث فقط
