@@ -3,6 +3,7 @@ import { ensureAuthenticated, isAdmin } from '../middleware/permissions.js';
 import BusinessObserverMessage from '../models/BusinessObserverMessage.js';
 import BusinessObserverEmployee from '../models/BusinessObserverEmployee.js';
 import BusinessObserverGroup from '../models/BusinessObserverGroup.js';
+import BusinessObserverDailyEvaluation from '../models/BusinessObserverDailyEvaluation.js';
 import {
     getObserverStatus,
     startObserverSession,
@@ -34,6 +35,11 @@ router.get('/', async (req, res) => {
             where: { UserId: userId },
             order: [['createdAt', 'DESC']]
         });
+        const dailyEvaluations = await BusinessObserverDailyEvaluation.findAll({
+            where: { UserId: userId },
+            order: [['evaluationDate', 'DESC'], ['id', 'DESC']],
+            limit: 30
+        });
 
         res.render('business_observer', {
             page: 'business_observer',
@@ -42,6 +48,7 @@ router.get('/', async (req, res) => {
             analytics,
             employees,
             groups,
+            dailyEvaluations,
             success_msg: req.flash ? req.flash('success_msg') : [],
             error_msg: req.flash ? req.flash('error_msg') : []
         });
