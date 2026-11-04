@@ -320,7 +320,23 @@ export async function startObserverSession(userId = 3, phoneNumber = null, io = 
                 // التأكد من وجود محتوى حقيقي (نص، صوت، صورة، فيديو، ملف، لوكيشن، كونتكت)
                 // استبعاد الرسائل الفارغة أو التي تحوي تفاعلات/بروتوكول فقط بدون أي محتوى
                 if (actualMsg.protocolMessage && !actualMsg.conversation && !actualMsg.extendedTextMessage) continue;
-                if (actualMsg.reactionMessage) continue; // تفاعلات الإيموجي لا تسجل كرسائل منفصلة
+                // معالجة تفاعلات الإيموجي وتحديث الرسالة الأصلية
+                if (actualMsg.reactionMessage) {
+                    const reaction = actualMsg.reactionMessage;
+                    const targetKey = reaction.key;
+                    if (targetKey && targetKey.id) {
+                        const senderJid = msg.key.participant || msg.participant || (msg.key.fromMe ? sock.user?.id : remoteJid);
+                        await handleMessageReaction(uId, io, {
+                            targetMessageId: targetKey.id,
+                            targetChatJid: targetKey.remoteJid || remoteJid,
+                            emoji: reaction.text || '',
+                            senderJid,
+                            senderName: msg.pushName || (msg.key.fromMe ? (sessionData.name || 'م/ راضي') : null),
+                            timestamp: reaction.senderTimestampMs ? new Date(Number(reaction.senderTimestampMs)) : new Date()
+                        });
+                    }
+                    continue;
+                }
 
                 // التأكد من وجود محتوى حقيقي (نص، صوت، صورة، فيديو، ملف، لوكيشن، كونتكت)
                 const hasRealContent = actualMsg.conversation || 
@@ -527,7 +543,104 @@ export async function startObserverSession(userId = 3, phoneNumber = null, io = 
         }
     });
 
+    // مراقبة حدث التفاعلات المباشر (messages.reaction)
+    sock.ev.on('messages.reaction', async (reactions) => {
+        try {
+            if (!reactions || !Array.isArray(reactions)) return;
+            for (const r of reactions) {
+                const targetKey = r.key;
+                if (targetKey && targetKey.id) {
+                    const senderJid = r.reaction?.key?.participant || (r.reaction?.key?.fromMe ? sock.user?.id : targetKey.remoteJid);
+                    await handleMessageReaction(uId, io, {
+                        targetMessageId: targetKey.id,
+                        targetChatJid: targetKey.remoteJid,
+                        emoji: r.reaction?.text || '',
+                        senderJid,
+                        senderName: null,
+                        timestamp: r.reaction?.senderTimestampMs ? new Date(Number(r.reaction.senderTimestampMs)) : new Date()
+                    });
+                }
+            }
+        } catch (err) {
+            console.error('❌ [Observer] Error handling messages.reaction event:', err);
+        }
+    });
+
     return sessionData;
+}
+
+/**
+ * معالجة تفاعلات الإيموجي وتحديث حقل reactions في الرسالة المستهدفة
+ */
+async function handleMessageReaction(uId, io, { targetMessageId, targetChatJid, emoji, senderJid, senderName, timestamp }) {
+    try {
+        const message = await BusinessObserverMessage.findOne({
+            where: { messageId: targetMessageId, UserId: uId }
+        });
+        if (!message) return;
+
+        let reactions = message.reactions;
+        if (typeof reactions === 'string') {
+            try { reactions = JSON.parse(reactions); } catch (_) { reactions = []; }
+        }
+        if (!Array.isArray(reactions)) reactions = [];
+
+        const senderPhone = senderJid ? senderJid.replace('@s.whatsapp.net', '').replace(/[^0-9]/g, '') : '';
+        const cleanSenderId = senderJid ? senderJid.split('@')[0] : '';
+
+        // إذا كان الإيموجي فارغ يعني التفاعل أزيل (Unreacted)
+        if (!emoji || emoji.trim() === '') {
+            reactions = reactions.filter(r => (senderPhone && r.senderPhone !== senderPhone) && (cleanSenderId && r.senderId !== cleanSenderId));
+        } else {
+            // مطابقة الموظف صاحب التفاعل
+            let matchedName = senderName;
+            const employees = await BusinessObserverEmployee.findAll({ where: { UserId: uId } });
+            for (const emp of employees) {
+                const cleanEmpPhone = emp.phone ? emp.phone.replace(/[^0-9]/g, '') : '';
+                if (cleanEmpPhone && senderPhone && (senderPhone.endsWith(cleanEmpPhone.slice(-8)) || cleanEmpPhone.endsWith(senderPhone.slice(-8)))) {
+                    matchedName = emp.name;
+                    break;
+                }
+                if (emp.notes && (emp.notes.includes(cleanSenderId) || (senderPhone && emp.notes.includes(senderPhone)))) {
+                    matchedName = emp.name;
+                    break;
+                }
+            }
+
+            const existingIdx = reactions.findIndex(r => 
+                (senderPhone && r.senderPhone === senderPhone) || (cleanSenderId && r.senderId === cleanSenderId)
+            );
+
+            const reactionObj = {
+                emoji: emoji.trim(),
+                senderId: cleanSenderId,
+                senderPhone,
+                senderName: matchedName || senderName || senderPhone || 'مستخدم',
+                timestamp: timestamp || new Date()
+            };
+
+            if (existingIdx >= 0) {
+                reactions[existingIdx] = reactionObj;
+            } else {
+                reactions.push(reactionObj);
+            }
+        }
+
+        message.reactions = reactions;
+        await message.save();
+
+        console.log(`👍 [Observer Reaction] ${emoji ? `Emoji: ${emoji}` : 'Reaction Removed'} on msg #${message.id} (${targetMessageId}) by ${senderPhone || senderJid} in ${targetChatJid}`);
+
+        if (io) {
+            io.to(`user_${uId}`).emit('observer_message_reaction', {
+                messageId: targetMessageId,
+                id: message.id,
+                reactions
+            });
+        }
+    } catch (err) {
+        console.error('❌ [Observer] Error in handleMessageReaction:', err);
+    }
 }
 
 /**

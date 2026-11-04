@@ -959,6 +959,25 @@ function formatEnDateTime(dt) {
             if (msg.messageType === 'audio') incrementStat('statVoice');
         });
 
+        // تحديث لحظي للتفاعلات والإيموجي
+        socket.on('observer_message_reaction', (data) => {
+            const rxBox = document.getElementById('reactions-' + data.messageId) || document.getElementById('reactions-' + data.id);
+            if (rxBox && Array.isArray(data.reactions)) {
+                if (data.reactions.length === 0) {
+                    rxBox.innerHTML = '';
+                } else {
+                    rxBox.innerHTML = `<div class="msg-reactions mt-2 d-flex flex-wrap gap-1">` +
+                        data.reactions.map(r => `
+                            <span class="badge bg-light border text-dark rounded-pill px-2 py-1 shadow-xs" title="${r.senderName || r.senderPhone}">
+                                <span class="fs-6 me-1">${r.emoji}</span>
+                                <span class="text-secondary small" style="font-size: 0.72rem;">${r.senderName || r.senderPhone || ''}</span>
+                            </span>
+                        `).join('') +
+                    `</div>`;
+                }
+            }
+        });
+
         function incrementStat(id) {
             const el = document.getElementById(id);
             if (el) {
@@ -1092,6 +1111,7 @@ function formatEnDateTime(dt) {
         function createMessageElement(msg) {
             const div = document.createElement('div');
             div.className = 'feed-item';
+            div.id = 'msg-card-' + (msg.messageId || msg.id);
 
             const dateTimeStr = formatEnglishDateTime(msg.messageTimestamp);
 
@@ -1117,6 +1137,22 @@ function formatEnDateTime(dt) {
                 mediaSnippet = `<div class="small text-muted mt-1"><i class="bi bi-film me-1"></i> ميتاداتا الفيديو: ${msg.mediaFileName} ${msg.mediaDuration ? '(' + msg.mediaDuration + ' ثانية)' : ''}</div>`;
             }
 
+            let rxList = msg.reactions;
+            if (typeof rxList === 'string') {
+                try { rxList = JSON.parse(rxList); } catch (_) { rxList = []; }
+            }
+            let reactionsHtml = '';
+            if (Array.isArray(rxList) && rxList.length > 0) {
+                reactionsHtml = `<div class="msg-reactions mt-2 d-flex flex-wrap gap-1">` +
+                    rxList.map(r => `
+                        <span class="badge bg-light border text-dark rounded-pill px-2 py-1" style="font-size: 0.8rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04);" title="${r.senderName || r.senderPhone}">
+                            <span class="fs-6 me-1">${r.emoji}</span>
+                            <span class="text-secondary small" style="font-size: 0.72rem;">${r.senderName || r.senderPhone || ''}</span>
+                        </span>
+                    `).join('') +
+                `</div>`;
+            }
+
             div.innerHTML = `
                 <div class="d-flex align-items-center justify-content-between mb-1">
                     <div class="d-flex align-items-center gap-2 flex-wrap">
@@ -1129,6 +1165,7 @@ function formatEnDateTime(dt) {
                 </div>
                 <div class="text-secondary small mt-1" style="white-space: pre-wrap; word-break: break-word;">${msg.content || ''}</div>
                 ${mediaSnippet}
+                <div class="reactions-box" id="reactions-${msg.messageId || msg.id}">${reactionsHtml}</div>
             `;
             return div;
         }

@@ -92,6 +92,12 @@ const BusinessObserverMessage = sequelize.define('BusinessObserverMessage', {
         allowNull: true,
         comment: 'دور الموظف المطابق'
     },
+    reactions: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        defaultValue: [],
+        comment: 'سجل التفاعلات والإيموجي على الرسالة'
+    },
     messageTimestamp: {
         type: DataTypes.DATE,
         allowNull: false,
