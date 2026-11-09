@@ -366,13 +366,23 @@ export const defaultSettingsMeta = {
         label: 'اسم جروب إعلانات AI المعتمد',
         defaultValue: 'إعلانات AI'
     },
-    ai_ads_authorized_phones: {
+    ai_ads_projects_mapping: {
         type: 'json',
         category: 'ai_ads',
-        label: 'أرقام الهواتف المصرح لها بالتحكم وإعطاء الأوامر',
+        label: 'ربط جروبات الواتساب بمشاريع وفولدرات أنتي جرافيتي',
         defaultValue: [
-            { name: 'راضي', phone: '01092308465', isPrimary: true }
+            {
+                groupId: '',
+                groupName: 'إعلانات AI',
+                projectPath: 'crm.fast-order-eg.tech'
+            }
         ]
+    },
+    ai_ads_authorized_phones: {
+        type: 'text',
+        category: 'ai_ads',
+        label: 'أرقام الهواتف المصرح لها (مفصولة بفاصلة)',
+        defaultValue: '01092308465'
     },
     ai_ads_session_timeout: {
         type: 'number',

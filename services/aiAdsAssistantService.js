@@ -2,18 +2,16 @@ import { CONFIG } from '../config.js';
 import { GoogleAuth } from 'google-auth-library';
 import { getSetting } from './settingsService.js';
 import Message from '../models/Message.js';
-import Conversation from '../models/Conversation.js';
 import fs from 'fs';
 import path from 'path';
 
-// ذاكرة الجلسات النشطة في الرام (groupJid -> { sessionId, history: [], lastActive: timestamp })
+// ذاكرة الجلسات النشطة في الرام (groupJid -> { sessionId, history: [], lastActive: timestamp, project: {} })
 const sessionMemory = new Map();
 
 // مسار تخزين جلسات أنتي جرافيتي على الجهاز
 const ANTIGRAVITY_BRAIN_DIR = 'C:\\Users\\Eng Rady\\.gemini\\antigravity\\brain';
 const WHATSAPP_SESSIONS_DIR = path.join(ANTIGRAVITY_BRAIN_DIR, 'whatsapp-ai-sessions');
 
-// إنشاء مجلد جلسات الواتساب إن لم يكن موجوداً
 try {
     if (!fs.existsSync(WHATSAPP_SESSIONS_DIR)) {
         fs.mkdirSync(WHATSAPP_SESSIONS_DIR, { recursive: true });
@@ -23,7 +21,31 @@ try {
 }
 
 /**
- * فحص هل الجروب الحالي هو جروب إعلانات AI المعتمد
+ * جلب إعدادات ربط الجروبات بالمشاريع
+ */
+export async function getProjectsMapping(userId = 1) {
+    try {
+        const raw = await getSetting('ai_ads_projects_mapping', userId).catch(() => null)
+            || await getSetting('ai_ads_projects_mapping', 3).catch(() => null);
+
+        if (Array.isArray(raw) && raw.length > 0) return raw;
+        if (typeof raw === 'string') {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) return parsed;
+        }
+    } catch (_) {}
+
+    return [
+        {
+            groupId: '',
+            groupName: 'إعلانات AI',
+            projectPath: 'crm.fast-order-eg.tech'
+        }
+    ];
+}
+
+/**
+ * فحص هل الجروب الحالي مربوط بأحد مشاريع أنتي جرافيتي
  */
 export async function isAiAdsGroupMatch(remoteJid, rawSubject, userId = 1) {
     if (!remoteJid || !remoteJid.endsWith('@g.us')) return false;
@@ -31,13 +53,19 @@ export async function isAiAdsGroupMatch(remoteJid, rawSubject, userId = 1) {
     const enabled = await getSetting('ai_ads_system_enabled', userId).catch(() => true);
     if (enabled === false) return false;
 
+    // 1. فحص جدول الربط المتعدد للمشاريع
+    const mappings = await getProjectsMapping(userId);
+    const mapped = mappings.find(m => m.groupId === remoteJid);
+    if (mapped) return true;
+
+    // 2. فحص معرف الجروب المفرد
     const configuredJid = (await getSetting('ai_ads_group_jid', userId).catch(() => null))
         || (await getSetting('ai_ads_group_jid', 1).catch(() => null))
         || (await getSetting('ai_ads_group_jid', 3).catch(() => null));
 
     if (configuredJid && remoteJid === configuredJid) return true;
 
-    // مطابقة اسم الجروب التلقائية
+    // 3. مطابقة اسم الجروب التلقائية
     const subject = (rawSubject || '').toLowerCase();
     return subject.includes('إعلانات ai') ||
            subject.includes('إعلان ai') ||
@@ -48,21 +76,45 @@ export async function isAiAdsGroupMatch(remoteJid, rawSubject, userId = 1) {
 }
 
 /**
+ * تحديد المشروع المربوط بالجروب
+ */
+export async function resolveProjectForGroup(remoteJid, rawSubject, userId = 1) {
+    const mappings = await getProjectsMapping(userId);
+    const found = mappings.find(m => m.groupId === remoteJid);
+    if (found && found.projectPath) {
+        return {
+            projectName: path.basename(found.projectPath),
+            projectPath: found.projectPath,
+            groupName: found.groupName || rawSubject || 'إعلانات AI'
+        };
+    }
+
+    return {
+        projectName: 'crm.fast-order-eg.tech',
+        projectPath: 'e:\\programing\\flutter project\\crm.fast-order-eg.tech',
+        groupName: rawSubject || 'إعلانات AI'
+    };
+}
+
+/**
  * فحص هل المرسل مصرح له بإعطاء الأوامر
  */
 export async function isAiAdsSenderAuthorized(senderPhone, userId = 1) {
     if (!senderPhone) return false;
     const cleanPhone = String(senderPhone).replace(/[^0-9]/g, '');
 
-    // راضي هو المسؤول الرئيسي دائماً
+    // راضي المسؤول الأساسي دائماً
     if (cleanPhone.endsWith('1092308465') || cleanPhone === '01092308465' || cleanPhone === '201092308465') {
         return true;
     }
 
     try {
-        const authorized = await getSetting('ai_ads_authorized_phones', userId).catch(() => null);
-        if (Array.isArray(authorized)) {
-            return authorized.some(a => {
+        const rawAuth = await getSetting('ai_ads_authorized_phones', userId).catch(() => null);
+        if (typeof rawAuth === 'string') {
+            const phones = rawAuth.split(/[,;\s]+/).map(p => p.replace(/[^0-9]/g, '')).filter(Boolean);
+            if (phones.some(p => cleanPhone.endsWith(p) || p.endsWith(cleanPhone))) return true;
+        } else if (Array.isArray(rawAuth)) {
+            return rawAuth.some(a => {
                 const p = String(a.phone || a).replace(/[^0-9]/g, '');
                 return cleanPhone.endsWith(p) || p.endsWith(cleanPhone);
             });
@@ -135,16 +187,13 @@ async function transcribeVoice(audioBuffer, mimeType = 'audio/ogg') {
 }
 
 /**
- * استدعاء نموذج الذكاء الاصطناعي مع الحفاظ على سياق الجلسة
+ * استدعاء نموذج الذكاء الاصطناعي مع الحفاظ على سياق الجلسة والمشروع
  */
-async function callGeminiAssistant({ prompt, imageBuffer, imageMime, history = [], systemPrompt }) {
+async function callGeminiAssistant({ prompt, imageBuffer, imageMime, history = [], project }) {
     try {
         const url = CONFIG.getVertexUrl();
 
-        // تحضير محتويات المحادثة مع الذاكرة السابقة
         const contents = [];
-
-        // إضافة آخر رسائل من الجلسة السابقة
         for (const item of history.slice(-10)) {
             contents.push({
                 role: item.role === 'model' ? 'model' : 'user',
@@ -152,7 +201,6 @@ async function callGeminiAssistant({ prompt, imageBuffer, imageMime, history = [
             });
         }
 
-        // الرسالة الحالية
         const currentParts = [];
         if (imageBuffer) {
             currentParts.push({
@@ -169,11 +217,11 @@ async function callGeminiAssistant({ prompt, imageBuffer, imageMime, history = [
             parts: currentParts
         });
 
-        const fullSystemInstruction = `${systemPrompt || ''}
-- أنت تعمل كمساعد ذكي متقدم مرتبط بنظام CRM ومشروع Fast Order عبر الواتساب ومنصة Antigravity.
-- تتحدث بالعامية المصرية الودودة والواضحة والمهنية.
-- إذا طلب المستخدم معلومات تقنية أو إدارة حملات أو تلخيص أو كود، أجب بدقة واختصار مع أمثلة واضحة.
-- تجنب الحشو والترحيب المبالغ فيه، وادخل في صلب الموضوع مباشرة.`;
+        const fullSystemInstruction = `أنت مساعد ذكي متقدم وخبير برمجي وإعلاني مرتبط بمشروع "${project.projectName}" ومجلد العمل "${project.projectPath}" على منصة Antigravity عبر الواتساب.
+- تتحدث بالعامية المصرية الودودة والواضحة والمباشرة بدون أي حشو أو كلام إنشائي.
+- أنت تنفذ الأوامر وتحلل المشاكل وتجيب على الاستفسارات الخاصة بهذا المشروع حصراً.
+- إذا كان السؤال عن كود أو خطأ أو استفسار، أجب بدقة وعملية، واكتب الكود أو الحل مباشرة.
+- عند الحاجة، اشرح الخطوات بأسلوب عملي ومرتب.`;
 
         const payload = {
             contents,
@@ -181,7 +229,7 @@ async function callGeminiAssistant({ prompt, imageBuffer, imageMime, history = [
                 parts: [{ text: fullSystemInstruction }]
             },
             generationConfig: {
-                temperature: 0.4,
+                temperature: 0.3,
                 topP: 0.9,
                 maxOutputTokens: 2048
             }
@@ -218,9 +266,9 @@ async function callGeminiAssistant({ prompt, imageBuffer, imageMime, history = [
 }
 
 /**
- * حفظ وتزامن الجلسة مع ملفات Antigravity Brain وقاعدة البيانات
+ * حفظ وتزامن الجلسة مع مجلدات Antigravity Brain وقاعدة البيانات
  */
-async function syncSessionToAntigravityAndDb({ remoteJid, userId, userText, modelReply, isVoice, hasImage, sessionId }) {
+async function syncSessionToAntigravityAndDb({ remoteJid, userId, userText, modelReply, isVoice, hasImage, sessionId, project }) {
     try {
         // 1. الحفظ في قاعدة بيانات الـ CRM
         try {
@@ -241,17 +289,22 @@ async function syncSessionToAntigravityAndDb({ remoteJid, userId, userText, mode
             console.warn('[AI Ads Assistant] DB save warning:', dbErr.message);
         }
 
-        // 2. الحفظ والتزامن مع ملفات جلسات Antigravity
+        // 2. الحفظ في مجلد المشروع الخاص في Antigravity Brain
         try {
+            const projectDir = path.join(WHATSAPP_SESSIONS_DIR, project.projectName.replace(/[^a-zA-Z0-9._-]/g, '_'));
+            if (!fs.existsSync(projectDir)) {
+                fs.mkdirSync(projectDir, { recursive: true });
+            }
+
             const dateStr = new Date().toISOString().split('T')[0];
             const sessionFileName = `session_${sessionId || dateStr}.md`;
-            const sessionFilePath = path.join(WHATSAPP_SESSIONS_DIR, sessionFileName);
+            const sessionFilePath = path.join(projectDir, sessionFileName);
 
             const timestamp = new Date().toLocaleTimeString('ar-EG');
             const logEntry = `\n### 👤 المستخدم (${timestamp}) ${isVoice ? '🎙️ [فويس]' : ''} ${hasImage ? '📷 [صورة]' : ''}:\n${userText}\n\n### 🤖 المساعد الذكي:\n${modelReply}\n\n---\n`;
 
             if (!fs.existsSync(sessionFilePath)) {
-                const header = `# جلسة عمل إعلانات AI ومساعد الواتساب\n**المشروع:** crm.fast-order-eg.tech\n**التاريخ:** ${dateStr}\n**معرف الجلسة:** ${sessionId}\n\n---\n`;
+                const header = `# جلسة عمل واتساب لمشروع ${project.projectName}\n- **المسار:** \`${project.projectPath}\`\n- **التاريخ:** ${dateStr}\n- **معرف الجلسة:** \`${sessionId}\`\n\n---\n`;
                 fs.writeFileSync(sessionFilePath, header + logEntry, 'utf8');
             } else {
                 fs.appendFileSync(sessionFilePath, logEntry, 'utf8');
@@ -282,7 +335,6 @@ async function sendReplyToGroup(sock, remoteJid, text) {
             await sock.sendPresenceUpdate('paused', remoteJid).catch(() => {});
         }
 
-        // إضافة invisible zero-width space لمنع تكرار الهاش
         const zeroWidthSpaces = ['\u200B', '\u200C', '\u200D', '\uFEFF'];
         const jitter = zeroWidthSpaces[Math.floor(Math.random() * zeroWidthSpaces.length)];
         const finalMessage = `${text}${jitter}`;
@@ -305,7 +357,7 @@ async function sendReplyToGroup(sock, remoteJid, text) {
 }
 
 /**
- * المعالج الرئيسي لرسائل جروب إعلانات AI
+ * المعالج الرئيسي لرسائل جروبات إعلانات ومساعد AI
  */
 export async function handleAiAdsAssistantMessage({
     sock,
@@ -319,14 +371,16 @@ export async function handleAiAdsAssistantMessage({
     io
 }) {
     try {
-        // فحص الصلاحية
         const isAuthorized = await isAiAdsSenderAuthorized(phoneNumber, userId);
         if (!isAuthorized) {
             console.log(`🔒 [AI Ads Assistant] Unauthorized message from ${phoneNumber} in ${remoteJid}`);
             return { handled: false, reason: 'unauthorized' };
         }
 
-        // فحص انتهاء الجلسة أو تهيئة جلسة جديدة
+        // معرفة المشروع المربوط بهذا الجروب
+        const rawSubject = (msg.pushName || '');
+        const project = await resolveProjectForGroup(remoteJid, rawSubject, userId);
+
         const timeoutMinutes = await getSetting('ai_ads_session_timeout', userId).catch(() => 360) || 360;
         const now = Date.now();
 
@@ -335,29 +389,32 @@ export async function handleAiAdsAssistantMessage({
             session = {
                 sessionId: `wa_${Date.now()}`,
                 history: [],
-                lastActive: now
+                lastActive: now,
+                project
             };
             sessionMemory.set(remoteJid, session);
         }
         session.lastActive = now;
+        session.project = project;
 
         const cleanText = (text || '').trim();
 
-        // أوامر التحكم السريع بالذاكرة
+        // أوامر التحكم السريع
         if (cleanText === '/new' || cleanText === '/reset' || cleanText === 'جلسة جديدة' || cleanText === 'تصفير الذاكرة') {
             session.history = [];
             session.sessionId = `wa_${Date.now()}`;
-            await sendReplyToGroup(sock, remoteJid, '🔄 تم تصفير سياق الذاكرة وبدء جلسة عمل جديدة ونظيفة يا باشا! جاهز لأي طلب أو أمر.');
+            await sendReplyToGroup(sock, remoteJid, `🔄 تم تصفير سياق الذاكرة وبدء جلسة جديدة لمشروع *[${project.projectName}]* يا باشا! جاهز لأي طلب.`);
             return { handled: true };
         }
 
         if (cleanText === '/status' || cleanText === 'حالة الجلسة') {
             const statusMsg = `📊 *حالة جلسة إعلانات AI:*
-- 🟢 *المشروع:* crm.fast-order-eg.tech
+- 📂 *المشروع في Antigravity:* ${project.projectName}
+- 📁 *المسار:* \`${project.projectPath}\`
 - 💬 *الرسائل النشطة بالذاكرة:* ${session.history.length}
 - 🆔 *معرف الجلسة:* ${session.sessionId}
 - 👤 *المسؤول المصرح له:* ${phoneNumber}
-- ⚡ *المساعد:* جاهز ومتصل بـ Antigravity و Baileys`;
+- ⚡ *الحالة:* متصل وجاهز لتنفيذ الأوامر`;
             await sendReplyToGroup(sock, remoteJid, statusMsg);
             return { handled: true };
         }
@@ -375,42 +432,34 @@ export async function handleAiAdsAssistantMessage({
                 return { handled: true };
             }
             promptText = transcribed;
-            console.log(`🎙️ [AI Ads Assistant] Transcribed text: "${promptText}"`);
+            console.log(`🎙️ [AI Ads Assistant] Transcribed: "${promptText}"`);
         }
 
         if (!promptText && !mediaBuffer) {
             return { handled: false };
         }
 
-        // إرسال إشعار فوري في الجروب ببدء التفكير أو استلام الفويس
         if (isVoice) {
-            await sock.sendMessage(remoteJid, { text: `🎙️ _سمعت رسالتك:_ "${promptText}"\n⏳ _جاري التحليل والتنفيذ..._` });
+            await sock.sendMessage(remoteJid, { text: `🎙️ _سمعت رسالتك:_ "${promptText}"\n⏳ _جاري التحليل لمشروع [${project.projectName}]..._` });
         }
 
-        // جلب التوجيه الأساسي (System Prompt)
-        const systemPrompt = await getSetting('ai_ads_system_prompt', userId).catch(() => null);
-
-        // استدعاء المساعد
         const hasImage = mediaBuffer && (mediaMime?.includes('image') || mediaMime?.includes('jpeg') || mediaMime?.includes('png'));
         const reply = await callGeminiAssistant({
             prompt: promptText,
             imageBuffer: hasImage ? mediaBuffer : null,
             imageMime: hasImage ? mediaMime : null,
             history: session.history,
-            systemPrompt
+            project
         });
 
-        // تحديث الذاكرة
         session.history.push({ role: 'user', text: promptText });
         session.history.push({ role: 'model', text: reply });
         if (session.history.length > 20) {
             session.history = session.history.slice(-20);
         }
 
-        // إرسال الرد في الجروب
         await sendReplyToGroup(sock, remoteJid, reply);
 
-        // حفظ وتزامن مع أنتي جرافيتي والداتابيز
         await syncSessionToAntigravityAndDb({
             remoteJid,
             userId,
@@ -418,7 +467,8 @@ export async function handleAiAdsAssistantMessage({
             modelReply: reply,
             isVoice,
             hasImage,
-            sessionId: session.sessionId
+            sessionId: session.sessionId,
+            project
         });
 
         return { handled: true };

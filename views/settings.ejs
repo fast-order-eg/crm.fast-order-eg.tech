@@ -1883,37 +1883,37 @@
                         </div>
                     </div>
 
-                    <!-- 10. AI Ads & Antigravity Assistant Tab -->
+                    <!-- 10. AI Ads & Antigravity Multi-Project Assistant Tab -->
                     <div class="tab-pane fade" id="ai-ads-pane" role="tabpanel" aria-labelledby="ai-ads-tab">
                         <div class="d-flex align-items-center justify-content-between mb-4 pb-2 border-bottom flex-wrap gap-2">
                             <div>
                                 <h5 class="fw-bold mb-1 text-dark d-flex align-items-center">
                                     <i class="bi bi-robot text-primary me-2"></i>
-                                    مساعد إعلانات AI وأنتي جرافيتي عبر الواتساب (AI Ads Assistant)
+                                    ربط جروبات الواتساب بمشاريع Antigravity (إعلانات AI)
                                 </h5>
-                                <p class="text-muted small mb-0">ربط جروب واتساب مخصص مع مساعد الذكاء الاصطناعي وأنتي جرافيتي، لاستقبال الأوامر النصية، الرسائل الصوتية (الفويس)، تحليل الصور وتزامن المحادثات فورياً.</p>
+                                <p class="text-muted small mb-0">تخصيص جروب واتساب لكل مشروع أو فولدر في Antigravity، لتوجيه الأوامر والاستفسارات مباشرة لمجلد المشروع المطلوب.</p>
                             </div>
                             <div>
                                 <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-3 py-2 rounded-pill fw-medium">
                                     <i class="bi bi-shield-check text-success me-1"></i>
-                                    ربط فوري بـ Baileys & Antigravity 🟢
+                                    تزامن متعدد المشاريع 🟢
                                 </span>
                             </div>
                         </div>
 
                         <div class="row g-3 g-lg-4">
-                            <!-- Left Column: Group & Connection Settings -->
-                            <div class="col-lg-6">
-                                <!-- Group Card -->
+                            <!-- Left Column: Multi-Project Mapping & Permissions -->
+                            <div class="col-lg-7">
+                                <!-- Multi-Project Mapping Card -->
                                 <div class="card border-0 shadow-sm p-3 p-md-4 rounded-4 bg-light mb-3 mb-md-4">
                                     <div class="d-flex align-items-center justify-content-between mb-3 gap-2">
                                         <div class="d-flex align-items-center">
                                             <div class="bg-primary bg-opacity-10 rounded-circle me-2.5 me-md-3 d-flex align-items-center justify-content-center icon-circle-fixed">
-                                                <i class="bi bi-whatsapp text-success fs-5"></i>
+                                                <i class="bi bi-diagram-3-fill text-primary fs-5"></i>
                                             </div>
                                             <div>
-                                                <h6 class="fw-bold mb-0 text-dark">جروب واتساب لمساعد إعلانات AI</h6>
-                                                <small class="text-muted">الجروب المخصص الذي يتلقى فيه البوت أوامر التطوير والإعلانات وينفذها</small>
+                                                <h6 class="fw-bold mb-0 text-dark">خريطة ربط الجروبات بالمشاريع في Antigravity</h6>
+                                                <small class="text-muted">اختر الجروب والفولدر الخاص بيه، وتقدر تضيف أكتر من جروب لأكتر من مشروع</small>
                                             </div>
                                         </div>
                                         <div class="form-check form-switch mb-0 flex-shrink-0">
@@ -1921,103 +1921,120 @@
                                         </div>
                                     </div>
 
-                                    <div class="mb-3">
-                                        <label class="form-label fw-bold text-secondary small">اختر الجروب من قائمة جروبات الواتساب المتاحة:</label>
-                                        <div class="d-flex flex-column flex-sm-row gap-2">
-                                            <select name="ai_ads_group_jid" id="aiAdsGroupSelect" class="form-select border shadow-xs py-2.5 rounded-3 fw-medium flex-grow-1">
-                                                <option value="" <%= !settings.ai_ads_group_jid ? 'selected' : '' %>>⚡ التعرف التلقائي على أي جروب اسمه (إعلانات AI / اعلان AI / AI Ads)</option>
-                                                <% if (settings.ai_ads_group_jid) { %>
-                                                    <option value="<%= settings.ai_ads_group_jid %>" selected>📌 الجروب الحالي المحفوظ (<%= settings.ai_ads_group_name || 'إعلانات AI' %>)</option>
-                                                <% } %>
-                                            </select>
-                                            <button type="button" id="refreshAiAdsGroupsBtn" class="btn btn-outline-secondary bg-white py-2 px-3 rounded-3 fw-bold text-nowrap" title="تحديث قائمة الجروبات من الواتساب">
-                                                <i class="bi bi-arrow-clockwise me-1"></i> جلب الجروبات
-                                            </button>
-                                        </div>
-                                        <input type="hidden" name="ai_ads_group_name" id="aiAdsGroupName" value="<%= settings.ai_ads_group_name || 'إعلانات AI' %>">
-                                        <div class="form-text text-muted small mt-1">يمكنك اختيار الجروب بالاسم أو تركه تلقائياً ليتعرف البوت على أي جروب باسم "إعلانات AI".</div>
+                                    <!-- Mapping Rows Container -->
+                                    <div id="projectMappingsContainer" class="d-flex flex-column gap-2.5 mb-3">
+                                        <!-- Rendered dynamically via JavaScript -->
                                     </div>
 
-                                    <!-- Check Status Button -->
-                                    <div class="d-flex gap-2">
-                                        <button type="button" id="checkAiAdsGroupBtn" class="btn btn-primary text-white fw-bold rounded-3 py-2 px-3 shadow-sm flex-grow-1">
-                                            <i class="bi bi-search me-1"></i> فحص حالة جروب إعلانات AI
+                                    <input type="hidden" name="ai_ads_projects_mapping" id="aiAdsProjectsMappingInput" value="<%- encodeURIComponent(JSON.stringify(settings.ai_ads_projects_mapping || [])) %>">
+
+                                    <div class="d-flex gap-2 flex-wrap">
+                                        <button type="button" id="addNewMappingRowBtn" class="btn btn-outline-primary py-2 px-3 rounded-3 fw-bold small">
+                                            <i class="bi bi-plus-circle me-1"></i> إضافة ربط جروب بمشروع جديد
+                                        </button>
+                                        <button type="button" id="refreshAiAdsGroupsBtn" class="btn btn-outline-secondary bg-white py-2 px-3 rounded-3 fw-bold small" title="تحديث قائمة الجروبات من الواتساب">
+                                            <i class="bi bi-arrow-clockwise me-1"></i> جلب جروبات الواتساب
+                                        </button>
+                                        <button type="button" id="checkAiAdsGroupBtn" class="btn btn-primary text-white fw-bold rounded-3 py-2 px-3 shadow-sm small">
+                                            <i class="bi bi-search me-1"></i> فحص الاتصال
                                         </button>
                                     </div>
                                     <div id="checkAiAdsGroupResult" class="mt-3 small rounded-3" style="display: none;"></div>
                                 </div>
 
-                                <!-- Security & Permissions Card -->
+                                <!-- Security & Session Timeout Card -->
                                 <div class="card border-0 shadow-sm p-3 p-md-4 rounded-4 bg-white border-start border-4 border-primary mb-3">
-                                    <h6 class="fw-bold text-dark mb-2 d-flex align-items-center">
+                                    <h6 class="fw-bold text-dark mb-3 d-flex align-items-center">
                                         <i class="bi bi-shield-lock-fill text-primary me-2"></i>
-                                        أرقام الهواتف المصرح لها بإعطاء الأوامر
+                                        أمان الصلاحيات ومدة الذاكرة
                                     </h6>
-                                    <p class="text-muted small mb-2">لأمان كامل، لا ينفذ المساعد أوامر الحذف أو التعديل أو البرمجة إلا للأرقام المسجلة هنا:</p>
                                     
-                                    <div class="mb-3">
-                                        <label class="form-label fw-bold text-secondary small">أرقام الهواتف المصرح لها (JSON أو رقم في كل سطر):</label>
-                                        <textarea name="ai_ads_authorized_phones" class="form-control rounded-3" rows="3" style="font-family: monospace; font-size: 0.85rem;"><%= typeof settings.ai_ads_authorized_phones === 'object' ? JSON.stringify(settings.ai_ads_authorized_phones, null, 2) : (settings.ai_ads_authorized_phones || '[{\"name\":\"راضي\",\"phone\":\"01092308465\",\"isPrimary\":true}]') %></textarea>
-                                        <div class="form-text text-muted small mt-1">الرقم الأساسي المعتمد: <code>01092308465</code>.</div>
-                                    </div>
+                                    <div class="row g-3">
+                                        <div class="col-md-7">
+                                            <label class="form-label fw-bold text-secondary small">أرقام الهواتف المصرح لها بإعطاء الأوامر:</label>
+                                            <input type="text" name="ai_ads_authorized_phones" class="form-control rounded-3 border shadow-xs py-2.5 fw-medium" value="<%= typeof settings.ai_ads_authorized_phones === 'string' ? settings.ai_ads_authorized_phones : (Array.isArray(settings.ai_ads_authorized_phones) ? settings.ai_ads_authorized_phones.map(a => a.phone || a).join(', ') : '01092308465') %>" placeholder="01092308465, 010...">
+                                            <div class="form-text text-muted small mt-1">أرقام الهواتف مفصولة بفاصلة. الرقم الأساسي المعتمد: <code>01092308465</code>.</div>
+                                        </div>
 
-                                    <div class="mb-0">
-                                        <label class="form-label fw-bold text-secondary small">مدة انتهاء جلسة الذاكرة التلقائية (بالدقائق):</label>
-                                        <input type="number" name="ai_ads_session_timeout" class="form-control rounded-3" value="<%= settings.ai_ads_session_timeout || 360 %>" min="15" max="1440">
-                                        <div class="form-text text-muted small mt-1">الافتراضي 360 دقيقة (6 ساعات). بعدها يبدأ البوت جلسة جديدة أو بعد إرسال <code>/new</code> أو <code>/reset</code>.</div>
+                                        <div class="col-md-5">
+                                            <label class="form-label fw-bold text-secondary small">مدة تذكر المحادثة السابقة:</label>
+                                            <select name="ai_ads_session_timeout" class="form-select rounded-3 border shadow-xs py-2.5 fw-medium">
+                                                <option value="60" <%= settings.ai_ads_session_timeout == 60 ? 'selected' : '' %>>ساعة واحدة</option>
+                                                <option value="180" <%= settings.ai_ads_session_timeout == 180 ? 'selected' : '' %>>3 ساعات</option>
+                                                <option value="360" <%= (!settings.ai_ads_session_timeout || settings.ai_ads_session_timeout == 360) ? 'selected' : '' %>>6 ساعات (الافتراضي ليوم العمل)</option>
+                                                <option value="720" <%= settings.ai_ads_session_timeout == 720 ? 'selected' : '' %>>12 ساعة (يوم كامل)</option>
+                                                <option value="1440" <%= settings.ai_ads_session_timeout == 1440 ? 'selected' : '' %>>24 ساعة</option>
+                                            </select>
+                                            <div class="form-text text-muted small mt-1">توضح للمساعد كم ساعة يفضل فاكر كلامك السابق لو سبت الواتساب ورجعت له.</div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- Right Column: System Prompt & Features Guide -->
-                            <div class="col-lg-6">
-                                <!-- Prompt Card -->
-                                <div class="card border-0 shadow-sm p-3 p-md-4 rounded-4 bg-white border-top border-4 border-primary mb-3">
-                                    <h6 class="fw-bold text-dark mb-2 d-flex align-items-center">
-                                        <i class="bi bi-chat-quote-fill text-primary me-2"></i>
-                                        التوجيه الأساسي للذكاء الاصطناعي (System Prompt)
-                                    </h6>
-                                    <p class="text-muted small mb-2">توجيهات شخصية المساعد وأسلوب رده وصلاحياته مع فريق العمل:</p>
-                                    <textarea name="ai_ads_system_prompt" class="form-control rounded-3" rows="5"><%= settings.ai_ads_system_prompt || 'أنت مساعد ذكي متقدم وخبير بإعلانات فاست أوردر وإدارة وتطوير نظام CRM. تتحدث بالعامية المصرية الودودة والمهنية. تستجيب لطلبات فريق العمل بسرعة ودقة، وتلخص البيانات وتحلل الصور والأصوات بدقة متناهية.' %></textarea>
-                                </div>
+                            <!-- Right Column: Interactive Command Catalog with Copy Buttons -->
+                            <div class="col-lg-5">
+                                <div class="card border-0 shadow-sm p-3 p-md-4 rounded-4 bg-white border-top border-4 border-primary h-100">
+                                    <div class="d-flex align-items-center justify-content-between mb-3">
+                                        <h6 class="fw-bold text-dark mb-0 d-flex align-items-center">
+                                            <i class="bi bi-terminal text-primary me-2"></i>
+                                            دليل الأوامر السريعة في الجروب:
+                                        </h6>
+                                        <span class="badge bg-primary bg-opacity-10 text-primary small">زر نسخ فوري لكل أمر 📋</span>
+                                    </div>
 
-                                <!-- Features & Shortcuts Card -->
-                                <div class="card border-0 shadow-sm p-3 p-md-4 rounded-4 bg-white">
-                                    <h6 class="fw-bold text-dark mb-3">
-                                        <i class="bi bi-lightning-charge-fill text-warning me-2"></i>
-                                        قدرات المساعد في الجروب:
-                                    </h6>
                                     <div class="d-flex flex-column gap-2 small">
-                                        <div class="p-2.5 rounded-3 bg-light border d-flex align-items-start gap-2">
-                                            <i class="bi bi-mic-fill text-danger fs-5 mt-0.5"></i>
-                                            <div>
-                                                <strong class="text-dark d-block">دعم الرسائل الصوتية (Voice Notes) 🎙️:</strong>
-                                                <span class="text-muted">ابعت أي فويس في الجروب، المساعد بيفهمه مباشرة عبر الذكاء الاصطناعي وينفذ الأمر ويرد عليك.</span>
+                                        <!-- Command 1: Reset / New -->
+                                        <div class="p-2.5 rounded-3 bg-light border">
+                                            <div class="d-flex align-items-center justify-content-between mb-1">
+                                                <code>/new</code>
+                                                <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 copy-cmd-btn" data-cmd="/new" title="نسخ الأمر"><i class="bi bi-clipboard"></i> نسخ</button>
                                             </div>
+                                            <small class="text-muted d-block">تصفير الذاكرة السابقة وبدء جلسة جديدة نظيفة تماماً لنفس المشروع.</small>
                                         </div>
 
-                                        <div class="p-2.5 rounded-3 bg-light border d-flex align-items-start gap-2">
-                                            <i class="bi bi-image-fill text-info fs-5 mt-0.5"></i>
-                                            <div>
-                                                <strong class="text-dark d-block">تحليل الصور ومخططات الإعلانات 📷:</strong>
-                                                <span class="text-muted">ارفع لقطة شاشة لإعلان، تقرير أرباح، أو إيرور في الكود، وهيحللها فوراً.</span>
+                                        <!-- Command 2: Status -->
+                                        <div class="p-2.5 rounded-3 bg-light border">
+                                            <div class="d-flex align-items-center justify-content-between mb-1">
+                                                <code>/status</code>
+                                                <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 copy-cmd-btn" data-cmd="/status" title="نسخ الأمر"><i class="bi bi-clipboard"></i> نسخ</button>
                                             </div>
+                                            <small class="text-muted d-block">معرفة اسم المشروع المربوط في Antigravity، وحالة الاتصال، وعدد الرسائل المحفوظة.</small>
                                         </div>
 
-                                        <div class="p-2.5 rounded-3 bg-light border d-flex align-items-start gap-2">
-                                            <i class="bi bi-terminal-split text-success fs-5 mt-0.5"></i>
-                                            <div>
-                                                <strong class="text-dark d-block">تزامن كامل مع جلسات أنتي جرافيتي 💻:</strong>
-                                                <span class="text-muted">كل محادثة في الواتساب بتتحفظ في الداتابيز وتظهر كشات رسمي في أنتي جرافيتي للمتابعة لاحقاً.</span>
+                                        <!-- Command 3: Voice Note -->
+                                        <div class="p-2.5 rounded-3 bg-light border">
+                                            <div class="d-flex align-items-center justify-content-between mb-1">
+                                                <span class="fw-bold text-dark"><i class="bi bi-mic-fill text-danger me-1"></i> إرسال فويس صوتي (Voice Note)</span>
+                                                <span class="badge bg-danger bg-opacity-10 text-danger">مفرغ ومحلل فوراً</span>
                                             </div>
+                                            <small class="text-muted d-block">سجل أي فويس بالعامية في الجروب، الذكاء الاصطناعي بيسمعه وينفذ المطلوب تلقائياً.</small>
                                         </div>
 
-                                        <div class="p-2.5 rounded-3 bg-light border d-flex align-items-start gap-2">
-                                            <i class="bi bi-arrow-repeat text-primary fs-5 mt-0.5"></i>
-                                            <div>
-                                                <strong class="text-dark d-block">أوامر التحكم السريع ⚡:</strong>
-                                                <span class="text-muted">اكتب <code>/new</code> أو <code>/reset</code> لتصفير الذاكرة وبدء جلسة جديدة، أو <code>/status</code> لمعرفة حالة الجلسة.</span>
+                                        <!-- Command 4: Image Analysis -->
+                                        <div class="p-2.5 rounded-3 bg-light border">
+                                            <div class="d-flex align-items-center justify-content-between mb-1">
+                                                <span class="fw-bold text-dark"><i class="bi bi-image-fill text-info me-1"></i> إرسال صورة / لقطة شاشة</span>
+                                                <span class="badge bg-info bg-opacity-10 text-info">Multimodal 📷</span>
                                             </div>
+                                            <small class="text-muted d-block">ارفع لقطة شاشة لخطأ في الكود أو تقرير إعلانات، وهيحللها فوراً ويديك الحل.</small>
+                                        </div>
+
+                                        <!-- Command 5: Natural prompts -->
+                                        <div class="p-2.5 rounded-3 bg-light border">
+                                            <div class="d-flex align-items-center justify-content-between mb-1">
+                                                <code>طلعلي أخطاء السيرفر النهاردة</code>
+                                                <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 copy-cmd-btn" data-cmd="طلعلي أخطاء السيرفر النهاردة" title="نسخ الأمر"><i class="bi bi-clipboard"></i> نسخ</button>
+                                            </div>
+                                            <small class="text-muted d-block">طلب فحص أخطاء النظام والتشغيل في مجلد المشروع المحدد.</small>
+                                        </div>
+
+                                        <!-- Command 6: Natural prompts 2 -->
+                                        <div class="p-2.5 rounded-3 bg-light border">
+                                            <div class="d-flex align-items-center justify-content-between mb-1">
+                                                <code>لخصلي أداء الحملات الممولة في فاست أوردر</code>
+                                                <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 copy-cmd-btn" data-cmd="لخصلي أداء الحملات الممولة في فاست أوردر" title="نسخ الأمر"><i class="bi bi-clipboard"></i> نسخ</button>
+                                            </div>
+                                            <small class="text-muted d-block">استخراج تقرير أداء وإحصائيات الحملات.</small>
                                         </div>
                                     </div>
                                 </div>
@@ -2027,8 +2044,7 @@
 
                 </div>
 
-                <!-- Unified Save Button -->
-                <div class="d-flex justify-content-end mt-4">
+<div class="d-flex justify-content-end mt-4">
                     <button type="submit" class="btn btn-warning text-dark px-5 py-3 rounded-pill fw-bold shadow-sm">
                         <i class="fas fa-save me-2"></i>
                         حفظ جميع الإعدادات
@@ -3072,14 +3088,160 @@
             }
 
 
-            // === AI Ads & Antigravity Assistant Group Handlers ===
+            // === AI Ads & Antigravity Multi-Project Assistant Handlers ===
+            let loadedWhatsAppGroups = [];
+            const projectMappingsContainer = document.getElementById('projectMappingsContainer');
+            const aiAdsProjectsMappingInput = document.getElementById('aiAdsProjectsMappingInput');
+            const addNewMappingRowBtn = document.getElementById('addNewMappingRowBtn');
             const refreshAiAdsGroupsBtn = document.getElementById('refreshAiAdsGroupsBtn');
-            const aiAdsGroupSelect = document.getElementById('aiAdsGroupSelect');
-            const aiAdsGroupName = document.getElementById('aiAdsGroupName');
             const checkAiAdsGroupBtn = document.getElementById('checkAiAdsGroupBtn');
             const checkAiAdsGroupResult = document.getElementById('checkAiAdsGroupResult');
 
-            if (refreshAiAdsGroupsBtn && aiAdsGroupSelect) {
+            const knownAntigravityProjects = [
+                { name: 'crm.fast-order-eg.tech', path: 'crm.fast-order-eg.tech' },
+                { name: 'fast-order-eg.tech', path: 'fast-order-eg.tech' },
+                { name: 'bot.bird-ads.com', path: 'bot.bird-ads.com' },
+                { name: 'competitors analysis', path: 'competitors analysis' },
+                { name: 'auto publish', path: 'auto publish' },
+                { name: 'bird-ads.com', path: 'bird-ads.com' }
+            ];
+
+            let mappingsList = [];
+            try {
+                if (aiAdsProjectsMappingInput && aiAdsProjectsMappingInput.value) {
+                    mappingsList = JSON.parse(decodeURIComponent(aiAdsProjectsMappingInput.value));
+                }
+            } catch (e) {
+                mappingsList = [];
+            }
+            if (!Array.isArray(mappingsList) || mappingsList.length === 0) {
+                mappingsList = [
+                    { groupId: '', groupName: 'إعلانات AI', projectPath: 'crm.fast-order-eg.tech' }
+                ];
+            }
+
+            function syncMappingsToInput() {
+                if (!aiAdsProjectsMappingInput) return;
+                const rows = projectMappingsContainer.querySelectorAll('.mapping-row');
+                const list = [];
+                rows.forEach(row => {
+                    const groupSelect = row.querySelector('.mapping-group-select');
+                    const projectSelect = row.querySelector('.mapping-project-select');
+                    const customPath = row.querySelector('.mapping-custom-path');
+
+                    let gId = groupSelect ? groupSelect.value : '';
+                    let gName = '';
+                    if (groupSelect && groupSelect.selectedIndex >= 0) {
+                        gName = groupSelect.options[groupSelect.selectedIndex].text.replace('📌 ', '').replace('👥 ', '').replace('⚡ ', '').trim();
+                    }
+                    let pPath = projectSelect ? projectSelect.value : 'crm.fast-order-eg.tech';
+                    if (pPath === '__custom__' && customPath) {
+                        pPath = customPath.value.trim() || 'crm.fast-order-eg.tech';
+                    }
+
+                    list.push({
+                        groupId: gId,
+                        groupName: gName,
+                        projectPath: pPath
+                    });
+                });
+                aiAdsProjectsMappingInput.value = encodeURIComponent(JSON.stringify(list));
+            }
+
+            function renderMappingRows() {
+                if (!projectMappingsContainer) return;
+                projectMappingsContainer.innerHTML = '';
+
+                mappingsList.forEach((item, index) => {
+                    const row = document.createElement('div');
+                    row.className = 'mapping-row p-3 rounded-3 bg-white border shadow-xs d-flex flex-column gap-2';
+
+                    let groupOptionsHtml = '<option value="">⚡ التعرف التلقائي على أي جروب اسمه (إعلانات AI / AI Ads)</option>';
+                    if (item.groupId) {
+                        groupOptionsHtml += `<option value="${item.groupId}" selected>📌 ${item.groupName || item.groupId}</option>`;
+                    }
+                    loadedWhatsAppGroups.forEach(g => {
+                        if (g.id !== item.groupId) {
+                            groupOptionsHtml += `<option value="${g.id}">👥 ${g.subject}</option>`;
+                        }
+                    });
+
+                    const isPredefined = knownAntigravityProjects.some(p => p.path === item.projectPath);
+                    let projectOptionsHtml = '';
+                    knownAntigravityProjects.forEach(p => {
+                        const sel = (item.projectPath === p.path || (!item.projectPath && p.path === 'crm.fast-order-eg.tech')) ? 'selected' : '';
+                        projectOptionsHtml += `<option value="${p.path}" ${sel}>📂 ${p.name}</option>`;
+                    });
+                    projectOptionsHtml += `<option value="__custom__" ${!isPredefined && item.projectPath ? 'selected' : ''}>✍️ مسار مخصص آخر...</option>`;
+
+                    row.innerHTML = `
+                        <div class="d-flex align-items-center justify-content-between">
+                            <span class="badge bg-light text-primary border fw-bold small">ربط #${index + 1}</span>
+                            <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 remove-mapping-row-btn" title="حذف هذا الربط">
+                                <i class="bi bi-trash"></i> حذف
+                            </button>
+                        </div>
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <label class="form-label text-secondary small fw-bold mb-1">جروب الواتساب:</label>
+                                <select class="form-select form-select-sm mapping-group-select rounded-2">
+                                    ${groupOptionsHtml}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label text-secondary small fw-bold mb-1">فولدر المشروع في Antigravity:</label>
+                                <select class="form-select form-select-sm mapping-project-select rounded-2">
+                                    ${projectOptionsHtml}
+                                </select>
+                                <input type="text" class="form-control form-control-sm mapping-custom-path mt-1 rounded-2" placeholder="اكتب اسم أو مسار الفولدر..." value="${!isPredefined ? (item.projectPath || '') : ''}" style="display: ${!isPredefined && item.projectPath ? 'block' : 'none'};">
+                            </div>
+                        </div>
+                    `;
+
+                    // Row Events
+                    const groupSel = row.querySelector('.mapping-group-select');
+                    const projSel = row.querySelector('.mapping-project-select');
+                    const customInput = row.querySelector('.mapping-custom-path');
+                    const removeBtn = row.querySelector('.remove-mapping-row-btn');
+
+                    projSel.addEventListener('change', () => {
+                        if (projSel.value === '__custom__') {
+                            customInput.style.display = 'block';
+                            customInput.focus();
+                        } else {
+                            customInput.style.display = 'none';
+                        }
+                        syncMappingsToInput();
+                    });
+
+                    customInput.addEventListener('input', syncMappingsToInput);
+                    groupSel.addEventListener('change', syncMappingsToInput);
+
+                    removeBtn.addEventListener('click', () => {
+                        row.remove();
+                        syncMappingsToInput();
+                    });
+
+                    projectMappingsContainer.appendChild(row);
+                });
+
+                syncMappingsToInput();
+            }
+
+            if (addNewMappingRowBtn) {
+                addNewMappingRowBtn.addEventListener('click', () => {
+                    mappingsList.push({
+                        groupId: '',
+                        groupName: '',
+                        projectPath: 'crm.fast-order-eg.tech'
+                    });
+                    renderMappingRows();
+                });
+            }
+
+            renderMappingRows();
+
+            if (refreshAiAdsGroupsBtn) {
                 refreshAiAdsGroupsBtn.addEventListener('click', async () => {
                     refreshAiAdsGroupsBtn.disabled = true;
                     refreshAiAdsGroupsBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> جاري الجلب...';
@@ -3088,22 +3250,13 @@
                         const res = await fetch('/dashboard/settings/whatsapp-groups');
                         const data = await res.json();
                         if (data.success && data.groups) {
-                            const currentVal = aiAdsGroupSelect.value;
-                            aiAdsGroupSelect.innerHTML = '<option value="">⚡ التعرف التلقائي على أي جروب اسمه (إعلانات AI / اعلان AI / AI Ads)</option>';
-                            data.groups.forEach(g => {
-                                const opt = document.createElement('option');
-                                opt.value = g.id;
-                                opt.textContent = `👥 ${g.subject}`;
-                                if (g.id === currentVal) opt.selected = true;
-                                aiAdsGroupSelect.appendChild(opt);
-                            });
-                            if (currentVal && !data.groups.some(g => g.id === currentVal)) {
-                                const opt = document.createElement('option');
-                                opt.value = currentVal;
-                                opt.textContent = `📌 الجروب المحفوظ (${aiAdsGroupName ? aiAdsGroupName.value : currentVal})`;
-                                opt.selected = true;
-                                aiAdsGroupSelect.appendChild(opt);
-                            }
+                            loadedWhatsAppGroups = data.groups;
+                            // Re-render rows with updated group options
+                            syncMappingsToInput();
+                            try {
+                                mappingsList = JSON.parse(decodeURIComponent(aiAdsProjectsMappingInput.value));
+                            } catch (_) {}
+                            renderMappingRows();
                         } else {
                             alert(data.error || 'فشل جلب الجروبات. تأكد من اتصال البوت بالواتساب.');
                         }
@@ -3111,21 +3264,14 @@
                         alert('حدث خطأ أثناء جلب الجروبات: ' + e.message);
                     } finally {
                         refreshAiAdsGroupsBtn.disabled = false;
-                        refreshAiAdsGroupsBtn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i> جلب الجروبات';
-                    }
-                });
-
-                aiAdsGroupSelect.addEventListener('change', () => {
-                    const selectedOpt = aiAdsGroupSelect.options[aiAdsGroupSelect.selectedIndex];
-                    if (aiAdsGroupName && selectedOpt) {
-                        aiAdsGroupName.value = selectedOpt.textContent.replace('👥 ', '').replace('⚡ ', '').trim();
+                        refreshAiAdsGroupsBtn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i> جلب جروبات الواتساب';
                     }
                 });
 
                 const aiAdsTabBtn = document.getElementById('ai-ads-tab');
                 if (aiAdsTabBtn) {
                     aiAdsTabBtn.addEventListener('shown.bs.tab', () => {
-                        if (aiAdsGroupSelect.options.length <= 2 && !refreshAiAdsGroupsBtn.disabled) {
+                        if (loadedWhatsAppGroups.length === 0 && !refreshAiAdsGroupsBtn.disabled) {
                             refreshAiAdsGroupsBtn.click();
                         }
                     });
@@ -3159,7 +3305,7 @@
                         checkAiAdsGroupResult.innerHTML = 'حدث خطأ أثناء الفحص: ' + e.message;
                     } finally {
                         checkAiAdsGroupBtn.disabled = false;
-                        checkAiAdsGroupBtn.innerHTML = '<i class="bi bi-search me-1"></i> فحص حالة جروب إعلانات AI';
+                        checkAiAdsGroupBtn.innerHTML = '<i class="bi bi-search me-1"></i> فحص الاتصال';
                     }
                 });
             }
