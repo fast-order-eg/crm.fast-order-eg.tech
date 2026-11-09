@@ -1,6 +1,6 @@
 import { CONFIG } from '../config.js';
 import { GoogleAuth } from 'google-auth-library';
-import { getSystemSetting } from './settingsService.js';
+import { getSetting } from './settingsService.js';
 import Message from '../models/Message.js';
 import Conversation from '../models/Conversation.js';
 import fs from 'fs';
@@ -28,12 +28,12 @@ try {
 export async function isAiAdsGroupMatch(remoteJid, rawSubject, userId = 1) {
     if (!remoteJid || !remoteJid.endsWith('@g.us')) return false;
 
-    const enabled = await getSystemSetting('ai_ads_system_enabled', userId).catch(() => true);
+    const enabled = await getSetting('ai_ads_system_enabled', userId).catch(() => true);
     if (enabled === false) return false;
 
-    const configuredJid = (await getSystemSetting('ai_ads_group_jid', userId).catch(() => null))
-        || (await getSystemSetting('ai_ads_group_jid', 1).catch(() => null))
-        || (await getSystemSetting('ai_ads_group_jid', 3).catch(() => null));
+    const configuredJid = (await getSetting('ai_ads_group_jid', userId).catch(() => null))
+        || (await getSetting('ai_ads_group_jid', 1).catch(() => null))
+        || (await getSetting('ai_ads_group_jid', 3).catch(() => null));
 
     if (configuredJid && remoteJid === configuredJid) return true;
 
@@ -60,7 +60,7 @@ export async function isAiAdsSenderAuthorized(senderPhone, userId = 1) {
     }
 
     try {
-        const authorized = await getSystemSetting('ai_ads_authorized_phones', userId).catch(() => null);
+        const authorized = await getSetting('ai_ads_authorized_phones', userId).catch(() => null);
         if (Array.isArray(authorized)) {
             return authorized.some(a => {
                 const p = String(a.phone || a).replace(/[^0-9]/g, '');
@@ -327,7 +327,7 @@ export async function handleAiAdsAssistantMessage({
         }
 
         // فحص انتهاء الجلسة أو تهيئة جلسة جديدة
-        const timeoutMinutes = await getSystemSetting('ai_ads_session_timeout', userId).catch(() => 360) || 360;
+        const timeoutMinutes = await getSetting('ai_ads_session_timeout', userId).catch(() => 360) || 360;
         const now = Date.now();
 
         let session = sessionMemory.get(remoteJid);
@@ -388,7 +388,7 @@ export async function handleAiAdsAssistantMessage({
         }
 
         // جلب التوجيه الأساسي (System Prompt)
-        const systemPrompt = await getSystemSetting('ai_ads_system_prompt', userId).catch(() => null);
+        const systemPrompt = await getSetting('ai_ads_system_prompt', userId).catch(() => null);
 
         // استدعاء المساعد
         const hasImage = mediaBuffer && (mediaMime?.includes('image') || mediaMime?.includes('jpeg') || mediaMime?.includes('png'));
