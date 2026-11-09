@@ -3189,11 +3189,12 @@
                                 </select>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label text-secondary small fw-bold mb-1">فولدر المشروع في Antigravity:</label>
+                                <label class="form-label text-secondary small fw-bold mb-1">مشروعك في Antigravity:</label>
                                 <select class="form-select form-select-sm mapping-project-select rounded-2">
                                     ${projectOptionsHtml}
                                 </select>
-                                <input type="text" class="form-control form-control-sm mapping-custom-path mt-1 rounded-2" placeholder="اكتب اسم أو مسار الفولدر..." value="${!isPredefined ? (item.projectPath || '') : ''}" style="display: ${!isPredefined && item.projectPath ? 'block' : 'none'};">
+                                <input type="text" class="form-control form-control-sm mapping-custom-path mt-1 rounded-2" placeholder="اكتب اسم المشروع فقط (مثال: fast-order-eg.tech)..." value="${!isPredefined ? (item.projectPath || '') : ''}" style="display: ${!isPredefined && item.projectPath ? 'block' : 'none'};">
+                                <small class="text-muted d-block mt-0.5" style="font-size: 0.72rem;">⚡ اختر المشروع فقط، ولا داعي لكتابة C:\ أو أي مسارات ملفات.</small>
                             </div>
                         </div>
                     `;

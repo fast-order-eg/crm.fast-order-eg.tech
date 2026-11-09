@@ -12,6 +12,8 @@ import MessengerConversation from '../models/MessengerConversation.js';
 import MessengerPage from '../models/MessengerPage.js';
 import Campaign from '../models/Campaign.js';
 import Instruction from '../models/Instruction.js';
+import BusinessObserverMessage from '../models/BusinessObserverMessage.js';
+import BusinessObserverGroup from '../models/BusinessObserverGroup.js';
 import Product from '../models/Product.js';
 import InteractiveButton from '../models/InteractiveButton.js';
 import InteractiveMenu from '../models/InteractiveMenu.js';
@@ -2563,17 +2565,50 @@ function getActiveBaileysSocket(preferredUserId) {
 // جلب قائمة الجروبات المشترك بها البوت لقائمة اختيار جروب التذكيرات
 router.get('/settings/whatsapp-groups', async (req, res) => {
     try {
-        const sock = getActiveBaileysSocket(req.user?.id);
-        if (!sock || !sock.user) {
-            return res.json({ success: false, error: 'بوت الواتساب (رقم البليز) غير متصل حالياً' });
+        const groupsMap = new Map();
+
+        // 1. جلب الجروبات المسجلة في قاعدة البيانات (فوري ويشمل جميع الـ 50+ جروب)
+        try {
+            const dbGroups = await BusinessObserverMessage.findAll({
+                where: { isGroup: true, chatName: { [Op.ne]: null } },
+                attributes: ['chatJid', 'chatName'],
+                group: ['chatJid', 'chatName']
+            });
+            for (const g of dbGroups) {
+                if (g.chatJid && g.chatName && g.chatName !== g.chatJid) {
+                    groupsMap.set(g.chatJid, { id: g.chatJid, subject: g.chatName });
+                }
+            }
+        } catch (_) {}
+
+        try {
+            const savedGroups = await BusinessObserverGroup.findAll();
+            for (const g of savedGroups) {
+                if (g.groupJid && g.groupName) {
+                    groupsMap.set(g.groupJid, { id: g.groupJid, subject: g.groupName });
+                }
+            }
+        } catch (_) {}
+
+        // 2. دمج الجروبات الحية من سوكت Baileys المتصل
+        try {
+            const sock = getActiveBaileysSocket(req.user?.id);
+            if (sock && sock.user) {
+                const liveGroups = await sock.groupFetchAllParticipating();
+                for (const gId in liveGroups) {
+                    const g = liveGroups[gId];
+                    if (g && g.subject) {
+                        groupsMap.set(gId, { id: gId, subject: g.subject });
+                    }
+                }
+            }
+        } catch (_) {}
+
+        if (groupsMap.size === 0) {
+            return res.json({ success: false, error: 'لم يتم العثور على أي جروبات. تأكد من اتصال رقم الواتساب.' });
         }
 
-        const groups = await sock.groupFetchAllParticipating();
-        const list = Object.values(groups).map(g => ({
-            id: g.id,
-            subject: g.subject || 'بدون اسم'
-        }));
-
+        const list = Array.from(groupsMap.values()).sort((a, b) => a.subject.localeCompare(b.subject, 'ar'));
         res.json({ success: true, groups: list });
     } catch (err) {
         console.error('Error fetching WhatsApp groups:', err);
