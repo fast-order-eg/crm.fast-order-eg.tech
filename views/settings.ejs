@@ -2038,6 +2038,26 @@
                                         </div>
                                     </div>
                                 </div>
+
+                                <!-- Live Chat & Questions Viewer -->
+                                <div class="card border shadow-xs rounded-4 p-4 mt-4">
+                                    <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom flex-wrap gap-2">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <i class="bi bi-chat-left-dots-fill text-primary fs-5"></i>
+                                            <h6 class="fw-bold mb-0 text-dark">سجل المحادثات والأسئلة الحية مع المساعد (WhatsApp Live Chat)</h6>
+                                            <span class="badge bg-primary bg-opacity-10 text-primary">مباشر لايف</span>
+                                        </div>
+                                        <button type="button" id="refreshAiChatBtn" class="btn btn-sm btn-outline-primary rounded-3 px-3">
+                                            <i class="bi bi-arrow-repeat me-1"></i> تحديث السجل الآن
+                                        </button>
+                                    </div>
+                                    <div id="aiChatHistoryContainer" class="p-3 rounded-3 bg-light border" style="max-height: 480px; overflow-y: auto;">
+                                        <div class="text-center text-muted py-4">
+                                            <div class="spinner-border spinner-border-sm text-primary mb-2" role="status"></div>
+                                            <div>جاري جلب المحادثات والأسئلة المتبادلة...</div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -3326,6 +3346,65 @@
                         }
                     });
                 }
+            }
+
+            // Live AI Chat History Loader
+            const refreshAiChatBtn = document.getElementById('refreshAiChatBtn');
+            const aiChatHistoryContainer = document.getElementById('aiChatHistoryContainer');
+
+            async function loadAiChatHistory() {
+                if (!aiChatHistoryContainer) return;
+                aiChatHistoryContainer.innerHTML = `
+                    <div class="text-center text-muted py-3">
+                        <div class="spinner-border spinner-border-sm text-primary mb-2" role="status"></div>
+                        <div class="small">جاري تحديث سجل المحادثات...</div>
+                    </div>`;
+
+                try {
+                    const res = await fetch('/dashboard/settings/ai-ads-chat-history');
+                    const data = await res.json();
+                    if (data.success && data.messages && data.messages.length > 0) {
+                        let html = '<div class="d-flex flex-column gap-2">';
+                        data.messages.forEach(msg => {
+                            const isAssistant = msg.from === 'لينا' || msg.isFromMe;
+                            const timeStr = msg.time ? new Date(msg.time).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : '';
+                            const bgClass = isAssistant ? 'bg-white border-primary border-opacity-25 shadow-xs' : 'bg-primary bg-opacity-10 border-primary border-opacity-10';
+                            const badgeClass = isAssistant ? 'bg-success text-white' : 'bg-primary text-white';
+                            const icon = isAssistant ? '🤖' : '👤';
+
+                            html += `
+                                <div class="p-2.5 rounded-3 border ${bgClass}" style="max-width: 92%; ${isAssistant ? 'margin-left: auto;' : 'margin-right: auto;'}">
+                                    <div class="d-flex align-items-center justify-content-between mb-1 gap-2">
+                                        <div class="d-flex align-items-center gap-1.5">
+                                            <span class="small">${icon}</span>
+                                            <span class="badge ${badgeClass} small fw-bold">${msg.from || 'مستخدم'}</span>
+                                        </div>
+                                        <span class="text-muted" style="font-size: 0.72rem;">${timeStr}</span>
+                                    </div>
+                                    <div class="text-dark small" style="white-space: pre-wrap; word-break: break-word; line-height: 1.5;">${msg.text ? msg.text.replace(/</g, '&lt;').replace(/>/g, '&gt;') : ''}</div>
+                                </div>
+                            `;
+                        });
+                        html += '</div>';
+                        aiChatHistoryContainer.innerHTML = html;
+                        aiChatHistoryContainer.scrollTop = aiChatHistoryContainer.scrollHeight;
+                    } else {
+                        aiChatHistoryContainer.innerHTML = '<div class="text-center text-muted py-3 small">لا توجد رسائل مسجلة بعد في جروب إعلانات AI. أرسل أي رسالة في الجروب لتظهر هنا فوراً.</div>';
+                    }
+                } catch (e) {
+                    aiChatHistoryContainer.innerHTML = `<div class="text-center text-danger py-3 small">حدث خطأ أثناء تحميل السجل: ${e.message}</div>`;
+                }
+            }
+
+            if (refreshAiChatBtn) {
+                refreshAiChatBtn.addEventListener('click', loadAiChatHistory);
+            }
+
+            const aiAdsTabElement = document.getElementById('ai-ads-tab');
+            if (aiAdsTabElement) {
+                aiAdsTabElement.addEventListener('shown.bs.tab', () => {
+                    loadAiChatHistory();
+                });
             }
 
             if (checkAiAdsGroupBtn && checkAiAdsGroupResult) {

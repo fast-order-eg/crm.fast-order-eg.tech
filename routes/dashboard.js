@@ -33,6 +33,7 @@ import { getFastOrderAuthorizedStaff, addFastOrderStaff, removeFastOrderStaff } 
 import { getCompetitorAuthorizedStaff, addCompetitorStaff, removeCompetitorStaff, toggleCompetitorStaff } from '../services/competitorService.js';
 import { getFacebookAnalysisAuthorizedStaff, addFacebookAnalysisStaff, removeFacebookAnalysisStaff } from '../services/facebookAnalysisService.js';
 import { getTargetingAuthorizedStaff, addTargetingStaff, removeTargetingStaff } from '../services/campaignTargetingService.js';
+import { getProjectsMapping } from '../services/aiAdsAssistantService.js';
 
 const router = express.Router();
 
@@ -2656,6 +2657,57 @@ router.get('/settings/whatsapp-groups', async (req, res) => {
         return res.json({ success: true, groups: list, count: list.length });
     } catch (err) {
         console.error('Error fetching WhatsApp groups:', err);
+        return res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// جلب سجل محادثات وأسئلة إعلانات AI الحية
+router.get('/settings/ai-ads-chat-history', async (req, res) => {
+    try {
+        const userId = req.user?.id || 3;
+        const mappings = await getProjectsMapping(userId);
+        const groupJids = mappings.map(m => m.groupId).filter(Boolean);
+
+        const configuredJid = await getSetting('ai_ads_group_jid', userId) || await getSetting('ai_ads_group_jid', 3);
+        if (configuredJid && !groupJids.includes(configuredJid)) {
+            groupJids.push(configuredJid);
+        }
+
+        const whereCondition = groupJids.length > 0 
+            ? {
+                [Op.or]: [
+                    { chatJid: { [Op.in]: groupJids } },
+                    { chatName: { [Op.like]: '%إعلانات AI%' } },
+                    { chatName: { [Op.like]: '%اعلانات AI%' } }
+                ]
+            }
+            : {
+                [Op.or]: [
+                    { chatName: { [Op.like]: '%إعلانات AI%' } },
+                    { chatName: { [Op.like]: '%اعلانات AI%' } }
+                ]
+            };
+
+        const messages = await BusinessObserverMessage.findAll({
+            where: whereCondition,
+            order: [['id', 'DESC']],
+            limit: 30
+        });
+
+        return res.json({
+            success: true,
+            messages: messages.reverse().map(m => ({
+                id: m.id,
+                from: m.senderName || m.senderPhone,
+                isFromMe: m.isFromMe,
+                text: m.content || m.transcription || '',
+                type: m.messageType,
+                time: m.messageTimestamp,
+                chatName: m.chatName
+            }))
+        });
+    } catch (err) {
+        console.error('Error fetching AI Ads chat history:', err);
         return res.status(500).json({ success: false, error: err.message });
     }
 });

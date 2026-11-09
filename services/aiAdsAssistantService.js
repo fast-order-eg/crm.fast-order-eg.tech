@@ -2,19 +2,22 @@ import { CONFIG } from '../config.js';
 import { GoogleAuth } from 'google-auth-library';
 import { getSetting } from './settingsService.js';
 import Message from '../models/Message.js';
+import BusinessObserverDailyEvaluation from '../models/BusinessObserverDailyEvaluation.js';
+import BusinessObserverEmployee from '../models/BusinessObserverEmployee.js';
+import BusinessObserverGroup from '../models/BusinessObserverGroup.js';
+import BusinessObserverMessage from '../models/BusinessObserverMessage.js';
 import fs from 'fs';
 import path from 'path';
 
 // ذاكرة الجلسات النشطة في الرام (groupJid -> { sessionId, history: [], lastActive: timestamp, project: {} })
 const sessionMemory = new Map();
 
-// مسار تخزين جلسات أنتي جرافيتي على الجهاز
-const ANTIGRAVITY_BRAIN_DIR = 'C:\\Users\\Eng Rady\\.gemini\\antigravity\\brain';
-const WHATSAPP_SESSIONS_DIR = path.join(ANTIGRAVITY_BRAIN_DIR, 'whatsapp-ai-sessions');
+// مسار تخزين جلسات الواتساب على السيرفر
+const SESSIONS_DIR = path.join(process.cwd(), 'storage', 'whatsapp-ai-sessions');
 
 try {
-    if (!fs.existsSync(WHATSAPP_SESSIONS_DIR)) {
-        fs.mkdirSync(WHATSAPP_SESSIONS_DIR, { recursive: true });
+    if (!fs.existsSync(SESSIONS_DIR)) {
+        fs.mkdirSync(SESSIONS_DIR, { recursive: true });
     }
 } catch (e) {
     console.warn('[AI Ads Assistant] Could not create sessions dir:', e.message);
@@ -190,9 +193,66 @@ async function transcribeVoice(audioBuffer, mimeType = 'audio/ogg') {
 }
 
 /**
- * استدعاء نموذج الذكاء الاصطناعي مع الحفاظ على سياق الجلسة والمشروع
+ * جلب سياق حي ومباشر من قاعدة البيانات للإجابة على الاستفسارات
  */
-async function callGeminiAssistant({ prompt, imageBuffer, imageMime, history = [], project }) {
+async function getLiveDatabaseContext(promptText, userId = 1) {
+    if (!promptText) return '';
+    const textLower = promptText.toLowerCase();
+    let dbContext = '';
+
+    // 1. استفسارات تقارير التقييم وصفحة رصد ومحلل الأعمال وأداء الموظفين
+    const evalKeywords = [
+        'تقييم', 'تقارير', 'تقرير', 'رصد', 'محلل الأعمال', 'محلل الاعمال',
+        'امس', 'أمس', 'امبارح', 'إمبارح', 'اليوم', 'أداء', 'اداء',
+        'علا', 'ساهر', 'عمر خالد', 'نادين', 'رباب', 'ريم', 'لينا', 'موظف', 'شفت'
+    ];
+
+    if (evalKeywords.some(kw => textLower.includes(kw))) {
+        try {
+            // فحص إذا كان السؤال يطلب تاريخاً معيناً أو تاريخ الأمس/الأحدث
+            let targetDate = null;
+            const dateMatch = textLower.match(/202[4-9]-\d{2}-\d{2}/);
+            if (dateMatch) {
+                targetDate = dateMatch[0];
+            } else {
+                const latestRecord = await BusinessObserverDailyEvaluation.findOne({
+                    order: [['evaluationDate', 'DESC']]
+                });
+                if (latestRecord) targetDate = latestRecord.evaluationDate;
+            }
+
+            if (targetDate) {
+                const evals = await BusinessObserverDailyEvaluation.findAll({
+                    where: { evaluationDate: targetDate },
+                    order: [['ratingScore', 'DESC']]
+                });
+
+                if (evals && evals.length > 0) {
+                    dbContext += `\n[بيانات حية ومباشرة من قاعدة بيانات CRM - تقارير صفحة "رصد ومحلل الأعمال" لتاريخ ${targetDate}]:\n`;
+                    dbContext += `إجمالي الموظفين المسجل لهم تقييم في هذا اليوم: ${evals.length} موظف.\n\n`;
+                    evals.forEach(e => {
+                        dbContext += `📌 الموظف: *${e.employeeName}*\n`;
+                        dbContext += `  - الشفت: ${e.shift || 'غير محدد'}\n`;
+                        dbContext += `  - التقييم العام: ${e.ratingScore}/10 (${e.ratingLabel})\n`;
+                        if (e.totalMessages) dbContext += `  - رسائل الشفت المسجلة: ${e.totalMessages}\n`;
+                        if (e.pros) dbContext += `  - الإيجابيات والإنجازات: ${e.pros.trim()}\n`;
+                        if (e.cons) dbContext += `  - الملاحظات وفرص التطوير: ${e.cons.trim()}\n`;
+                        dbContext += `\n`;
+                    });
+                }
+            }
+        } catch (evalErr) {
+            console.error('[AI Ads Assistant] DB Context Eval Error:', evalErr.message);
+        }
+    }
+
+    return dbContext;
+}
+
+/**
+ * استدعاء نموذج الذكاء الاصطناعي مع الحفاظ على سياق الجلسة والمشروع والبيانات الحية
+ */
+async function callGeminiAssistant({ prompt, imageBuffer, imageMime, history = [], project, liveContext = '' }) {
     try {
         const url = CONFIG.getVertexUrl();
 
@@ -213,6 +273,13 @@ async function callGeminiAssistant({ prompt, imageBuffer, imageMime, history = [
                 }
             });
         }
+
+        if (liveContext) {
+            currentParts.push({
+                text: `[بيانات حية ومباشرة تم جلبها من قاعدة بيانات الـ CRM استجابة لطلب المستخدم]:\n${liveContext}\nاستخدم هذه الأرقام والأسماء والحقائق الفعلية مباشرة في إجابتك وقدم تقريراً شاملاً ومفصلاً ومنظماً بالعامية المصرية.`
+            });
+        }
+
         currentParts.push({ text: prompt });
 
         contents.push({
@@ -220,13 +287,14 @@ async function callGeminiAssistant({ prompt, imageBuffer, imageMime, history = [
             parts: currentParts
         });
 
-        const fullSystemInstruction = `أنت مساعد ذكي متقدم وخبير برمجي وإعلاني مرتبط بمشروع "${project.projectName}" ومجلد العمل "${project.projectPath}" على منصة Antigravity عبر الواتساب.
+        const fullSystemInstruction = `أنت مساعد ذكي متقدم وخبير برمجي وإعلاني وإداري مرتبط بمشروع "${project.projectName}" ومجلد العمل "${project.projectPath}" على منصة Antigravity ونظام Bird CRM عبر الواتساب.
 - أنت تعمل حالياً وتتصل مباشرة بمجلد ومشروع: "${project.projectName}" (مسار المشروع: ${project.projectPath}).
-- إذا سألك المستخدم: "انت شايف احنا في انهي فولدر" أو "احنا شغالين على انهي مشروع" أو أي سؤال عن مكان العمل، أخبره بدقة وفورية أننا شغالين على مشروع [${project.projectName}] المربوط بهذا الجروب، واذكر له نبذة سريعة عن ملفات ومهام المشروع.
+- لديك اتصال كامل ومباشر بقاعدة بيانات نظام الـ CRM الحية (Live Database)، ويتم تزويدك بالبيانات والتقارير الفعلية المسجلة أولاً بأول.
+- إذا سألك المستخدم: "انت شايف احنا في انهي فولدر" أو "احنا شغالين على انهي مشروع"، أخبره بدقة وفورية أننا شغالين على مشروع [${project.projectName}] المربوط بهذا الجروب، واذكر له نبذة سريعة عن ملفات ومهام المشروع.
+- إذا سألك المستخدم عن "تقارير أمس" أو "تقييم رصد ومحلل الأعمال" أو تقييم أي موظف أو أداء الفريق، لا تقل له أبداً أنك غير متصل بالداتابيز، بل استخدم البيانات الحية المزودة لك في السياق واعرض له تقريراً شاملاً ومفصلاً بالأسماء والأرقام والتقييمات ونقاط القوة والملاحظات.
 - تتحدث بالعامية المصرية الودودة والواضحة والمباشرة بدون أي حشو أو كلام إنشائي.
-- أنت تنفذ الأوامر وتحلل المشاكل وتجيب على الاستفسارات البرمجية والإعلانية الخاصة بهذا المشروع حصراً.
-- إذا كان السؤال عن كود أو خطأ أو استفسار، أجب بدقة وعملية، واكتب الكود أو الحل مباشرة.
-- عند الحاجة، اشرح الخطوات بأسلوب عملي ومرتب.
+- أنت تنفذ الأوامر وتحلل المشاكل وتجيب على الاستفسارات البرمجية والإعلانية والإدارية الخاصة بهذا المشروع حصراً.
+- عند تقديم التقارير، قدم ملخصاً تنفيذياً مرتباً بالعامية المصرية، واذكر الموظفين بتقييماتهم وأهم إنجازاتهم والملاحظات بدون أي اختصار يخل بالمعلومات.
 - هام جداً: لا ترسل أوامر التشغيل الداخلية (bash / terminal logs) أو الخطوات البرمجية الخفية في رسائل الواتساب، بل قدّم النتيجة النهائية المباشرة والإجابة الشاملة الكاملة دون أي نقص.
 - ممنوع منعاً باتاً إخراج جداول الماركداون (Markdown Tables |...|...|) لأنها تظهر مكسورة ومشوهة على الموبايل في الواتساب، وبدلاً منها استخدم دائماً القوائم النقطية والترقيم الواضح والخط العريض (*عناوين*).`;
 
@@ -273,7 +341,7 @@ async function callGeminiAssistant({ prompt, imageBuffer, imageMime, history = [
 }
 
 /**
- * حفظ وتزامن الجلسة مع مجلدات Antigravity Brain وقاعدة البيانات
+ * حفظ وتزامن الجلسة مع ملفات السيرفر وقاعدة البيانات
  */
 async function syncSessionToAntigravityAndDb({ remoteJid, userId, userText, modelReply, isVoice, hasImage, sessionId, project }) {
     try {
@@ -296,9 +364,9 @@ async function syncSessionToAntigravityAndDb({ remoteJid, userId, userText, mode
             console.warn('[AI Ads Assistant] DB save warning:', dbErr.message);
         }
 
-        // 2. الحفظ في مجلد المشروع الخاص في Antigravity Brain
+        // 2. الحفظ في مجلد التخزين الخاص بالسيرفر
         try {
-            const projectDir = path.join(WHATSAPP_SESSIONS_DIR, project.projectName.replace(/[^a-zA-Z0-9._-]/g, '_'));
+            const projectDir = path.join(SESSIONS_DIR, project.projectName.replace(/[^a-zA-Z0-9._-]/g, '_'));
             if (!fs.existsSync(projectDir)) {
                 fs.mkdirSync(projectDir, { recursive: true });
             }
@@ -316,8 +384,27 @@ async function syncSessionToAntigravityAndDb({ remoteJid, userId, userText, mode
             } else {
                 fs.appendFileSync(sessionFilePath, logEntry, 'utf8');
             }
+
+            // حفظ أحدث محادثة في active_chat.json لسرعة العرض في لوحة التحكم
+            const activeChatPath = path.join(SESSIONS_DIR, 'active_chat.json');
+            let chatList = [];
+            try {
+                if (fs.existsSync(activeChatPath)) {
+                    chatList = JSON.parse(fs.readFileSync(activeChatPath, 'utf8'));
+                }
+            } catch (_) {}
+            chatList.push({
+                timestamp: new Date().toISOString(),
+                userText,
+                modelReply,
+                isVoice,
+                hasImage,
+                projectName: project.projectName
+            });
+            if (chatList.length > 50) chatList = chatList.slice(-50);
+            fs.writeFileSync(activeChatPath, JSON.stringify(chatList, null, 2), 'utf8');
         } catch (fsErr) {
-            console.warn('[AI Ads Assistant] Antigravity sync warning:', fsErr.message);
+            console.warn('[AI Ads Assistant] Session file save warning:', fsErr.message);
         }
     } catch (e) {
         console.error('[Sync Error]:', e);
@@ -482,12 +569,17 @@ export async function handleAiAdsAssistantMessage({
         }
 
         const hasImage = mediaBuffer && (mediaMime?.includes('image') || mediaMime?.includes('jpeg') || mediaMime?.includes('png'));
+        
+        // سحب البيانات الحية من الداتابيز إذا كان السؤال يخص التقييمات أو تقارير الأداء
+        const liveContext = await getLiveDatabaseContext(promptText, userId);
+
         const reply = await callGeminiAssistant({
             prompt: promptText,
             imageBuffer: hasImage ? mediaBuffer : null,
             imageMime: hasImage ? mediaMime : null,
             history: session.history,
-            project
+            project,
+            liveContext
         });
 
         session.history.push({ role: 'user', text: promptText });
