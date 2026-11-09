@@ -1,3 +1,4 @@
+import { generateDailyEvaluationsForDate } from '../services/businessObserverEvaluationService.js';
 import express from 'express';
 import { ensureAuthenticated, isAdmin } from '../middleware/permissions.js';
 import BusinessObserverMessage from '../models/BusinessObserverMessage.js';
@@ -332,6 +333,33 @@ router.get('/analytics', async (req, res) => {
         res.json({ success: true, ...data });
     } catch (err) {
         console.error('❌ Error fetching observer analytics:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+
+/**
+ * 14. توليد / تحديث التقييم اليومي يدوياً
+ */
+router.post('/evaluations/generate', async (req, res) => {
+    try {
+        let { date } = req.body;
+        if (!date) {
+            date = new Intl.DateTimeFormat('en-CA', {
+                timeZone: 'Africa/Cairo',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit'
+            }).format(new Date(Date.now() - 24 * 60 * 60 * 1000));
+        }
+        const records = await generateDailyEvaluationsForDate(date, req.user.id);
+        res.json({
+            success: true,
+            message: `تم توليد وتحديث تقييمات يوم ${date} بنجاح (${records.length} موظف)`,
+            records
+        });
+    } catch (err) {
+        console.error('❌ Error generating daily evaluations:', err);
         res.status(500).json({ success: false, message: err.message });
     }
 });

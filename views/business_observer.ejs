@@ -384,7 +384,7 @@ function formatEnDateTime(dt) {
             </li>
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="daily-eval-tab" data-bs-toggle="pill" data-bs-target="#daily-eval-pane" type="button" role="tab">
-                    <i class="bi bi-calendar2-check-fill me-1"></i> التقييمات اليومية والمتوسط الشهري (<span id="dailyEvalBadge"><%= (typeof dailyEvaluations !== 'undefined') ? dailyEvaluations.length : 0 %></span>)
+                    <i class="bi bi-calendar2-check-fill me-1"></i> تقييمات
                 </button>
             </li>
         </ul>
@@ -621,100 +621,131 @@ function formatEnDateTime(dt) {
                 <div class="glass-card p-3 p-md-4">
                     <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
                         <div>
-                            <h5 class="fw-bold mb-1"><i class="bi bi-calendar2-check-fill text-primary me-2"></i>سجل التقييمات اليومية والمتوسط الشهري</h5>
-                            <p class="text-muted small mb-0">جدولة وتوثيق تقييم نهاية الشفت اليومي لكل موظف، مفصل بالميزات والعيوب والتوقيتات والشواهد الحية لحساب المتوسط الشهري.</p>
+                            <h5 class="fw-bold mb-1"><i class="bi bi-calendar2-check-fill text-primary me-2"></i>تقييمات الموظفين اليومية</h5>
+                            <p class="text-muted small mb-0" style="font-size: 0.78rem;">جدولة آلية يومية الساعة 02:00 بعد منتصف الليل بنهاية الشفتات، مع توثيق الأدلة والشواهد الحقيقية.</p>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <button class="btn btn-sm btn-primary rounded-pill px-3 shadow-sm" id="btnTriggerEval" onclick="triggerEvaluationNow()">
+                                <i class="bi bi-arrow-repeat me-1"></i> تحديث تقييم اليوم الآن
+                            </button>
                         </div>
                     </div>
 
-                    <!-- Monthly Stats -->
                     <% 
                     const evals = (typeof dailyEvaluations !== 'undefined') ? dailyEvaluations : [];
-                    const avgScore = evals.length > 0 ? (evals.reduce((acc, curr) => acc + parseFloat(curr.ratingScore || 0), 0) / evals.length).toFixed(1) : '—';
-                    %>
-                    <div class="row g-2 mb-3">
-                        <div class="col-6 col-md-3">
-                            <div class="p-2.5 border rounded-3 bg-light text-center">
-                                <span class="text-muted small d-block" style="font-size: 0.74rem;">متوسط تقييم الفريق</span>
-                                <span class="fw-bold text-success fs-5 font-monospace">⭐ <%= avgScore %> / 10</span>
-                            </div>
-                        </div>
-                        <div class="col-6 col-md-3">
-                            <div class="p-2.5 border rounded-3 bg-light text-center">
-                                <span class="text-muted small d-block" style="font-size: 0.74rem;">إجمالي التقييمات المسجلة</span>
-                                <span class="fw-bold text-dark fs-5 font-monospace"><%= evals.length %> تقييم</span>
-                            </div>
-                        </div>
-                        <div class="col-6 col-md-3">
-                            <div class="p-2.5 border rounded-3 bg-light text-center">
-                                <span class="text-muted small d-block" style="font-size: 0.74rem;">نظام الجدولة الآلية</span>
-                                <span class="fw-bold text-primary fs-6 font-monospace">يومياً نهاية الشفتات</span>
-                            </div>
-                        </div>
-                        <div class="col-6 col-md-3">
-                            <div class="p-2.5 border rounded-3 bg-light text-center">
-                                <span class="text-muted small d-block" style="font-size: 0.74rem;">توثيق الأدلة والشواهد</span>
-                                <span class="fw-bold text-success fs-6 font-monospace">100% موثق بالساعة والدقيقة</span>
-                            </div>
-                        </div>
-                    </div>
+                    
+                    // Group evaluations by Date
+                    const evalsByDate = {};
+                    evals.forEach(ev => {
+                        const d = ev.evaluationDate || 'غير محدد';
+                        if (!evalsByDate[d]) evalsByDate[d] = [];
+                        evalsByDate[d].push(ev);
+                    });
+                    const sortedDates = Object.keys(evalsByDate).sort().reverse();
 
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0">
-                            <thead class="table-light small">
-                                <tr>
-                                    <th style="min-width: 140px;">التاريخ والموظف</th>
-                                    <th style="min-width: 120px;">الشفت والنشاط</th>
-                                    <th style="min-width: 130px;">التقييم اليومي</th>
-                                    <th style="min-width: 260px;">الميزات ونقاط القوة بالتوقيت</th>
-                                    <th style="min-width: 240px;">العيوب ونقاط التحسين بالتوقيت</th>
-                                    <th style="min-width: 260px;">الإثبات والشواهد الميدانية</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <% if (evals.length === 0) { %>
-                                    <tr>
-                                        <td colspan="6" class="text-center py-4 text-muted">لا توجد تقييمات يومية مسجلة بعد. يتم إصدار التقييم تلقائياً نهاية كل شفت.</td>
-                                    </tr>
-                                <% } else { %>
-                                    <% evals.forEach(ev => { %>
-                                        <tr>
-                                            <td>
-                                                <div class="fw-bold text-dark"><%= ev.employeeName %></div>
-                                                <div class="small font-monospace text-muted"><%= ev.evaluationDate %></div>
-                                            </td>
-                                            <td>
-                                                <span class="tag-role mb-1 d-inline-block"><%= ev.shift || 'شفت العمل' %></span>
-                                                <div class="small text-muted font-monospace"><%= ev.totalMessages %> رسالة رصدت</div>
-                                            </td>
-                                            <td>
-                                                <span class="rating-badge rating-badge-top">
-                                                    <%= ev.ratingLabel || (ev.ratingScore + ' / 10') %>
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <div class="eval-text-card" style="border-right-color: #10b981; background: #f0fdf4;">
-                                                    <i class="bi bi-hand-thumbs-up-fill text-success me-1"></i>
-                                                    <span style="white-space: pre-line;"><%= ev.pros || '—' %></span>
+                    // Arabic Day Name Formatter
+                    function formatArabicDay(dateStr) {
+                        try {
+                            const d = new Date(dateStr + 'T12:00:00Z');
+                            const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+                            const months = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+                            return dayNames[d.getUTCDay()] + ' ' + d.getUTCDate() + ' ' + months[d.getUTCMonth()] + ' ' + d.getUTCFullYear();
+                        } catch(_) {
+                            return dateStr;
+                        }
+                    }
+                    %>
+
+                    <% if (sortedDates.length === 0) { %>
+                        <div class="p-4 text-center text-muted border rounded-3 bg-light">
+                            <i class="bi bi-calendar-x fs-2 d-block mb-2 text-secondary"></i>
+                            لا توجد تقييمات مسجلة بعد. يتم إصدار التقييم تلقائياً يومياً الساعة 2:00 بعد منتصف الليل.
+                        </div>
+                    <% } else { %>
+                        <div class="accordion d-flex flex-column gap-3" id="evalAccordion">
+                            <% sortedDates.forEach((dateKey, idx) => { 
+                                const dayList = evalsByDate[dateKey];
+                                const dayAvg = (dayList.reduce((acc, c) => acc + parseFloat(c.ratingScore || 0), 0) / dayList.length).toFixed(1);
+                                const isFirst = (idx === 0);
+                            %>
+                                <div class="accordion-item border rounded-3 overflow-hidden shadow-sm">
+                                    <h2 class="accordion-header" id="heading-<%= dateKey %>">
+                                        <button class="accordion-button <%= isFirst ? '' : 'collapsed' %> py-2.5 px-3 bg-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-<%= dateKey %>" aria-expanded="<%= isFirst ? 'true' : 'false' %>">
+                                            <div class="d-flex align-items-center justify-content-between w-100 me-2 flex-wrap gap-2">
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <i class="bi bi-calendar-check text-primary"></i>
+                                                    <span class="fw-bold text-dark fs-6"><%= formatArabicDay(dateKey) %></span>
+                                                    <span class="badge bg-white text-secondary border font-monospace" style="font-size: 0.72rem;"><%= dateKey %></span>
                                                 </div>
-                                            </td>
-                                            <td>
-                                                <div class="eval-text-card" style="border-right-color: #f59e0b; background: #fffbeb;">
-                                                    <i class="bi bi-exclamation-triangle-fill text-warning me-1"></i>
-                                                    <span style="white-space: pre-line;"><%= ev.cons || 'لا توجد ملاحظات سلبية' %></span>
+                                                <div class="d-flex align-items-center gap-2 ms-auto">
+                                                    <span class="badge bg-success-subtle text-success border border-success-subtle px-2.5 py-1">
+                                                        متوسط اليوم: ⭐ <%= dayAvg %> / 10
+                                                    </span>
+                                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1" style="font-size: 0.72rem;">
+                                                        <%= dayList.length %> موظفين
+                                                    </span>
                                                 </div>
-                                            </td>
-                                            <td>
-                                                <div class="evidence-text-card">
-                                                    <i class="bi bi-shield-check text-primary me-1"></i>
-                                                    <span style="white-space: pre-line;"><%= ev.evidence || '—' %></span>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    <% }); %>
-                                <% } %>
-                            </tbody>
-                        </table>
-                    </div>
+                                            </div>
+                                        </button>
+                                    </h2>
+                                    <div id="collapse-<%= dateKey %>" class="accordion-collapse collapse <%= isFirst ? 'show' : '' %>" data-bs-parent="#evalAccordion">
+                                        <div class="accordion-body p-0">
+                                            <div class="table-responsive">
+                                                <table class="table table-hover align-middle mb-0">
+                                                    <thead class="table-light small">
+                                                        <tr>
+                                                            <th style="min-width: 140px;">الموظف والتقييم</th>
+                                                            <th style="min-width: 260px;">الميزات ونقاط القوة (بالتوقيت)</th>
+                                                            <th style="min-width: 240px;">العيوب ونقاط التحسين (بالتوقيت)</th>
+                                                            <th style="min-width: 270px;">الشواهد الميدانية والأدلة الحية</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        <% dayList.forEach(ev => { %>
+                                                            <tr>
+                                                                <td style="vertical-align: top;">
+                                                                    <div class="fw-bold text-dark fs-6"><%= ev.employeeName %></div>
+                                                                    <div class="small text-muted font-monospace mt-1" style="font-size: 0.75rem;">
+                                                                        <i class="bi bi-chat-dots text-secondary me-1"></i><%= ev.totalMessages %> رسائل
+                                                                    </div>
+                                                                    <div class="mt-1.5">
+                                                                        <span class="badge bg-success-subtle text-success border border-success-subtle font-monospace px-2 py-1" style="font-size: 0.78rem;">
+                                                                            ⭐ <%= ev.ratingScore %> / 10
+                                                                        </span>
+                                                                    </div>
+                                                                    <div class="small text-secondary mt-1 fw-semibold" style="font-size: 0.72rem; line-height: 1.3;">
+                                                                        <%= ev.ratingLabel %>
+                                                                    </div>
+                                                                </td>
+                                                                <td>
+                                                                    <div class="eval-text-card" style="border-right-color: #10b981; background: #f0fdf4;">
+                                                                        <i class="bi bi-hand-thumbs-up-fill text-success me-1"></i>
+                                                                        <span style="white-space: pre-line;"><%= ev.pros || '—' %></span>
+                                                                    </div>
+                                                                </td>
+                                                                <td>
+                                                                    <div class="eval-text-card" style="border-right-color: #f59e0b; background: #fffbeb;">
+                                                                        <i class="bi bi-exclamation-triangle-fill text-warning me-1"></i>
+                                                                        <span style="white-space: pre-line;"><%= ev.cons || 'لا توجد ملاحظات سلبية' %></span>
+                                                                    </div>
+                                                                </td>
+                                                                <td>
+                                                                    <div class="evidence-text-card">
+                                                                        <i class="bi bi-shield-check text-primary me-1"></i>
+                                                                        <span style="white-space: pre-line;"><%= ev.evidence || '—' %></span>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        <% }); %>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            <% }); %>
+                        </div>
+                    <% } %>
                 </div>
             </div>
         </div>

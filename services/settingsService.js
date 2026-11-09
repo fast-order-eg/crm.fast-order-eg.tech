@@ -345,6 +345,46 @@ export const defaultSettingsMeta = {
         category: 'campaign_control',
         label: 'اسم جروب التحكم في الحملات الإعلانية المعتمد',
         defaultValue: 'التحكم في الإعلانات'
+    },
+
+    // مساعد إعلانات AI وأنتي جرافيتي عبر الواتساب (AI Ads & Antigravity Assistant)
+    ai_ads_system_enabled: {
+        type: 'boolean',
+        category: 'ai_ads',
+        label: 'تفعيل نظام إعلانات AI ومساعد أنتي جرافيتي في الجروب',
+        defaultValue: true
+    },
+    ai_ads_group_jid: {
+        type: 'text',
+        category: 'ai_ads',
+        label: 'معرف جروب إعلانات AI المعتمد',
+        defaultValue: ''
+    },
+    ai_ads_group_name: {
+        type: 'text',
+        category: 'ai_ads',
+        label: 'اسم جروب إعلانات AI المعتمد',
+        defaultValue: 'إعلانات AI'
+    },
+    ai_ads_authorized_phones: {
+        type: 'json',
+        category: 'ai_ads',
+        label: 'أرقام الهواتف المصرح لها بالتحكم وإعطاء الأوامر',
+        defaultValue: [
+            { name: 'راضي', phone: '01092308465', isPrimary: true }
+        ]
+    },
+    ai_ads_session_timeout: {
+        type: 'number',
+        category: 'ai_ads',
+        label: 'مدة انتهاء جلسة الذاكرة التلقائية (بالدقائق)',
+        defaultValue: 360
+    },
+    ai_ads_system_prompt: {
+        type: 'text',
+        category: 'ai_ads',
+        label: 'التوجيه الأساسي لمساعد إعلانات AI',
+        defaultValue: `أنت مساعد ذكي متقدم وخبير بإعلانات فاست أوردر وإدارة وتطوير نظام CRM. تتحدث بالعامية المصرية الودودة والمهنية. تستجيب لطلبات فريق العمل بسرعة ودقة، وتلخص البيانات وتحلل الصور والأصوات بدقة متناهية.`
     }
 };
 

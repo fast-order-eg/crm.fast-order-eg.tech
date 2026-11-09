@@ -3,6 +3,7 @@ import session from 'express-session';
 import Redis from 'ioredis';
 import { restoreSessions, checkSocketHealth, checkSubscriptionExpiry, checkPauseTimer, checkInactivitySummary, checkNoActionCustomers, generateDailyKPI } from './controllers/botController.js';
 import { restoreObserverSessions } from './services/businessObserverService.js';
+import { generateDailyEvaluationsForDate } from './services/businessObserverEvaluationService.js';
 import { checkScheduledFollowUps, checkPendingFollowUps } from './services/followUpService.js';
 import cron from 'node-cron';
 import { checkScheduledCampaigns } from './controllers/broadcastController.js';
@@ -368,6 +369,26 @@ cron.schedule('0 0 * * *', async () => {
     } catch (e) {
         console.error('[Cron Error] generateDailyKPI:', e.message);
     }
+});
+
+// Run daily Business Observer evaluation at 2:00 AM (end of company shift)
+cron.schedule('0 2 * * *', async () => {
+    try {
+        console.log('🕵️‍♂️ [Cron] Generating daily Business Observer evaluation at 2:00 AM (Cairo)...');
+        const yesterdayCairo = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Africa/Cairo',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        }).format(new Date(Date.now() - 24 * 60 * 60 * 1000));
+
+        await generateDailyEvaluationsForDate(yesterdayCairo, 3);
+        console.log('✅ [Cron] Daily evaluations generated successfully for date: ' + yesterdayCairo);
+    } catch (e) {
+        console.error('❌ [Cron Error] generateDailyEvaluationsForDate:', e.message);
+    }
+}, {
+    timezone: 'Africa/Cairo'
 });
 
 // Database & Server

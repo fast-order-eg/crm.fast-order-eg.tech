@@ -2664,6 +2664,47 @@ router.get('/settings/check-campaign-control-group', async (req, res) => {
     }
 });
 
+router.get('/settings/check-ai-ads-group', async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const sock = getActiveBaileysSocket(userId);
+        if (!sock || !sock.user) {
+            return res.json({ status: 'disconnected', message: 'بوت الواتساب (رقم البليز) غير متصل حالياً' });
+        }
+
+        let selectedJid = await getSetting('ai_ads_group_jid', userId);
+        if (!selectedJid) selectedJid = await getSetting('ai_ads_group_jid', 3);
+
+        const groups = await sock.groupFetchAllParticipating();
+
+        if (selectedJid && groups[selectedJid]) {
+            return res.json({
+                status: 'found',
+                groupName: groups[selectedJid].subject,
+                groupId: selectedJid,
+                message: `تم العثور على الجروب المختار بنجاح: "${groups[selectedJid].subject}" ومساعد إعلانات AI متصل به وجاهز لتنفيذ الأوامر والاستماع للفويس والصور.`
+            });
+        }
+
+        for (const gId in groups) {
+            const g = groups[gId];
+            if (g.subject && (g.subject.includes('إعلانات AI') || g.subject.includes('اعلان AI') || g.subject.toLowerCase().includes('ai ads') || g.subject.includes('مساعد AI'))) {
+                return res.json({
+                    status: 'found',
+                    groupName: g.subject,
+                    groupId: g.id,
+                    message: `تم التعرف التلقائي على جروب "${g.subject}" بنجاح ومساعد إعلانات AI متصل به وجاهز للرد.`
+                });
+            }
+        }
+
+        res.json({ status: 'not_found', message: 'لم يتم العثور على جروب إعلانات AI مشترك به البوت. تأكد من إضافة رقم البوت للجروب أو اختياره من القائمة.' });
+    } catch (err) {
+        console.error('Error checking ai ads group:', err);
+        res.status(500).json({ status: 'error', error: err.message });
+    }
+});
+
 router.get('/settings/check-ads-report-group', async (req, res) => {
     try {
         const userId = req.user.id;

@@ -31,6 +31,7 @@ import { handleFacebookAnalysisMessage } from '../services/facebookAnalysisServi
 import { handleReminderGroupMessage } from '../services/reminderService.js';
 import { handleAdsReportGroupMessage, handleCampaignManagementCommand, isCampaignManagementCommand } from '../services/adsReportService.js';
 import { handleCampaignTargetingMessage, isCampaignTargetingCommand, isPlainTargetingCommand, isTargetingStaffAuthorized } from '../services/campaignTargetingService.js';
+import { handleAiAdsAssistantMessage, isAiAdsGroupMatch } from '../services/aiAdsAssistantService.js';
 
 const handoffMessages = [
     "أهلاً بحضرتك يا فندم! تم تسجيل طلبك وهتتواصل معاك مسؤولة المبيعات أستاذة علا فوراً ✨\n\nتقدر كمان تتصل بيها أو تراسلها واتساب مباشرة:\n📞 هاتف / واتساب: 01070366534\n💬 https://wa.me/201070366534",
@@ -2011,6 +2012,7 @@ export const startSession = async (userId, io, phoneNumber = null) => {
         let text = "";
         let incomingMediaUrl = null; // URL للميديا المحفوظة محلياً
         let currentImgBuffer = null;
+        let currentAudioBuffer = null;
         if (messageType === 'conversation') {
             text = actualMsg.conversation;
         } else if (messageType === 'extendedTextMessage') {
@@ -2022,6 +2024,7 @@ export const startSession = async (userId, io, phoneNumber = null) => {
                 const mediaDir = path.join(process.cwd(), 'public', 'uploads', 'media', String(userId));
                 if (!fs.existsSync(mediaDir)) fs.mkdirSync(mediaDir, { recursive: true });
                 const audioBuffer = await downloadMediaMessage(msg, 'buffer', {}, { logger, reuploadRequest: sock.updateMediaMessage });
+                currentAudioBuffer = audioBuffer;
                 const audioFileName = `audio_${Date.now()}.ogg`;
                 const audioPath = path.join(mediaDir, audioFileName);
                 fs.writeFileSync(audioPath, audioBuffer);
@@ -2388,6 +2391,24 @@ export const startSession = async (userId, io, phoneNumber = null) => {
                         text,
                         msg,
                         groupMetadata,
+                        userId,
+                        io
+                    });
+                    if (handled) return;
+                }
+
+                // Check for "إعلانات AI" Group (AI Ads & Antigravity Assistant Group)
+                const isAiAdsGroup = await isAiAdsGroupMatch(remoteJid, rawSubject, userId);
+                if (isAiAdsGroup) {
+                    console.log(`🤖 [AI Ads Group] Message received: "${text}" from ${groupSenderPhone || rawParticipant} in group "${rawSubject || remoteJid}"`);
+                    const handled = await handleAiAdsAssistantMessage({
+                        sock,
+                        msg,
+                        remoteJid,
+                        phoneNumber: groupSenderPhone || rawParticipant,
+                        text,
+                        mediaBuffer: currentAudioBuffer || currentImgBuffer,
+                        mediaMime: msg.message?.audioMessage?.mimetype || msg.message?.imageMessage?.mimetype,
                         userId,
                         io
                     });
