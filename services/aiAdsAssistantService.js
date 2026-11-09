@@ -103,8 +103,11 @@ export async function isAiAdsSenderAuthorized(senderPhone, userId = 1) {
     if (!senderPhone) return false;
     const cleanPhone = String(senderPhone).replace(/[^0-9]/g, '');
 
-    // راضي المسؤول الأساسي دائماً
-    if (cleanPhone.endsWith('1092308465') || cleanPhone === '01092308465' || cleanPhone === '201092308465') {
+    // راضي المسؤول الأساسي دائماً (سواء من رقمه الشخصي أو رقم البوت لينا)
+    if (
+        cleanPhone.endsWith('1092308465') || cleanPhone === '01092308465' || cleanPhone === '201092308465' ||
+        cleanPhone.endsWith('1020336379') || cleanPhone === '01020336379' || cleanPhone === '201020336379'
+    ) {
         return true;
     }
 
@@ -221,7 +224,9 @@ async function callGeminiAssistant({ prompt, imageBuffer, imageMime, history = [
 - تتحدث بالعامية المصرية الودودة والواضحة والمباشرة بدون أي حشو أو كلام إنشائي.
 - أنت تنفذ الأوامر وتحلل المشاكل وتجيب على الاستفسارات الخاصة بهذا المشروع حصراً.
 - إذا كان السؤال عن كود أو خطأ أو استفسار، أجب بدقة وعملية، واكتب الكود أو الحل مباشرة.
-- عند الحاجة، اشرح الخطوات بأسلوب عملي ومرتب.`;
+- عند الحاجة، اشرح الخطوات بأسلوب عملي ومرتب.
+- هام جداً: لا ترسل أوامر التشغيل الداخلية (bash / terminal logs) أو الخطوات البرمجية الخفية في رسائل الواتساب، بل قدّم النتيجة النهائية المباشرة والإجابة الشاملة الكاملة دون أي نقص.
+- ممنوع منعاً باتاً إخراج جداول الماركداون (Markdown Tables |...|...|) لأنها تظهر مكسورة ومشوهة على الموبايل في الواتساب، وبدلاً منها استخدم دائماً القوائم النقطية والترقيم الواضح والخط العريض (*عناوين*).`;
 
         const payload = {
             contents,
@@ -318,15 +323,46 @@ async function syncSessionToAntigravityAndDb({ remoteJid, userId, userText, mode
 }
 
 /**
+ * تنظيف وتنسيق نص الرسالة ليناسب الواتساب تماماً
+ * - استبدال جداول الماركداون بقوائم نقطية أنيقة قابلة للقراءة على الهاتف
+ * - منع تشوه النصوص الطويلة
+ */
+export function formatWhatsAppMessage(rawText) {
+    if (!rawText) return '';
+    let text = String(rawText);
+
+    // تحويل جداول الماركداون (| col1 | col2 |) إلى نقاط وتفاصيل مقروءة
+    const tableRegex = /\|(.+)\|\r?\n\|[-:\s|]+\|\r?\n((?:\|.+\|\r?\n?)+)/g;
+    text = text.replace(tableRegex, (match, headerRow, bodyRows) => {
+        const headers = headerRow.split('|').map(h => h.trim()).filter(Boolean);
+        const rows = bodyRows.trim().split(/\r?\n/).map(r => r.split('|').map(c => c.trim()).filter(Boolean));
+
+        let output = '\n';
+        rows.forEach(row => {
+            output += '▫️ ';
+            row.forEach((cell, idx) => {
+                const header = headers[idx] ? `*${headers[idx]}:* ` : '';
+                output += `${header}${cell} `;
+            });
+            output += '\n';
+        });
+        return output;
+    });
+
+    return text.trim();
+}
+
+/**
  * إرسال الرسالة إلى جروب الواتساب مع محاكاة بشرية لمنع الحظر
  */
 async function sendReplyToGroup(sock, remoteJid, text) {
     try {
+        const formatted = formatWhatsAppMessage(text);
         if (typeof sock.sendPresenceUpdate === 'function') {
             await sock.sendPresenceUpdate('available', remoteJid).catch(() => {});
         }
 
-        const textLen = (text || '').length;
+        const textLen = (formatted || '').length;
         const typingDuration = Math.min(6000, Math.max(2000, Math.floor(textLen * 12)));
 
         if (typeof sock.sendPresenceUpdate === 'function') {
@@ -337,7 +373,7 @@ async function sendReplyToGroup(sock, remoteJid, text) {
 
         const zeroWidthSpaces = ['\u200B', '\u200C', '\u200D', '\uFEFF'];
         const jitter = zeroWidthSpaces[Math.floor(Math.random() * zeroWidthSpaces.length)];
-        const finalMessage = `${text}${jitter}`;
+        const finalMessage = `${formatted}${jitter}`;
 
         await sock.sendMessage(remoteJid, { text: finalMessage });
 

@@ -1952,8 +1952,8 @@
                                     <div class="row g-3">
                                         <div class="col-md-7">
                                             <label class="form-label fw-bold text-secondary small">أرقام الهواتف المصرح لها بإعطاء الأوامر:</label>
-                                            <input type="text" name="ai_ads_authorized_phones" class="form-control rounded-3 border shadow-xs py-2.5 fw-medium" value="<%= typeof settings.ai_ads_authorized_phones === 'string' ? settings.ai_ads_authorized_phones : (Array.isArray(settings.ai_ads_authorized_phones) ? settings.ai_ads_authorized_phones.map(a => a.phone || a).join(', ') : '01092308465') %>" placeholder="01092308465, 010...">
-                                            <div class="form-text text-muted small mt-1">أرقام الهواتف مفصولة بفاصلة. الرقم الأساسي المعتمد: <code>01092308465</code>.</div>
+                                            <input type="text" name="ai_ads_authorized_phones" class="form-control rounded-3 border shadow-xs py-2.5 fw-medium" value="<%= typeof settings.ai_ads_authorized_phones === 'string' ? settings.ai_ads_authorized_phones : (Array.isArray(settings.ai_ads_authorized_phones) ? settings.ai_ads_authorized_phones.map(a => a.phone || a).join(', ') : '01092308465, 01020336379') %>" placeholder="01092308465, 01020336379...">
+                                            <div class="form-text text-muted small mt-1">أرقام الهواتف مفصولة بفاصلة. الأرقام المعتمدة تلقائياً: <code>01092308465</code> ورقم البوت <code>201020336379</code>.</div>
                                         </div>
 
                                         <div class="col-md-5">
