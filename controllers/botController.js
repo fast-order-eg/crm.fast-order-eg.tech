@@ -2248,29 +2248,30 @@ export const startSession = async (userId, io, phoneNumber = null) => {
                     || (await getSystemSetting('reminder_group_jid', 1).catch(() => null))
                     || (await getSystemSetting('reminder_group_jid', 3).catch(() => null));
 
-                const isReminderGroup = (configuredReminderGroupJid && remoteJid === configuredReminderGroupJid)
+                // Check for "إعلانات AI" Group (AI Ads & Antigravity Assistant Group)
+                const isAiAdsGroup = await isAiAdsGroupMatch(remoteJid, rawSubject, userId);
+
+                const isReminderGroup = !isAiAdsGroup && ((configuredReminderGroupJid && remoteJid === configuredReminderGroupJid)
                     || rawSubject.includes("تذكير")
-                    || subjectLower.includes("reminder");
+                    || subjectLower.includes("reminder"));
 
                 // Check for "تقارير الإعلانات" Group (Ads Reports Group via Saved ID or Name)
                 const configuredAdsReportGroupJid = (await getSystemSetting('ads_report_group_jid', userId).catch(() => null))
                     || (await getSystemSetting('ads_report_group_jid', 1).catch(() => null))
                     || (await getSystemSetting('ads_report_group_jid', 3).catch(() => null));
 
-                const isAdsReportGroup = (configuredAdsReportGroupJid && remoteJid === configuredAdsReportGroupJid)
-                    || rawSubject.includes("إعلان")
-                    || rawSubject.includes("اعلان")
-                    || subjectLower.includes("ads")
-                    || subjectLower.includes("campaign");
+                const isAdsReportGroup = !isAiAdsGroup && ((configuredAdsReportGroupJid && remoteJid === configuredAdsReportGroupJid)
+                    || (rawSubject.includes("تقرير") && (rawSubject.includes("إعلان") || rawSubject.includes("اعلان")))
+                    || subjectLower.includes("ads report"));
 
                 // Check for "التحكم في الحملات الإعلانية" Group (Campaign Control Group via Saved ID or Name)
                 const configuredCampaignControlGroupJid = (await getSystemSetting('campaign_control_group_jid', userId).catch(() => null))
                     || (await getSystemSetting('campaign_control_group_jid', 1).catch(() => null))
                     || (await getSystemSetting('campaign_control_group_jid', 3).catch(() => null));
 
-                const isCampaignControlGroup = (configuredCampaignControlGroupJid && remoteJid === configuredCampaignControlGroupJid)
+                const isCampaignControlGroup = !isAiAdsGroup && ((configuredCampaignControlGroupJid && remoteJid === configuredCampaignControlGroupJid)
                     || rawSubject.includes("تحكم")
-                    || subjectLower.includes("control");
+                    || subjectLower.includes("control"));
 
                 // استخراج رقم هاتف مرسل رسالة الجروب بدقة متناهية مع دعم كامل للـ Devices و LID و groupMetadata
                 let groupSenderPhone = null;
@@ -2349,6 +2350,23 @@ export const startSession = async (userId, io, phoneNumber = null) => {
                     }
                 }
 
+                // 1. معالجة جروب إعلانات AI ومساعد Antigravity بأعلى أولوية
+                if (isAiAdsGroup) {
+                    console.log(`🤖 [AI Ads Group] Message received: "${text}" from ${groupSenderPhone || rawParticipant} in group "${rawSubject || remoteJid}"`);
+                    const handled = await handleAiAdsAssistantMessage({
+                        sock,
+                        msg,
+                        remoteJid,
+                        phoneNumber: groupSenderPhone || rawParticipant,
+                        text,
+                        mediaBuffer: currentAudioBuffer || currentImgBuffer,
+                        mediaMime: msg.message?.audioMessage?.mimetype || msg.message?.imageMessage?.mimetype,
+                        userId,
+                        io
+                    });
+                    if (handled) return;
+                }
+
                 if (isReminderGroup) {
                     console.log(`⏰ [Reminder Group] Message received: "${text}" from ${groupSenderPhone || rawParticipant} in group "${rawSubject || remoteJid}"`);
                     const handled = await handleReminderGroupMessage({
@@ -2391,24 +2409,6 @@ export const startSession = async (userId, io, phoneNumber = null) => {
                         text,
                         msg,
                         groupMetadata,
-                        userId,
-                        io
-                    });
-                    if (handled) return;
-                }
-
-                // Check for "إعلانات AI" Group (AI Ads & Antigravity Assistant Group)
-                const isAiAdsGroup = await isAiAdsGroupMatch(remoteJid, rawSubject, userId);
-                if (isAiAdsGroup) {
-                    console.log(`🤖 [AI Ads Group] Message received: "${text}" from ${groupSenderPhone || rawParticipant} in group "${rawSubject || remoteJid}"`);
-                    const handled = await handleAiAdsAssistantMessage({
-                        sock,
-                        msg,
-                        remoteJid,
-                        phoneNumber: groupSenderPhone || rawParticipant,
-                        text,
-                        mediaBuffer: currentAudioBuffer || currentImgBuffer,
-                        mediaMime: msg.message?.audioMessage?.mimetype || msg.message?.imageMessage?.mimetype,
                         userId,
                         io
                     });
