@@ -3037,10 +3037,14 @@
             if (refreshCampaignControlGroupsBtn && campaignControlGroupSelect) {
                 refreshCampaignControlGroupsBtn.addEventListener('click', async () => {
                     refreshCampaignControlGroupsBtn.disabled = true;
-                    refreshCampaignControlGroupsBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> جاري الجلب...';
+                    refreshCampaignControlGroupsBtn.innerHTML = '<span class="spinner-border spinner-border-sm text-primary me-1"></span> <span class="text-primary fw-bold">جاري الجلب...</span>';
+
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 6000);
 
                     try {
-                        const res = await fetch('/dashboard/settings/whatsapp-groups');
+                        const res = await fetch('/dashboard/settings/whatsapp-groups', { signal: controller.signal });
+                        clearTimeout(timeoutId);
                         const data = await res.json();
                         if (data.success && data.groups) {
                             const currentVal = campaignControlGroupSelect.value;
@@ -3055,7 +3059,7 @@
                             if (currentVal && !data.groups.some(g => g.id === currentVal)) {
                                 const opt = document.createElement('option');
                                 opt.value = currentVal;
-                                opt.textContent = `📌 الجروب المحفوظ (${campaignControlGroupName ? campaignControlGroupName.value : currentVal})`;
+                                opt.textContent = `📌 ${campaignControlGroupName ? campaignControlGroupName.value : currentVal}`;
                                 opt.selected = true;
                                 campaignControlGroupSelect.appendChild(opt);
                             }
@@ -3063,7 +3067,11 @@
                             alert(data.error || 'فشل جلب الجروبات. تأكد من اتصال البوت بالواتساب.');
                         }
                     } catch (e) {
-                        alert('حدث خطأ أثناء جلب الجروبات: ' + e.message);
+                        if (e.name === 'AbortError') {
+                            alert('استغرق جلب الجروبات وقتاً، تأكد من اتصال البوت بالإنترنت أو اختر التعرف التلقائي.');
+                        } else {
+                            alert('حدث خطأ أثناء جلب الجروبات: ' + e.message);
+                        }
                     } finally {
                         refreshCampaignControlGroupsBtn.disabled = false;
                         refreshCampaignControlGroupsBtn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i> جلب الجروبات';
@@ -3152,12 +3160,16 @@
                 if (!projectMappingsContainer) return;
                 projectMappingsContainer.innerHTML = '';
 
+                if (!Array.isArray(mappingsList) || mappingsList.length === 0) {
+                    mappingsList = [{ groupId: '', groupName: 'إعلانات AI', projectPath: 'crm.fast-order-eg.tech' }];
+                }
+
                 mappingsList.forEach((item, index) => {
                     const row = document.createElement('div');
                     row.className = 'mapping-row p-3 rounded-3 bg-white border shadow-xs d-flex flex-column gap-2';
 
                     let groupOptionsHtml = '<option value="">⚡ التعرف التلقائي على أي جروب اسمه (إعلانات AI / AI Ads)</option>';
-                    if (item.groupId) {
+                    if (item.groupId && item.groupId !== '__custom_group__') {
                         groupOptionsHtml += `<option value="${item.groupId}" selected>📌 ${item.groupName || item.groupId}</option>`;
                     }
                     loadedWhatsAppGroups.forEach(g => {
@@ -3165,6 +3177,8 @@
                             groupOptionsHtml += `<option value="${g.id}">👥 ${g.subject}</option>`;
                         }
                     });
+                    const isCustomGroup = item.groupId === '__custom_group__' || (item.groupId && !loadedWhatsAppGroups.some(g => g.id === item.groupId));
+                    groupOptionsHtml += `<option value="__custom_group__" ${isCustomGroup ? 'selected' : ''}>✍️ إدخال اسم أو كود الجروب يدوياً...</option>`;
 
                     const isPredefined = knownAntigravityProjects.some(p => p.path === item.projectPath);
                     let projectOptionsHtml = '';
@@ -3187,6 +3201,7 @@
                                 <select class="form-select form-select-sm mapping-group-select rounded-2">
                                     ${groupOptionsHtml}
                                 </select>
+                                <input type="text" class="form-control form-control-sm mapping-custom-group mt-1 rounded-2" placeholder="اكتب اسم الجروب في الواتساب (مثال: إعلانات AI لينا)..." value="${isCustomGroup ? (item.groupName || item.groupId || '') : ''}" style="display: ${isCustomGroup ? 'block' : 'none'};">
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label text-secondary small fw-bold mb-1">مشروعك في Antigravity:</label>
@@ -3201,9 +3216,22 @@
 
                     // Row Events
                     const groupSel = row.querySelector('.mapping-group-select');
+                    const customGroupInput = row.querySelector('.mapping-custom-group');
                     const projSel = row.querySelector('.mapping-project-select');
                     const customInput = row.querySelector('.mapping-custom-path');
                     const removeBtn = row.querySelector('.remove-mapping-row-btn');
+
+                    groupSel.addEventListener('change', () => {
+                        if (groupSel.value === '__custom_group__') {
+                            customGroupInput.style.display = 'block';
+                            customGroupInput.focus();
+                        } else {
+                            customGroupInput.style.display = 'none';
+                        }
+                        syncMappingsToInput();
+                    });
+
+                    customGroupInput.addEventListener('input', syncMappingsToInput);
 
                     projSel.addEventListener('change', () => {
                         if (projSel.value === '__custom__') {
@@ -3216,7 +3244,6 @@
                     });
 
                     customInput.addEventListener('input', syncMappingsToInput);
-                    groupSel.addEventListener('change', syncMappingsToInput);
 
                     removeBtn.addEventListener('click', () => {
                         row.remove();
@@ -3245,24 +3272,33 @@
             if (refreshAiAdsGroupsBtn) {
                 refreshAiAdsGroupsBtn.addEventListener('click', async () => {
                     refreshAiAdsGroupsBtn.disabled = true;
-                    refreshAiAdsGroupsBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> جاري الجلب...';
+                    refreshAiAdsGroupsBtn.innerHTML = '<span class="spinner-border spinner-border-sm text-primary me-1"></span> <span class="text-primary fw-bold">جاري الجلب...</span>';
+
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 6000);
 
                     try {
-                        const res = await fetch('/dashboard/settings/whatsapp-groups');
+                        const res = await fetch('/dashboard/settings/whatsapp-groups', { signal: controller.signal });
+                        clearTimeout(timeoutId);
                         const data = await res.json();
-                        if (data.success && data.groups) {
+                        if (data.success && Array.isArray(data.groups)) {
                             loadedWhatsAppGroups = data.groups;
                             // Re-render rows with updated group options
                             syncMappingsToInput();
                             try {
-                                mappingsList = JSON.parse(decodeURIComponent(aiAdsProjectsMappingInput.value));
+                                const parsed = JSON.parse(decodeURIComponent(aiAdsProjectsMappingInput.value));
+                                if (Array.isArray(parsed) && parsed.length > 0) mappingsList = parsed;
                             } catch (_) {}
                             renderMappingRows();
                         } else {
                             alert(data.error || 'فشل جلب الجروبات. تأكد من اتصال البوت بالواتساب.');
                         }
                     } catch (e) {
-                        alert('حدث خطأ أثناء جلب الجروبات: ' + e.message);
+                        if (e.name === 'AbortError') {
+                            alert('استغرق جلب الجروبات وقتاً. يمكنك اختيار "التعرف التلقائي" أو "إدخال اسم الجروب يدوياً" فوراً دون انتظار.');
+                        } else {
+                            alert('حدث خطأ أثناء جلب الجروبات: ' + e.message);
+                        }
                     } finally {
                         refreshAiAdsGroupsBtn.disabled = false;
                         refreshAiAdsGroupsBtn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i> جلب جروبات الواتساب';

@@ -2566,53 +2566,83 @@ function getActiveBaileysSocket(preferredUserId) {
 router.get('/settings/whatsapp-groups', async (req, res) => {
     try {
         const groupsMap = new Map();
+        const userId = req.user?.id || 3;
+        const sock = getActiveBaileysSocket(userId);
 
-        // 1. جلب الجروبات المسجلة في قاعدة البيانات (فوري ويشمل جميع الـ 50+ جروب)
+        console.log(`📡 [whatsapp-groups] Request for User ${userId}. Socket available: ${!!(sock && sock.user)}`);
+
+        // 1. جلب الجروبات الحية من سوكت Baileys المتصل برقم البوت (201020336379) مع مهلة 3.5 ثوانٍ
+        if (sock && sock.user) {
+            try {
+                const liveGroups = await Promise.race([
+                    sock.groupFetchAllParticipating(),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('socket_timeout')), 3500))
+                ]);
+                if (liveGroups && typeof liveGroups === 'object') {
+                    for (const gId in liveGroups) {
+                        const g = liveGroups[gId];
+                        if (g && g.subject) {
+                            groupsMap.set(gId, { id: gId, subject: g.subject });
+                        }
+                    }
+                    console.log(`✅ [whatsapp-groups] Fetched ${groupsMap.size} live groups from Baileys socket.`);
+                }
+            } catch (sockErr) {
+                console.warn(`⚠️ [whatsapp-groups] Live fetch skipped/timeout: ${sockErr.message}`);
+            }
+        }
+
+        // 2. الجروبات المعتمدة في إعدادات النظام لرقم البوت
+        const systemGroupKeys = [
+            { idKey: 'ai_ads_group_jid', nameKey: 'ai_ads_group_name', fallback: 'اعلانات AI لينا ميديا باير' },
+            { idKey: 'campaign_control_group_jid', nameKey: 'campaign_control_group_name', fallback: 'التحكم في الاعلانات' },
+            { idKey: 'reminder_group_jid', nameKey: 'reminder_group_name', fallback: 'تذكيرات' },
+            { idKey: 'ads_report_group_jid', nameKey: 'ads_report_group_name', fallback: 'تقارير الاعلانات' }
+        ];
+
+        for (const item of systemGroupKeys) {
+            try {
+                const jid = await getSetting(item.idKey, userId) || await getSetting(item.idKey, 3);
+                const name = await getSetting(item.nameKey, userId) || await getSetting(item.nameKey, 3) || item.fallback;
+                if (jid && !groupsMap.has(jid)) {
+                    groupsMap.set(jid, { id: jid, subject: name });
+                }
+            } catch (_) {}
+        }
+
+        // 3. جروبات محفوظة في جدول GroupReminder
         try {
-            const dbGroups = await BusinessObserverMessage.findAll({
-                where: { isGroup: true, chatName: { [Op.ne]: null } },
-                attributes: ['chatJid', 'chatName'],
-                group: ['chatJid', 'chatName']
+            const reminders = await GroupReminder.findAll({
+                attributes: ['groupJid', 'groupSubject'],
+                group: ['groupJid', 'groupSubject']
             });
-            for (const g of dbGroups) {
-                if (g.chatJid && g.chatName && g.chatName !== g.chatJid) {
-                    groupsMap.set(g.chatJid, { id: g.chatJid, subject: g.chatName });
+            for (const r of reminders) {
+                if (r.groupJid && !groupsMap.has(r.groupJid)) {
+                    groupsMap.set(r.groupJid, { id: r.groupJid, subject: r.groupSubject || 'جروب تذكيرات' });
                 }
             }
         } catch (_) {}
 
+        // 4. جروبات محفوظة في خريطة مشاريع إعلانات AI
         try {
-            const savedGroups = await BusinessObserverGroup.findAll();
-            for (const g of savedGroups) {
-                if (g.groupJid && g.groupName) {
-                    groupsMap.set(g.groupJid, { id: g.groupJid, subject: g.groupName });
-                }
-            }
-        } catch (_) {}
-
-        // 2. دمج الجروبات الحية من سوكت Baileys المتصل
-        try {
-            const sock = getActiveBaileysSocket(req.user?.id);
-            if (sock && sock.user) {
-                const liveGroups = await sock.groupFetchAllParticipating();
-                for (const gId in liveGroups) {
-                    const g = liveGroups[gId];
-                    if (g && g.subject) {
-                        groupsMap.set(gId, { id: gId, subject: g.subject });
+            const rawMap = await getSetting('ai_ads_projects_mapping', userId) || await getSetting('ai_ads_projects_mapping', 3);
+            if (rawMap) {
+                const parsed = typeof rawMap === 'string' ? JSON.parse(rawMap) : rawMap;
+                if (Array.isArray(parsed)) {
+                    for (const m of parsed) {
+                        if (m.groupId && !groupsMap.has(m.groupId)) {
+                            groupsMap.set(m.groupId, { id: m.groupId, subject: m.groupName || m.groupId });
+                        }
                     }
                 }
             }
         } catch (_) {}
 
-        if (groupsMap.size === 0) {
-            return res.json({ success: false, error: 'لم يتم العثور على أي جروبات. تأكد من اتصال رقم الواتساب.' });
-        }
-
         const list = Array.from(groupsMap.values()).sort((a, b) => a.subject.localeCompare(b.subject, 'ar'));
-        res.json({ success: true, groups: list });
+        return res.json({ success: true, groups: list, count: list.length });
     } catch (err) {
         console.error('Error fetching WhatsApp groups:', err);
-        res.status(500).json({ success: false, error: err.message });
+        return res.status(500).json({ success: false, error: err.message });
     }
 });
 
