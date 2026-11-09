@@ -2504,6 +2504,20 @@ router.post('/settings/update', async (req, res) => {
             updates.working_hours_schedule = finalSchedule;
         }
         
+        if (updates.ai_ads_projects_mapping) {
+            try {
+                let mapRaw = updates.ai_ads_projects_mapping;
+                if (typeof mapRaw === 'string' && (mapRaw.startsWith('%') || mapRaw.includes('%5B'))) {
+                    mapRaw = decodeURIComponent(mapRaw);
+                }
+                const parsedMap = typeof mapRaw === 'string' ? JSON.parse(mapRaw) : mapRaw;
+                if (Array.isArray(parsedMap) && parsedMap[0]) {
+                    if (parsedMap[0].groupId) updates.ai_ads_group_jid = parsedMap[0].groupId;
+                    if (parsedMap[0].groupName) updates.ai_ads_group_name = parsedMap[0].groupName;
+                }
+            } catch (_) {}
+        }
+
         const readOnlyKeys = ['welcome_message', 'course_details', 'free_lectures_url', 'free_lectures_message', 'guarantees_message', 'payment_instructions'];
         for (const [key, value] of Object.entries(updates)) {
             if (readOnlyKeys.includes(key)) {
@@ -2512,7 +2526,7 @@ router.post('/settings/update', async (req, res) => {
             if (defaultSettingsMeta[key] !== undefined) {
                 await setSetting(key, value, userId);
                 // مزامنة إعدادات التذكيرات وتقارير الإعلانات للمستخدم 3 (حساب البوت) لضمان توافقها دائماً
-                if ((key.startsWith('reminder_') || key.startsWith('ads_report_') || key.startsWith('campaign_control_')) && userId !== 3) {
+                if ((key.startsWith('reminder_') || key.startsWith('ads_report_') || key.startsWith('campaign_control_') || key.startsWith('ai_ads_')) && userId !== 3) {
                     await setSetting(key, value, 3);
                 }
             }

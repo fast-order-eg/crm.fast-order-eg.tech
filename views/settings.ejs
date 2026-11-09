@@ -1926,7 +1926,7 @@
                                         <!-- Rendered dynamically via JavaScript -->
                                     </div>
 
-                                    <input type="hidden" name="ai_ads_projects_mapping" id="aiAdsProjectsMappingInput" value="<%- encodeURIComponent(JSON.stringify(settings.ai_ads_projects_mapping || [])) %>">
+                                    <input type="hidden" name="ai_ads_projects_mapping" id="aiAdsProjectsMappingInput" value='<%- (typeof settings.ai_ads_projects_mapping === "string" ? settings.ai_ads_projects_mapping : JSON.stringify(settings.ai_ads_projects_mapping || [])).replace(/\'/g, "&#39;") %>'>
 
                                     <div class="d-flex gap-2 flex-wrap">
                                         <button type="button" id="addNewMappingRowBtn" class="btn btn-outline-primary py-2 px-3 rounded-3 fw-bold small">
@@ -3117,7 +3117,11 @@
             let mappingsList = [];
             try {
                 if (aiAdsProjectsMappingInput && aiAdsProjectsMappingInput.value) {
-                    mappingsList = JSON.parse(decodeURIComponent(aiAdsProjectsMappingInput.value));
+                    let raw = aiAdsProjectsMappingInput.value.trim();
+                    if (raw.startsWith('%') || raw.includes('%5B')) {
+                        try { raw = decodeURIComponent(raw); } catch (_) {}
+                    }
+                    mappingsList = JSON.parse(raw);
                 }
             } catch (e) {
                 mappingsList = [];
@@ -3134,13 +3138,18 @@
                 const list = [];
                 rows.forEach(row => {
                     const groupSelect = row.querySelector('.mapping-group-select');
+                    const customGroupInput = row.querySelector('.mapping-custom-group');
                     const projectSelect = row.querySelector('.mapping-project-select');
                     const customPath = row.querySelector('.mapping-custom-path');
 
                     let gId = groupSelect ? groupSelect.value : '';
                     let gName = '';
-                    if (groupSelect && groupSelect.selectedIndex >= 0) {
-                        gName = groupSelect.options[groupSelect.selectedIndex].text.replace('📌 ', '').replace('👥 ', '').replace('⚡ ', '').trim();
+
+                    if (gId === '__custom_group__' && customGroupInput) {
+                        gName = customGroupInput.value.trim() || 'إعلانات AI';
+                        gId = customGroupInput.value.trim();
+                    } else if (groupSelect && groupSelect.selectedIndex >= 0) {
+                        gName = groupSelect.options[groupSelect.selectedIndex].text.replace('📌 ', '').replace('👥 ', '').replace('⚡ ', '').replace('✍️ ', '').trim();
                     }
                     let pPath = projectSelect ? projectSelect.value : 'crm.fast-order-eg.tech';
                     if (pPath === '__custom__' && customPath) {
@@ -3153,7 +3162,7 @@
                         projectPath: pPath
                     });
                 });
-                aiAdsProjectsMappingInput.value = encodeURIComponent(JSON.stringify(list));
+                aiAdsProjectsMappingInput.value = JSON.stringify(list);
             }
 
             function renderMappingRows() {
@@ -3286,7 +3295,11 @@
                             // Re-render rows with updated group options
                             syncMappingsToInput();
                             try {
-                                const parsed = JSON.parse(decodeURIComponent(aiAdsProjectsMappingInput.value));
+                                let raw = aiAdsProjectsMappingInput.value.trim();
+                                if (raw.startsWith('%') || raw.includes('%5B')) {
+                                    try { raw = decodeURIComponent(raw); } catch (_) {}
+                                }
+                                const parsed = JSON.parse(raw);
                                 if (Array.isArray(parsed) && parsed.length > 0) mappingsList = parsed;
                             } catch (_) {}
                             renderMappingRows();

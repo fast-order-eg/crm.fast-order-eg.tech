@@ -407,7 +407,11 @@ function parseValue(value, type, key = '') {
         return value === 'true' || value === true;
     } else if (type === 'json') {
         try {
-            const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+            let rawStr = value;
+            if (typeof rawStr === 'string' && (rawStr.startsWith('%') || rawStr.includes('%22') || rawStr.includes('%7B') || rawStr.includes('%5B'))) {
+                try { rawStr = decodeURIComponent(rawStr); } catch (_) {}
+            }
+            const parsed = typeof rawStr === 'string' ? JSON.parse(rawStr) : rawStr;
             if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
                 return parsed;
             }
@@ -556,7 +560,13 @@ export async function setSetting(key, value, userId) {
         parsedValue = value === 'true' || value === true;
         stringValue = String(parsedValue);
     } else if (meta.type === 'json') {
-        parsedValue = typeof value === 'string' ? JSON.parse(value) : value;
+        parsedValue = typeof value === 'string' ? (() => {
+            let s = value.trim();
+            if (s.startsWith('%') || s.includes('%22') || s.includes('%7B') || s.includes('%5B')) {
+                try { s = decodeURIComponent(s); } catch (_) {}
+            }
+            return JSON.parse(s);
+        })() : value;
         stringValue = JSON.stringify(parsedValue);
     } else {
         stringValue = String(value);
