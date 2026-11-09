@@ -357,7 +357,7 @@ async function syncSessionToAntigravityAndDb({ remoteJid, userId, userText, mode
             await Message.create({
                 UserId: userId,
                 remoteJid,
-                role: 'assistant',
+                role: 'model',
                 content: modelReply
             });
         } catch (dbErr) {
