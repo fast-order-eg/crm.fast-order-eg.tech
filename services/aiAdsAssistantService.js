@@ -290,8 +290,11 @@ async function callGeminiAssistant({ prompt, imageBuffer, imageMime, history = [
         const fullSystemInstruction = `أنت مساعد ذكي متقدم وخبير برمجي وإعلاني وإداري مرتبط بمشروع "${project.projectName}" ومجلد العمل "${project.projectPath}" على منصة Antigravity ونظام Bird CRM عبر الواتساب.
 - أنت تعمل حالياً وتتصل مباشرة بمجلد ومشروع: "${project.projectName}" (مسار المشروع: ${project.projectPath}).
 - لديك اتصال كامل ومباشر بقاعدة بيانات نظام الـ CRM الحية (Live Database)، ويتم تزويدك بالبيانات والتقارير الفعلية المسجلة أولاً بأول.
-- إذا سألك المستخدم: "انت شايف احنا في انهي فولدر" أو "احنا شغالين على انهي مشروع"، أخبره بدقة وفورية أننا شغالين على مشروع [${project.projectName}] المربوط بهذا الجروب، واذكر له نبذة سريعة عن ملفات ومهام المشروع.
-- إذا سألك المستخدم عن "تقارير أمس" أو "تقييم رصد ومحلل الأعمال" أو تقييم أي موظف أو أداء الفريق، لا تقل له أبداً أنك غير متصل بالداتابيز، بل استخدم البيانات الحية المزودة لك في السياق واعرض له تقريراً شاملاً ومفصلاً بالأسماء والأرقام والتقييمات ونقاط القوة والملاحظات.
+- إذا سألك المستخدم: "انت شايف احنا في انهي فولدر" أو "احنا شغالين على انهي مشروع"، أخبره بدقة وفورية أننا شغالين على مشروع [${project.projectName}] المربوط بهذا الجروب.
+- إذا سألك المستخدم عن "تقارير أمس" أو "تقييم رصد ومحلل الأعمال" أو تقييم أي موظف أو أداء الفريق:
+  * يجب أن تعطي تقريراً شاملاً ومفصلاً وكاملاً لكل الموظفين المسجلين في البيانات الحية دون إهمال أو إسقاط أي موظف (علا، ساهر، عمر خالد، نادين سيف، م/ راضي، رباب، ريم، لينا).
+  * اذكر لكل موظف: التقييم العام (من 10) والوصف، الشفت، الإيجابيات والإنجازات بالتفصيل، والملاحظات ونقاط التطوير.
+  * لا تختصر التقرير أبداً ولا تبتره، واكتبه كاملاً حتى النهاية؛ نظام الإرسال يقوم بتقسيم الرسائل الطويلة تلقائياً على عدة أجزاء في الواتساب فلا تقلق من طول النص.
 - تتحدث بالعامية المصرية الودودة والواضحة والمباشرة بدون أي حشو أو كلام إنشائي.
 - أنت تنفذ الأوامر وتحلل المشاكل وتجيب على الاستفسارات البرمجية والإعلانية والإدارية الخاصة بهذا المشروع حصراً.
 - عند تقديم التقارير، قدم ملخصاً تنفيذياً مرتباً بالعامية المصرية، واذكر الموظفين بتقييماتهم وأهم إنجازاتهم والملاحظات بدون أي اختصار يخل بالمعلومات.
@@ -304,9 +307,9 @@ async function callGeminiAssistant({ prompt, imageBuffer, imageMime, history = [
                 parts: [{ text: fullSystemInstruction }]
             },
             generationConfig: {
-                temperature: 0.3,
-                topP: 0.9,
-                maxOutputTokens: 2048
+                temperature: 0.2,
+                topP: 0.95,
+                maxOutputTokens: 8192
             }
         };
 
@@ -442,29 +445,100 @@ export function formatWhatsAppMessage(rawText) {
 }
 
 /**
- * إرسال الرسالة إلى جروب الواتساب مع محاكاة بشرية لمنع الحظر
+ * تقسيم الرسائل الطويلة جداً إلى أجزاء ذكية ومتناسقة لا تتجاوز 1300 حرف للجزء
+ */
+export function splitWhatsAppMessage(text, maxChunkLen = 1300) {
+    if (!text || text.length <= maxChunkLen) {
+        return [text];
+    }
+
+    const chunks = [];
+    // التقسيم بالفقرات أو خطوط الفصل أو الموظفين
+    const sections = text.split(/(?=\n(?:\d+\.|\*|📌|▫️|---\n))/g);
+    let currentChunk = '';
+
+    for (const sec of sections) {
+        if (!currentChunk) {
+            currentChunk = sec;
+        } else if ((currentChunk + sec).length <= maxChunkLen) {
+            currentChunk += sec;
+        } else {
+            if (currentChunk.trim()) chunks.push(currentChunk.trim());
+            currentChunk = sec;
+        }
+    }
+
+    if (currentChunk && currentChunk.trim()) {
+        chunks.push(currentChunk.trim());
+    }
+
+    // احتياط في حال كان أي مقطع بمفرده أكبر من الحد الأقصى
+    const finalChunks = [];
+    for (const chunk of chunks) {
+        if (chunk.length <= maxChunkLen) {
+            finalChunks.push(chunk);
+        } else {
+            const lines = chunk.split('\n');
+            let sub = '';
+            for (const line of lines) {
+                if (!sub) {
+                    sub = line;
+                } else if ((sub + '\n' + line).length <= maxChunkLen) {
+                    sub += '\n' + line;
+                } else {
+                    if (sub.trim()) finalChunks.push(sub.trim());
+                    sub = line;
+                }
+            }
+            if (sub && sub.trim()) finalChunks.push(sub.trim());
+        }
+    }
+
+    return finalChunks.length > 0 ? finalChunks : [text];
+}
+
+/**
+ * إرسال الرسالة إلى جروب الواتساب مع تقسيم الرسائل الطويلة ومحاكاة الكتابة البشرية لمنع الحظر
  */
 async function sendReplyToGroup(sock, remoteJid, text) {
     try {
         const formatted = formatWhatsAppMessage(text);
+        const chunks = splitWhatsAppMessage(formatted, 1300);
+        const totalChunks = chunks.length;
+
         if (typeof sock.sendPresenceUpdate === 'function') {
             await sock.sendPresenceUpdate('available', remoteJid).catch(() => {});
         }
 
-        const textLen = (formatted || '').length;
-        const typingDuration = Math.min(6000, Math.max(2000, Math.floor(textLen * 12)));
+        for (let i = 0; i < totalChunks; i++) {
+            let chunkText = chunks[i];
 
-        if (typeof sock.sendPresenceUpdate === 'function') {
-            await sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
-            await new Promise(r => setTimeout(r, typingDuration));
-            await sock.sendPresenceUpdate('paused', remoteJid).catch(() => {});
+            // إضافة ترقيم الأجزاء إذا كانت الرسالة مقسمة
+            if (totalChunks > 1) {
+                chunkText = `*(جزء ${i + 1} من ${totalChunks})*\n\n${chunkText}`;
+            }
+
+            const chunkLen = chunkText.length;
+            // محاكاة بشرية للكتابة بحسب عدد الحروف (14 مللي ثانية لكل حرف، بحد أدنى 2.5 ثانية وأقصى 8 ثوانٍ)
+            const typingDuration = Math.min(8000, Math.max(2500, Math.floor(chunkLen * 14)));
+
+            if (typeof sock.sendPresenceUpdate === 'function') {
+                await sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
+                await new Promise(r => setTimeout(r, typingDuration));
+                await sock.sendPresenceUpdate('paused', remoteJid).catch(() => {});
+            }
+
+            const zeroWidthSpaces = ['\u200B', '\u200C', '\u200D', '\uFEFF'];
+            const jitter = zeroWidthSpaces[Math.floor(Math.random() * zeroWidthSpaces.length)];
+            const finalMessage = `${chunkText}${jitter}`;
+
+            await sock.sendMessage(remoteJid, { text: finalMessage });
+
+            // راحة بين الأجزاء المتتابعة لمحاكاة الرد الطبيعي
+            if (i < totalChunks - 1) {
+                await new Promise(r => setTimeout(r, 1500));
+            }
         }
-
-        const zeroWidthSpaces = ['\u200B', '\u200C', '\u200D', '\uFEFF'];
-        const jitter = zeroWidthSpaces[Math.floor(Math.random() * zeroWidthSpaces.length)];
-        const finalMessage = `${formatted}${jitter}`;
-
-        await sock.sendMessage(remoteJid, { text: finalMessage });
 
         setTimeout(() => {
             try {
@@ -564,9 +638,38 @@ export async function handleAiAdsAssistantMessage({
             return { handled: false };
         }
 
+        // 1. إرسال إشعار فوري في الواتساب بجاري التحليل واستلام الطلب
         if (isVoice) {
-            await sock.sendMessage(remoteJid, { text: `🎙️ _سمعت رسالتك:_ "${promptText}"\n⏳ _جاري التحليل لمشروع [${project.projectName}]..._` });
+            await sock.sendMessage(remoteJid, { 
+                text: `🎙️ _سمعت رسالتك:_ "${promptText}"\n⏳ *جاري التحليل واستلام طلبك لمشروع [${project.projectName}] يا باشا...*\n_ثواني ومخرجات التقرير تكون عندك._` 
+            }).catch(() => {});
+        } else {
+            await sock.sendMessage(remoteJid, { 
+                text: `⏳ *جاري التحليل واستلام طلبك لمشروع [${project.projectName}] يا باشا...*\n_ثواني ومخرجات التقرير تكون عندك._` 
+            }).catch(() => {});
         }
+
+        // 2. توثيق وتسجيل الأمر الوارد في سجل مهام أنتي جرافيتي
+        try {
+            const taskRecord = {
+                taskId: `task_${Date.now()}`,
+                from: phoneNumber,
+                senderName: msg.pushName || 'راضي ممدوح',
+                command: promptText,
+                projectName: project.projectName,
+                projectPath: project.projectPath,
+                timestamp: new Date().toISOString(),
+                status: 'processing'
+            };
+            const tasksFile = path.join(SESSIONS_DIR, 'incoming_tasks.json');
+            let tasksList = [];
+            if (fs.existsSync(tasksFile)) {
+                try { tasksList = JSON.parse(fs.readFileSync(tasksFile, 'utf8')); } catch (_) {}
+            }
+            tasksList.unshift(taskRecord);
+            if (tasksList.length > 50) tasksList = tasksList.slice(0, 50);
+            fs.writeFileSync(tasksFile, JSON.stringify(tasksList, null, 2), 'utf8');
+        } catch (_) {}
 
         const hasImage = mediaBuffer && (mediaMime?.includes('image') || mediaMime?.includes('jpeg') || mediaMime?.includes('png'));
         
