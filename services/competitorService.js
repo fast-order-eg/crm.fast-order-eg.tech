@@ -820,9 +820,13 @@ export async function saveCompetitorLeadsToCrm({ sock, remoteJid, phoneNumber, u
     const stopComposing = startContinuousComposing(sock, remoteJid);
 
     try {
-        // 1. تصفية الإعلانات التي تحتوي على أرقام هواتف صالحة فقط
+        // 1. تصفية الإعلانات التي تحتوي على أرقام هواتف صالحة وذات صلة بالمجال المطلوب
         const adsWithPhones = [];
         for (const ad of session.currentAds) {
+            if (session.lastKeyword) {
+                const rel = isAdRelevantToNiche(ad, session.lastKeyword);
+                if (!rel.relevant) continue;
+            }
             const validPhones = extractValidPhones(ad.primary_text, ad.phone_numbers);
             if (validPhones.length > 0) {
                 adsWithPhones.push({
@@ -1062,6 +1066,158 @@ export async function saveCompetitorLeadsToCrm({ sock, remoteJid, phoneNumber, u
 }
 
 /**
+ * Helper: Normalize Arabic characters for consistent keyword and relevance matching
+ */
+function normalizeArabicText(text) {
+    if (!text || typeof text !== 'string') return '';
+    return text
+        .toLowerCase()
+        .replace(/[إأآا]/g, 'ا')
+        .replace(/ة/g, 'ه')
+        .replace(/ى/g, 'ي')
+        .replace(/[\u064B-\u065F]/g, '') // remove tashkeel
+        .trim();
+}
+
+/**
+ * Helper: Sanitize and clean raw user niche input
+ * Strips noise/container words ("محلات", "شركات", "معارض") and common typos ("حيونات")
+ * so Facebook Ad Library doesn't match irrelevant retail or commercial real estate ads.
+ */
+function cleanSearchNiche(rawNiche) {
+    if (!rawNiche || typeof rawNiche !== 'string') return '';
+    let cleaned = rawNiche.trim();
+    cleaned = cleaned.replace(/حيونات/gi, 'حيوانات');
+    cleaned = cleaned.replace(/اليفه/gi, 'أليفة');
+    // Remove lead / data intent words
+    cleaned = cleaned.replace(/^(داتا|الداتا|ارقام|أرقام|الأرقام|الارقام|بيانات|البيانات)\s*/i, '').trim();
+    cleaned = cleaned.replace(/^(في\s*مجال|مجال|نشاط|شغال\s*في|ببيع|عن|في|لـ)\s+/i, '').trim();
+    // Remove broad business container words that poison Facebook's unordered keyword search
+    cleaned = cleaned.replace(/^(محلات|محل|شركات|شركة|معارض|معرض|اماكن|أماكن|متاجر|متجر|تجارة|تجار|بيع|شراء|توزيع|مصانع|مصنع|مكاتب|مكتب)\s+/i, '');
+    cleaned = cleaned.replace(/\s+(محلات|محل|شركات|شركة|معارض|معرض)$/i, '');
+    return cleaned.trim() || rawNiche.trim();
+}
+
+/**
+ * Curated Industry Profiles for Egyptian Market:
+ * Contains proven positive keywords, high-converting targeted search queries, and negative blacklist filters.
+ */
+const INDUSTRY_PROFILES = {
+    pets: {
+        identifiers: ['حيوان', 'حيوانات', 'قطط', 'قطة', 'كلاب', 'كلب', 'بيت شوب', 'بت شوب', 'دراي فود', 'pets', 'pet'],
+        defaultQueries: ['دراي فود', 'مستلزمات قطط وكلاب', 'رمل قطط', 'عيادة بيطرية', 'مستلزمات حيوانات'],
+        positives: [
+            'دراي فود', 'dry food', 'ويت فود', 'طعام قطط', 'طعام كلاب', 'اكل قطط', 'اكل كلاب', 
+            'مستلزمات قطط', 'مستلزمات كلاب', 'مستلزمات حيوانات', 'بت شوب', 'pet shop', 'pets', 
+            'رمل قطط', 'ليتر بوكس', 'بيطري', 'بيطرية', 'vet', 'clinic', 'جرومينج', 'حلاقة قطط', 
+            'تريتس', 'شيكارة', 'عصافير', 'حمام', 'اسماك زينة', 'طيور', 'زواحف', 'عناية بالحيوانات'
+        ],
+        badTerms: [
+            'مكافحة الحشرات', 'ابادة الحشرات', 'إبادة الحشرات', 'مكافحة حشرات', 'شركة ابادة', 
+            'رش مبيد', 'الصراصير', 'بق الفراش', 'القوارض', 'خبراء التثمين', 'مزاد علني', 
+            'سجاد', 'كفرات السجاد', 'كفر سجاد', 'نجيل صناعي', 'لاند سكيب', 'تنجيل', 'عشب صناعي',
+            'ادوات منزلية', 'جهاز العروسة', 'عجان', 'حلل جرانيت', 'ماي واي', 'my way'
+        ]
+    },
+    clothes: {
+        identifiers: ['ملابس', 'فاشون', 'ازياء', 'عبايات', 'فساتين', 'هدوم', 'fashion', 'clothes', 'wear'],
+        defaultQueries: ['ملابس حريمي', 'عبايات خروج', 'كولكشن ملابس', 'ملابس رجالي', 'فساتين سواريه'],
+        positives: [
+            'ملابس', 'فستان', 'فساتين', 'عباية', 'عبايات', 'سويت شيرت', 'هودي', 'بنطلون', 
+            'قميص', 'تيشرت', 'بدلة', 'طرح', 'كولكشن', 'fashion', 'clothes', 'wear', 
+            'صيفي', 'شتوي', 'اوفر سايز', 'حريمي', 'رجالي', 'اطفالي', 'براند ملابس'
+        ],
+        badTerms: ['مكافحة الحشرات', 'ابادة', 'خبراء التثمين', 'مزاد علني', 'عقارات', 'ماي واي']
+    },
+    shoes: {
+        identifiers: ['احذية', 'أحذية', 'كوتشي', 'كوتشيات', 'شنط', 'شوز', 'shoes', 'bags'],
+        defaultQueries: ['كوتشيات مستوردة', 'احذية رجالي', 'شنط حريمي جلد', 'كوتشي اير'],
+        positives: ['حذاء', 'احذية', 'أحذية', 'كوتشي', 'كوتشيات', 'شوز', 'شنطة', 'شنط', 'شنط حريمي', 'جلد طبيعي', 'shoes', 'sneakers', 'bags'],
+        badTerms: ['مكافحة الحشرات', 'ابادة', 'خبراء التثمين', 'ماي واي']
+    },
+    perfumes: {
+        identifiers: ['عطور', 'برفانات', 'ميك اب', 'تجميل', 'بخور', 'perfume', 'makeup'],
+        defaultQueries: ['برفانات اوريجينال', 'عطور فرنسية', 'ميك اب اوريجنال', 'عناية بالبشرة'],
+        positives: ['عطر', 'عطور', 'برفان', 'برفانات', 'بخور', 'مسك', 'عود', 'ميك اب', 'مكياج', 'مستحضرات تجميل', 'عناية بالبشرة', 'perfume', 'makeup', 'سكن كير'],
+        badTerms: ['مكافحة الحشرات', 'ابادة', 'خبراء التثمين', 'ماي واي']
+    },
+    realestate: {
+        identifiers: ['عقارات', 'شقق', 'فلل', 'تشطيب', 'ديكور', 'كمبوند', 'عقار', 'اراضي'],
+        defaultQueries: ['شقق للبيع', 'شقق في كمبوند', 'تشطيب وديكور', 'فلل للبيع'],
+        positives: ['عقار', 'عقارات', 'شقة', 'شقق', 'فيلا', 'تاون هاوس', 'كمبوند', 'متر', 'استثمار عقاري', 'تشطيب', 'ديكور', 'تصميم داخلي'],
+        badTerms: ['مكافحة الحشرات', 'ابادة', 'ماي واي']
+    },
+    food: {
+        identifiers: ['مطاعم', 'مطعم', 'كافيهات', 'كافيه', 'اكل', 'وجبات', 'برجر', 'بيتزا', 'مشويات', 'حلويات'],
+        defaultQueries: ['مطاعم برجر', 'وجبات سريعة', 'عروض مطاعم', 'حلويات غربية'],
+        positives: ['مطعم', 'كافيه', 'وجبة', 'وجبات', 'برجر', 'بيتزا', 'مشويات', 'شاورما', 'سندوتش', 'منيو', 'دليفري', 'اكل بيتي', 'حلويات', 'كريب'],
+        badTerms: ['مكافحة الحشرات', 'ابادة', 'خبراء التثمين', 'ماي واي']
+    },
+    clinics: {
+        identifiers: ['عيادات', 'عيادة', 'دكتور', 'اسنان', 'جلدية', 'تجميل', 'علاج طبيعي', 'مستشفى'],
+        defaultQueries: ['عيادة اسنان', 'دكتور جلدية وتجميل', 'مركز علاج طبيعي', 'زراعة اسنان'],
+        positives: ['عيادة', 'عيادات', 'دكتور', 'طبيب', 'اسنان', 'جلدية', 'تجميل', 'ليزر', 'علاج طبيعي', 'كشف', 'استشارة طبية', 'فينير', 'تقويم اسنان'],
+        badTerms: ['مكافحة الحشرات', 'ابادة', 'ماي واي']
+    },
+    furniture: {
+        identifiers: ['مفروشات', 'مراتب', 'ستائر', 'سجاد', 'اثاث', 'موبيليا', 'ركنات', 'صالونات', 'غرف نوم'],
+        defaultQueries: ['ركنات مودرن', 'مراتب سرير', 'غرف نوم مودرن', 'اثاث مودرن'],
+        positives: ['مفروشات', 'مراتب', 'ستائر', 'سجاد', 'اثاث', 'موبيليا', 'ركنة', 'ركنات', 'صالون', 'انتريه', 'غرفة نوم', 'سفره', 'خشب زان'],
+        badTerms: ['مكافحة الحشرات', 'ابادة', 'ماي واي']
+    }
+};
+
+const GLOBAL_NEGATIVE_PATTERNS = [
+    'مكافحة الحشرات', 'ابادة الحشرات', 'إبادة الحشرات', 'مكافحة حشرات', 'شركة ابادة', 'رش مبيد', 'الصراصير', 'بق الفراش',
+    'خبراء التثمين', 'مزاد علني', 'مزادات', 'سنديك', 'تفليسة', 'كراسة الشروط',
+    'ماي واي', 'my way', 'اشتغلي في الوقت اللي يناسبك ومن مكانك'
+];
+
+/**
+ * Filter: Verify if an ad actually belongs to the user's requested business niche
+ */
+export function isAdRelevantToNiche(ad, rawNiche, keywordsList = []) {
+    if (!ad) return { relevant: false, reason: 'No ad' };
+    const pageNameNorm = normalizeArabicText(ad.page_name || '');
+    const textNorm = normalizeArabicText(ad.primary_text || '');
+    const combined = `${pageNameNorm} ${textNorm}`;
+    const cleanedNiche = cleanSearchNiche(rawNiche);
+    const nicheNorm = normalizeArabicText(cleanedNiche);
+
+    // Find if niche matches a known profile
+    let profile = null;
+    for (const [k, p] of Object.entries(INDUSTRY_PROFILES)) {
+        if (p.identifiers.some(id => nicheNorm.includes(normalizeArabicText(id)))) {
+            profile = p;
+            break;
+        }
+    }
+
+    // 1. Negative Exclusions Check
+    const badList = profile ? [...GLOBAL_NEGATIVE_PATTERNS, ...profile.badTerms] : GLOBAL_NEGATIVE_PATTERNS;
+    for (const bad of badList) {
+        if (!nicheNorm.includes(normalizeArabicText(bad)) && combined.includes(normalizeArabicText(bad))) {
+            return { relevant: false, reason: `Excluded by negative term: "${bad}"` };
+        }
+    }
+
+    // 2. Profile Positive Check
+    if (profile) {
+        const hasPos = profile.positives.some(p => combined.includes(normalizeArabicText(p)));
+        if (!hasPos) {
+            return { relevant: false, reason: 'Missing required domain terms' };
+        }
+        return { relevant: true, reason: 'Matched profile positives' };
+    }
+
+    // 3. Dynamic generic check for unlisted niches
+    const words = cleanedNiche.split(/\s+/).filter(w => w.length >= 3);
+    const allKeywords = [...words, ...(keywordsList || []).map(k => normalizeArabicText(k))];
+    const matches = allKeywords.some(kw => combined.includes(normalizeArabicText(kw)));
+    return { relevant: matches, reason: matches ? 'Matched keywords' : 'No relevant keywords matched' };
+}
+
+/**
  * Helper: Check if phone number already exists in CRM database (Customer table)
  * Checks all common Egyptian formats: 010..., 10..., 2010..., +2010... across the entire database
  */
@@ -1107,12 +1263,9 @@ export async function handleFastScrapeCommand({ sock, remoteJid, phoneNumber, te
     // Regex to match: /سحب [عدد] [المجال] or سحب [عدد] [المجال] or /سحب داتا [المجال]
     const match = trimmed.match(/^[\/\s]*(?:سحب|اسحب|عايز\s*اسحب|محتاج\s*اسحب|هات|جيب)\s*(?:(\d{1,2})\s*)?(?:ارقام|أرقام|داتا|عملاء|عميل|رقم)?\s*(?:في\s*مجال|مجال|عن)?\s*(.*)$/i);
     let rawCount = match && match[1] ? parseInt(match[1], 10) : 10;
-    let niche = match && match[2] ? match[2].trim() : '';
+    let rawNiche = match && match[2] ? match[2].trim() : '';
 
-    if (niche) {
-        niche = niche.replace(/^(داتا|الداتا|ارقام|أرقام|الأرقام|الارقام|بيانات|البيانات)\s*/i, '').trim();
-        niche = niche.replace(/^(في\s*مجال|مجال|نشاط|شغال\s*في|ببيع|عن|في|لـ)\s+/i, '').trim();
-    }
+    const niche = cleanSearchNiche(rawNiche);
 
     if (!niche) {
         await replyToStaff(
@@ -1187,7 +1340,16 @@ export async function handleFastScrapeCommand({ sock, remoteJid, phoneNumber, te
             console.error('❌ [handleFastScrapeCommand] Error finding sales user:', uErr.message);
         }
 
-        // 2. Fetch keyword angles for the niche via Vertex AI
+        // 2. Identify industry profile and fetch suggested keywords via Vertex AI
+        const nicheNorm = normalizeArabicText(niche);
+        let matchedProfile = null;
+        for (const [k, p] of Object.entries(INDUSTRY_PROFILES)) {
+            if (p.identifiers.some(id => nicheNorm.includes(normalizeArabicText(id)))) {
+                matchedProfile = p;
+                break;
+            }
+        }
+
         let keywordsList = [];
         try {
             const kwResult = await fetchSuggestedKeywords(niche, 'EG', 1, 0);
@@ -1198,13 +1360,29 @@ export async function handleFastScrapeCommand({ sock, remoteJid, phoneNumber, te
             console.warn('⚠️ [handleFastScrapeCommand] Keywords suggestion error:', kwErr.message);
         }
 
-        // Build list of search queries: niche first, then the suggested keywords (up to 6 queries)
-        const searchQueries = [niche];
-        for (const kw of keywordsList) {
-            if (kw && !searchQueries.includes(kw)) {
-                searchQueries.push(kw);
+        // Filter out problematic or negative keywords from Vertex AI
+        const filteredKeywords = keywordsList.filter(k => {
+            if (!k || typeof k !== 'string') return false;
+            const norm = normalizeArabicText(k);
+            if (norm === 'بيت شوب') return false; // Avoid "بيت" splitting on Facebook
+            if (GLOBAL_NEGATIVE_PATTERNS.some(bad => norm.includes(normalizeArabicText(bad)))) return false;
+            return norm.length >= 3;
+        });
+
+        // Build list of targeted search queries:
+        // Prioritize profile default queries (high-converting specific product keywords), then filtered AI keywords, then cleaned niche
+        const searchQueries = [];
+        if (matchedProfile && Array.isArray(matchedProfile.defaultQueries)) {
+            for (const q of matchedProfile.defaultQueries) {
+                if (!searchQueries.includes(q)) searchQueries.push(q);
             }
-            if (searchQueries.length >= 6) break;
+        }
+        for (const kw of filteredKeywords) {
+            if (!searchQueries.includes(kw)) searchQueries.push(kw);
+            if (searchQueries.length >= 8) break;
+        }
+        if (!searchQueries.includes(niche)) {
+            searchQueries.push(niche);
         }
 
         const savedCustomers = [];
@@ -1233,6 +1411,12 @@ export async function handleFastScrapeCommand({ sock, remoteJid, phoneNumber, te
 
                 for (const ad of adsResult.ads) {
                     if (savedCustomers.length >= targetCount) break queryLoop;
+
+                    // 1. Semantic and Industry Relevance Validator (Filters out pest control, appraisal, cookware, etc.)
+                    const relCheck = isAdRelevantToNiche(ad, niche, searchQueries);
+                    if (!relCheck.relevant) {
+                        continue;
+                    }
 
                     const validPhones = extractValidPhones(ad.primary_text, ad.phone_numbers);
                     if (!validPhones || validPhones.length === 0) continue;
