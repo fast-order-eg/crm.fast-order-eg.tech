@@ -170,6 +170,25 @@ export async function isAuthorizedAdsAdmin(senderPhone, userId = 3, participantJ
 }
 
 /**
+ * تحويل الأرقام العربية الهندية (٠-٩) والفارسية (۰-۹) إلى أرقام إنجليزية (0-9)
+ */
+export function normalizeArabicDigits(str = '') {
+    return String(str || '')
+        .replace(/[\u0660-\u0669]/g, d => String(d.charCodeAt(0) - 0x0660))
+        .replace(/[\u06F0-\u06F9]/g, d => String(d.charCodeAt(0) - 0x06F0));
+}
+
+const AR_SEP_START = '(?:^|[\\s،,.:"\'`~!@#$%^&*()\\-_+=\\/\\\\|?؟])';
+const AR_SEP_END = '(?=$|[\\s،,.:"\'`~!@#$%^&*()\\-_+=\\/\\\\|?؟])';
+
+/**
+ * مطابقة الكلمات العربية بحدود فاصلة صحيحة لمنع التداخل داخل أسماء مثل "أحمد" أو "باسم"
+ */
+function hasArabicWord(text, pattern) {
+    return new RegExp(`${AR_SEP_START}(?:${pattern})${AR_SEP_END}`, 'i').test(text);
+}
+
+/**
  * استخراج الفترة الزمنية المطلوبة من رسالة المستخدم وفق قواعد منصة عين السوق:
  * - الكل / كل الفترات / الإجمالي -> maximum
  * - اليوم -> today
@@ -178,7 +197,7 @@ export async function isAuthorizedAdsAdmin(senderPhone, userId = 3, participantJ
  * - هذا الشهر -> this_month
  */
 export function extractDatePreset(text = '') {
-    const t = text.toLowerCase();
+    const t = normalizeArabicDigits(text).toLowerCase();
     if (t.includes('الكل') || t.includes('كل الفترات') || t.includes('الإجمالي') || t.includes('اجمالي') || t.includes('كل الوقت') || t.includes('maximum') || t.includes('all')) {
         return 'maximum';
     }
@@ -203,7 +222,7 @@ export function extractDatePreset(text = '') {
  * - إرسال ALL فقط إذا طلب المستخدم صراحة الحملات المتوقفة أو كل الحملات
  */
 export function extractStatusFilter(text = '') {
-    const t = text.toLowerCase();
+    const t = normalizeArabicDigits(text).toLowerCase();
     if (
         t.includes('المتوقفة') || t.includes('المتوقفه') || t.includes('متوقف') ||
         t.includes('موقوفة') || t.includes('موقوفه') || t.includes('paused') ||
@@ -220,7 +239,7 @@ export function extractStatusFilter(text = '') {
  * استخراج معرف الحساب الإعلاني أو الحملة من النص
  */
 export function extractAdIdentifiers(text = '') {
-    const clean = String(text || '').trim();
+    const clean = normalizeArabicDigits(String(text || '')).trim();
 
     // 1. فحص صيغة act_12345
     const actMatch = clean.match(/act_(\d+)/i);
@@ -778,7 +797,7 @@ export function formatAdsReportMessage(data, requestedId = '', datePreset = 'tod
 
     let msg = `📊 *تقرير أداء الإعلانات الممولة*\n`;
     if (requestedId) {
-        msg += `🔢 *المعرف:* \`${requestedId}\`${accountName ? ` (${accountName})` : ''}\n`;
+        msg += `🏦 *رقم الحساب الإعلاني:* \`${requestedId}\`${accountName ? ` (${accountName})` : ''}\n`;
     } else if (accountName) {
         msg += `🏢 *اسم الحساب:* ${accountName}\n`;
     }
@@ -866,12 +885,12 @@ export function formatAdsReportMessage(data, requestedId = '', datePreset = 'tod
 
     msg += `══════════════\n`;
     msg += `💡 *لتغيير الفترة:* اكتب رقم الحساب مع: "اليوم" أو "امس" أو "اخر 7 ايام" أو "هذا الشهر" أو "الكل".\n\n`;
-    msg += `💡 *للتحكم في أي حملة، قولي بالعامية مباشرة:*\n`;
-    msg += `• "الحملة [الرقم] وقفها" ⏸️\n`;
-    msg += `• "شغل الحملة [الرقم]" 🟢\n`;
-    msg += `• "ميزانية الحملة [الرقم] خليها 500" 💵\n`;
-    msg += `• "مد الحملة [الرقم] 3 أيام" ⏳\n`;
-    msg += `• "استهداف [الرقم]" لتدقيق الاستهداف بالذكاء الاصطناعي 🎯`;
+    msg += `💡 *للتحكم في أي حملة، قولي بالعامية مباشرة (برقم الحملة أو ترتيبها مثل "حملة رقم 1"):*\n`;
+    msg += `• "الحملة [رقم الحملة] وقفها" ⏸️\n`;
+    msg += `• "شغل حملة رقم 1" 🟢\n`;
+    msg += `• "ميزانية الحملة [رقم الحملة] خليها 500" 💵\n`;
+    msg += `• "مد الحملة [رقم الحملة] 3 أيام" ⏳\n`;
+    msg += `• "استهداف [رقم الحملة]" لتدقيق الاستهداف بالذكاء الاصطناعي 🎯`;
 
     return msg;
 }
@@ -932,11 +951,11 @@ async function sendGroupReply(sock, remoteJid, content) {
 export function parseConversationalCampaignCommand(rawText = '') {
     if (!rawText || typeof rawText !== 'string') return null;
 
-    // تنظيف النص وإزالة الماركداون والـ backticks والرموز الزائدة
-    let text = rawText.trim().replace(/^\//, '');
+    // تنظيف النص وتحويل الأرقام العربية وإزالة الماركداون والـ backticks والرموز الزائدة
+    let text = normalizeArabicDigits(rawText.trim()).replace(/^\//, '');
     text = text.replace(/[`*~_]/g, ' ');
 
-    const idMatches = text.match(/\b\d{10,25}\b/g);
+    const idMatches = text.match(/(?<!\d)\d{10,25}(?!\d)/g);
     if (!idMatches || idMatches.length === 0) {
         return null;
     }
@@ -944,7 +963,7 @@ export function parseConversationalCampaignCommand(rawText = '') {
     const campaignId = idMatches[0];
 
     // استبعاد استفسارات فحص وتدقيق الاستهداف بالذكاء الاصطناعي (عين السوق) ما لم يكن معها طلب تعديل صريح
-    if (/(?:^|\s)استهداف(?:\s|$)/i.test(text) && !/(?:سن|عمر|نوع|جنس|مناطق|محافظات|اهتمامات|تعديل|غير|عدل|ميزانية|ميزان|شغل|وقف)/i.test(text)) {
+    if (hasArabicWord(text, 'استهداف') && !/(?:سن|عمر|نوع|جنس|مناطق|محافظات|اهتمامات|تعديل|غير|عدل|ميزانية|ميزان|شغل|وقف)/i.test(text)) {
         return null;
     }
 
@@ -954,14 +973,14 @@ export function parseConversationalCampaignCommand(rawText = '') {
     }
 
     // نص نظيف بدون معرّف الحملة لمنع تداخل أرقام الحملة مع مبالغ الميزانية أو السن أو الأيام
-    const textWithoutId = text.replace(new RegExp('\\b' + campaignId + '\\b', 'g'), ' ');
+    const textWithoutId = text.replace(new RegExp('(?<!\\d)' + campaignId + '(?!\\d)', 'g'), ' ');
 
     const actions = [];
 
     // 1. أمر إيقاف الحملة (Pause)
-    if (/(?:وقف|وقفه|وقفي|وقفها|وقفلي|وقفوا|توقف|توقفي|توقفلي|ايقاف|إيقاف|توقيف|عطل|عطلها|اووقف|اوقف|اوصل|pause|stop)/i.test(text)) {
+    if (hasArabicWord(text, 'وقف|وقفه|وقفي|وقفها|وقفلي|وقفوا|توقف|توقفي|توقفلي|ايقاف|إيقاف|توقيف|عطل|عطلها|اووقف|اوقف|pause|stop')) {
         if (!/(?:ليه|هو ليه|ازاي|سبب|الحملات المتوقفة|الحملات المتوقفه)/i.test(text)) {
-            if (!/(?:شغل|شغلها|تفعيل|تشغيل)/i.test(text) || /(?:ثم\s*وقف|وبعدين\s*وقف|وقفها)/i.test(text)) {
+            if (!hasArabicWord(text, 'شغل|شغلها|تفعيل|تشغيل') || /(?:ثم\s*وقف|وبعدين\s*وقف|وقفها)/i.test(text)) {
                 actions.push({
                     action: 'UPDATE_STATUS',
                     status: 'PAUSED'
@@ -971,7 +990,7 @@ export function parseConversationalCampaignCommand(rawText = '') {
     }
 
     // 2. أمر تشغيل الحملة (Resume / Active)
-    if (/(?:شغل|شغله|شغلي|شغلها|شغلوا|تشغيل|تشغلي|تشغل|فعل|فعلها|فعلي|تفعيل|افتح|افتحها|resume|start|active)/i.test(text)) {
+    if (hasArabicWord(text, 'شغل|شغله|شغلي|شغلها|شغلوا|تشغيل|تشغلي|تشغل|فعل|فعلها|فعلي|تفعيل|افتح|افتحها|resume|start|active')) {
         if (!/(?:ليه|هو ليه|ازاي|سبب|الحملات الشغالة|الحملات الشغاله|الحملات النشطة|الحملات النشطه)/i.test(text)) {
             if (!actions.some(a => a.action === 'UPDATE_STATUS')) {
                 actions.push({
@@ -983,8 +1002,16 @@ export function parseConversationalCampaignCommand(rawText = '') {
     }
 
     // 3. أمر تعديل الميزانية (Budget)
-    if (/(?:ميزان|ميزانية|ميزانيه|budget|صرف|فلوس|الميزانية|الميزانيه)/i.test(text)) {
-        const allNums = textWithoutId.match(/\b\d+(?:\.\d+)?\b/g) || [];
+    const hasExplicitBudgetWord = /(?:ميزان|ميزانية|ميزانيه|budget|صرف|فلوس|الميزانية|الميزانيه)/i.test(text);
+    const hasBudgetAdjustVerb = hasArabicWord(text, 'زود|زودها|زودلي|ارفع|ارفعها|علي|عليها|قلل|قللها|نزل|نزلها') &&
+        !hasArabicWord(text, 'مدة|مدتها|المدة|يوم|ايام|أيام|اسبوع|أسبوع|شهر|سن|السن|عمر|العمر');
+    const hasCurrencyBudgetHint = /(?<!\d)\d+(?:\.\d+)?\s*(?:جنيه|جنيها|ج\.?\s*م|egp|ج)(?=$|[\s،,.!؟])/i.test(textWithoutId) &&
+        !/(?:يوم|ايام|أيام|اسبوع|أسبوع|شهر|ال?سن|ال?عمر|ال?منطقة|مناطق|اهتمام|الاسم|تسمية)/i.test(textWithoutId);
+    const hasDirectSetBudgetHint = hasArabicWord(textWithoutId, 'خليها|خليه|خلي|ثبتها|ثبت') &&
+        /(?<!\d)\d{2,6}(?!\d)/.test(textWithoutId) &&
+        !/(?:ال?سن|ال?عمر|ال?نوع|ذكر|انثى|أنثى|رجا?ل|ستات|حريم|شباب|بنات|الكل|الجميع|يوم|ايام|أيام|اسبوع|أسبوع|شهر|من\s*\d+\s*(?:ل|إلى|الى|حتى)|مناطق|محافظات|اهتمامات|اسم)/i.test(textWithoutId);
+    if (hasExplicitBudgetWord || hasBudgetAdjustVerb || hasCurrencyBudgetHint || hasDirectSetBudgetHint) {
+        const allNums = textWithoutId.match(/(?<![0-9.])\d+(?:\.\d+)?(?![0-9.])/g) || [];
         const budgetNumStr = allNums.find(n => Number(n) >= 10 && Number(n) <= 500000);
         if (budgetNumStr) {
             const isLifetime = /(كلي|إجمالي|اجمالي|إجمالية|اجمالية|lifetime)/i.test(text);
@@ -1000,8 +1027,10 @@ export function parseConversationalCampaignCommand(rawText = '') {
         }
     }
 
-    // 4. أمر تمديد الحملة (Extend)
-    if (/(?:تمديد|مد|مدلي|مدها|طول|طولها|طولي|زود مدة|زودلي|زود مدتها|مدد|extend)/i.test(text) && !/(?:ميزان|ميزانية|ميزانيه|فلوس)/i.test(text)) {
+    // 4. أمر تمديد الحملة (Extend) - مطابقة بحدود كلمات عربية لمنع تطابق "مد" داخل أسماء مثل "أحمد"
+    const hasExtendWord = hasArabicWord(text, '(?:و)?(?:تمديد|مد|مدد|مدلي|مدها|طول|طولها|طولي|extend)') ||
+        /(?:زود\s*مدة|زود\s*مدتها|زودلي\s*مدة|زود\s*المدة)/i.test(text);
+    if (hasExtendWord && !/(?:ميزان|ميزانية|ميزانيه|فلوس)/i.test(text)) {
         let days = null;
         if (/(?:اسبوعين|أسبوعين)/i.test(text)) days = 14;
         else if (/(?:اسبوع|أسبوع)/i.test(text)) days = 7;
@@ -1009,7 +1038,7 @@ export function parseConversationalCampaignCommand(rawText = '') {
         else if (/(?:يومين)/i.test(text)) days = 2;
         else if (/(?:يوم واحد|يوم(?:\s|$))/i.test(text) && !/\d+\s*يوم/.test(text)) days = 1;
         else {
-            const allNums = textWithoutId.match(/\b\d+\b/g) || [];
+            const allNums = textWithoutId.match(/(?<!\d)\d+(?!\d)/g) || [];
             const dayNumStr = allNums.find(n => Number(n) >= 1 && Number(n) <= 365);
             if (dayNumStr) days = parseInt(dayNumStr, 10);
         }
@@ -1044,7 +1073,7 @@ export function parseConversationalCampaignCommand(rawText = '') {
     }
 
     // 7. تعديل السن (Age)
-    if (/(?:سن|عمر|السن|العمر|age)/i.test(text)) {
+    if (hasArabicWord(text, '(?:ال|و|ب)?(?:سن|عمر)|age')) {
         // يدعم: من 25 حتي 50 / من 25 حتى 50 / 25 لحد 50 / 25 لغاية 50 / 25 لـ 50 / 25 الى 50 / 25-50 / 25 50
         const ageMatch = textWithoutId.match(/(?:(?:سن|عمر|السن|العمر|age)[^\d]*?)?(?:من\s*)?(\d{2})\s*(?:-|–|—|الى|إلى|حتي|حتى|لحد|لغاية|لـ|ل|و)\s*(\d{2})(?:\s*سنة|\s*سنه)?/i);
         if (ageMatch) {
@@ -1068,7 +1097,7 @@ export function parseConversationalCampaignCommand(rawText = '') {
     }
 
     // 8. تعديل النوع (Gender)
-    if (/(?:نوع|جنس|النوع|الجنس|gender)/i.test(text)) {
+    if (hasArabicWord(text, '(?:ال|و)?(?:نوع|جنس)|gender')) {
         let mappedGender = null;
         let genderLabel = '';
         if (/(?:رجال|ذكور|men|رجالة|شباب|ذكور فقط|رجال فقط)/i.test(text)) {
@@ -1096,7 +1125,7 @@ export function parseConversationalCampaignCommand(rawText = '') {
     }
 
     // 9. تعديل المناطق والمحافظات (Regions)
-    if (/(?:مناطق|محافظات|المناطق|المحافظات|مدن|منطقة)/i.test(text)) {
+    if (hasArabicWord(text, '(?:ال)?(?:مناطق|محافظات|مدن|منطقة)')) {
         let cleanText = textWithoutId;
         cleanText = cleanText.replace(/.*?(?:مناطق|محافظات|مدن|منطقة)\s*(?:خليهم|خليها|هي|هو|تكون|يكون|لـ|إلى|الى)?\s*[:=]?/i, ' ');
         cleanText = cleanText.replace(/(?:الحملة|حمله|دي|رقم)\s*/gi, ' ').trim();
@@ -1116,7 +1145,7 @@ export function parseConversationalCampaignCommand(rawText = '') {
     }
 
     // 10. تعديل الاهتمامات (Interests)
-    if (/(?:اهتمامات|اهتمام|الاهتمامات|interests)/i.test(text)) {
+    if (hasArabicWord(text, '(?:ال)?(?:اهتمامات|اهتمام)|interests')) {
         let cleanText = textWithoutId;
         cleanText = cleanText.replace(/.*?(?:اهتمامات|اهتمام|الاهتمامات)\s*(?:خليهم|خليها|هي|هو|تكون|يكون|لـ|إلى|الى)?\s*[:=]?/i, ' ');
         cleanText = cleanText.replace(/(?:الحملة|حمله|دي|رقم)\s*/gi, ' ').trim();
@@ -1137,7 +1166,7 @@ export function parseConversationalCampaignCommand(rawText = '') {
     }
 
     // 11. تغيير اسم الحملة (Rename)
-    if (/(?:اسم|تسمية|تسميه|غير اسم|تغيير اسم|سمي|rename)/i.test(text)) {
+    if (hasArabicWord(text, 'اسم|الاسم|تسمية|تسميه|سمي|سميها|rename') || /(?:غير اسم|تغيير اسم|غيري اسم)/i.test(text)) {
         let cleanText = textWithoutId;
         cleanText = cleanText.replace(/.*?(?:اسم|تسمية|تسميه|غير اسم|تغيير اسم|سمي|rename)\s*(?:الحملة|حمله|دي|رقم)?\s*(?:لـ|الى|إلى|خليه|خليها|باسم|هو)?\s*[:=]?/i, ' ');
         cleanText = cleanText.replace(/(?:الحملة|حمله|دي|رقم)\s*/gi, ' ').trim();
@@ -1191,27 +1220,408 @@ export function isCampaignManagementCommand(rawText = '') {
     return !!parseConversationalCampaignCommand(rawText);
 }
 
+// ذاكرة مؤقتة لحفظ حالة انتظار اختيار حملة داخل حساب إعلاني، وآخر الحملات النشطة المعروضة في كل جروب/شات
+export const pendingAccountCommandSessions = new Map();
+export const lastChatActiveCampaigns = new Map();
+const ACCOUNT_SELECTION_TTL_MS = 30 * 60 * 1000;
+
+const ARABIC_ORDINALS_MAP = [
+    { index: 1, regex: new RegExp(`${AR_SEP_START}(?:(?:الحملة|الحمله|الاعلان|الإعلان)\\s+)?(?:الأولى|الاولى|الأولي|الاولي|الأول|الاول)(?=$|[\\s،,.؟!])`, 'i') },
+    { index: 2, regex: new RegExp(`${AR_SEP_START}(?:(?:الحملة|الحمله|الاعلان|الإعلان)\\s+)?(?:الثانية|التانية|الثانيه|التانيه|الثاني|التاني)(?=$|[\\s،,.؟!])`, 'i') },
+    { index: 3, regex: new RegExp(`${AR_SEP_START}(?:(?:الحملة|الحمله|الاعلان|الإعلان)\\s+)?(?:الثالثة|التالتة|الثالثه|التالته|الثالث|التالت)(?=$|[\\s،,.؟!])`, 'i') },
+    { index: 4, regex: new RegExp(`${AR_SEP_START}(?:(?:الحملة|الحمله|الاعلان|الإعلان)\\s+)?(?:الرابعة|الرابعه|الرابع)(?=$|[\\s،,.؟!])`, 'i') },
+    { index: 5, regex: new RegExp(`${AR_SEP_START}(?:(?:الحملة|الحمله|الاعلان|الإعلان)\\s+)?(?:الخامسة|الخامسه|الخامس)(?=$|[\\s،,.؟!])`, 'i') },
+    { index: 6, regex: new RegExp(`${AR_SEP_START}(?:(?:الحملة|الحمله|الاعلان|الإعلان)\\s+)?(?:السادسة|السادسه|السادس)(?=$|[\\s،,.؟!])`, 'i') },
+    { index: 7, regex: new RegExp(`${AR_SEP_START}(?:(?:الحملة|الحمله|الاعلان|الإعلان)\\s+)?(?:السابعة|السابعه|السابع)(?=$|[\\s،,.؟!])`, 'i') },
+    { index: 8, regex: new RegExp(`${AR_SEP_START}(?:(?:الحملة|الحمله|الاعلان|الإعلان)\\s+)?(?:الثامنة|التامنة|الثامنه|التامنه|الثامن)(?=$|[\\s،,.؟!])`, 'i') },
+    { index: 9, regex: new RegExp(`${AR_SEP_START}(?:(?:الحملة|الحمله|الاعلان|الإعلان)\\s+)?(?:التاسعة|التاسعه|التاسع)(?=$|[\\s،,.؟!])`, 'i') },
+    { index: 10, regex: new RegExp(`${AR_SEP_START}(?:(?:الحملة|الحمله|الاعلان|الإعلان)\\s+)?(?:العاشرة|العاشره|العاشر)(?=$|[\\s،,.؟!])`, 'i') }
+];
+
+/**
+ * استرجاع جلسة انتظار اختيار الحملة إن لم تنتهِ صلاحيتها
+ */
+function getPendingAccountSession(remoteJid) {
+    if (!remoteJid) return null;
+    const session = pendingAccountCommandSessions.get(remoteJid);
+    if (!session) return null;
+    if (Date.now() - session.createdAt > ACCOUNT_SELECTION_TTL_MS) {
+        pendingAccountCommandSessions.delete(remoteJid);
+        return null;
+    }
+    return session;
+}
+
+/**
+ * استرجاع آخر قائمة حملات نشطة معروضة في الشات إن لم تنتهِ صلاحيتها
+ */
+function getLastChatCampaigns(remoteJid) {
+    if (!remoteJid) return null;
+    const entry = lastChatActiveCampaigns.get(remoteJid);
+    if (!entry) return null;
+    if (Date.now() - entry.updatedAt > ACCOUNT_SELECTION_TTL_MS) {
+        lastChatActiveCampaigns.delete(remoteJid);
+        return null;
+    }
+    return entry;
+}
+
+/**
+ * التحقق مما إذا كان خطأ Meta ناتجاً عن تمرير رقم حساب إعلاني أو معرف غير صالح للتعديل
+ */
+function isUnsupportedObjectError(errorMsg = '') {
+    const msg = String(errorMsg || '').toLowerCase();
+    return (
+        msg.includes('unsupported get request') ||
+        msg.includes('does not exist') ||
+        msg.includes('does not support this operation') ||
+        msg.includes('cannot be loaded due to missing permissions')
+    );
+}
+
+/**
+ * صياغة وصف مختصر ومفهوم للأمر المطلوب لعرضه في رسالة تأكيد اختيار الحملة
+ */
+function describeManagementAction(act) {
+    if (!act) return 'تنفيذ التعديل';
+    switch (act.action) {
+        case 'UPDATE_BUDGET':
+            return `تعديل الميزانية إلى ${act.amount}ج (${act.isLifetime ? 'إجمالي' : 'يومي'})`;
+        case 'UPDATE_STATUS':
+            return act.status === 'ACTIVE' ? 'تشغيل الحملة' : 'إيقاف الحملة';
+        case 'UPDATE_STOP_TIME':
+            if (act.extendDays) return `تمديد الحملة ${act.extendDays} يوم`;
+            if (act.stopTime === 'never') return 'جعل الحملة مستمرة بدون تاريخ انتهاء';
+            return `تعديل تاريخ الانتهاء إلى ${act.stopTime}`;
+        case 'UPDATE_TARGETING':
+            if (act.subType === 'age' && act.targeting) {
+                return `تعديل السن (${act.targeting.age_min} - ${act.targeting.age_max})`;
+            }
+            if (act.subType === 'gender') return `تعديل الجنس (${act.genderLabel || act.targeting?.gender})`;
+            if (act.subType === 'regions') return `تعديل المناطق (${act.regionsRaw})`;
+            if (act.subType === 'interests') return `تعديل الاهتمامات (${act.interestsRaw})`;
+            return 'تعديل الاستهداف';
+        case 'RENAME':
+            return `تغيير اسم الحملة إلى "${act.name}"`;
+        case 'DUPLICATE':
+            return 'نسخ الحملة (Duplicate)';
+        default:
+            return 'تنفيذ التعديل';
+    }
+}
+
+/**
+ * إذا أدخل المستخدم رقم حساب إعلاني عن طريق الخطأ، يتم جلب الحملات النشطة داخله وعرضها مرقمة للاختيار
+ */
+async function handleAccountIdFallbackIfApplicable({
+    sock,
+    remoteJid,
+    targetId,
+    errorMsg = '',
+    raw = '',
+    cmd = null,
+    skipErrorCheck = false
+}) {
+    if (!skipErrorCheck && !isUnsupportedObjectError(errorMsg)) {
+        return false;
+    }
+
+    const accountRes = await fetchCampaignsSummary({
+        account_id: targetId,
+        date_preset: 'today',
+        status_filter: 'ACTIVE',
+        force_refresh: true
+    });
+
+    if (!accountRes || !accountRes.success) {
+        return false;
+    }
+
+    const accountName = accountRes.summary?.account_name || accountRes.account?.name || '';
+    const activeCampaigns = (accountRes.campaigns || []).filter(isCampaignCurrentlyRunning);
+
+    lastChatActiveCampaigns.set(remoteJid, {
+        accountId: targetId,
+        accountName,
+        campaigns: activeCampaigns,
+        updatedAt: Date.now()
+    });
+
+    if (activeCampaigns.length === 0) {
+        pendingAccountCommandSessions.delete(remoteJid);
+        await sendGroupReply(sock, remoteJid, {
+            text: `⚠️ *تنبيه: الرقم \`${targetId}\` ده رقم حساب إعلاني${accountName ? ` (${accountName})` : ''}، مش معرف حملة!*\n\n` +
+                  `ℹ️ لا توجد حالياً أي حملات إعلانية *نشطة* داخل هذا الحساب للتعديل عليها.`
+        });
+        return true;
+    }
+
+    if (cmd && cmd.action && !cmd.action.startsWith('GUIDE_')) {
+        pendingAccountCommandSessions.set(remoteJid, {
+            accountId: targetId,
+            accountName,
+            activeCampaigns,
+            originalRawCommand: raw,
+            originalCmd: cmd,
+            createdAt: Date.now()
+        });
+    }
+
+    const badges = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
+    let msg = `⚠️ *تنبيه: الرقم \`${targetId}\` ده رقم حساب إعلاني${accountName ? ` (${accountName})` : ''}، مش معرف حملة!*\n\n`;
+    msg += `📋 *الحملات النشطة الموجودة فيه حالياً:*\n\n`;
+
+    activeCampaigns.forEach((camp, idx) => {
+        const num = idx + 1;
+        const badge = badges[idx] || `${num}.`;
+        const budgetStr = formatCampaignBudget(camp);
+        msg += `${badge} *حملة رقم ${num}:* ${camp.name || 'حملة بدون اسم'}\n`;
+        msg += `• المعرف: \`${camp.id}\`\n`;
+        if (budgetStr) {
+            msg += `• 💵 الميزانية الحالية: *${budgetStr}*\n`;
+        }
+        msg += `\n`;
+    });
+
+    const actionList = cmd?.actions?.length > 1
+        ? cmd.actions.map(describeManagementAction).join(' + ')
+        : describeManagementAction(cmd);
+
+    if (cmd && cmd.action && !cmd.action.startsWith('GUIDE_')) {
+        msg += `💡 *لتنفيذ طلبك (${actionList}):*\n`;
+        msg += `قولي رقم الحملة اللي تقصدها، مثلاً:\n`;
+        msg += `• "زود حملة رقم 1 ايوة" أو "حملة رقم 1" أو "1"\n`;
+        msg += `• أو ابعت الأمر بمعرف الحملة مباشرة: \`${activeCampaigns[0].id}\``;
+    } else {
+        msg += `💡 *للتحكم في أي حملة، قولي رقمها مباشرة مثل:*\n`;
+        msg += `• "ميزانية حملة رقم 1 خليها 500" 💵\n`;
+        msg += `• "وقف حملة رقم 1" ⏸️`;
+    }
+
+    await sendGroupReply(sock, remoteJid, { text: msg.trim() });
+    return true;
+}
+
+/**
+ * استخراج رقم الحملة الترتيبي من رد المستخدم ("حملة رقم 1" أو "الأولى" أو "1")
+ */
+function extractCampaignOrdinalSelection(normalizedText, totalCampaigns, allowBareNumber = false) {
+    // 1. صيغة صريحة: حملة رقم 1 / حملة 1 / رقم 1 / اعلان 2
+    const explicitMatch = normalizedText.match(/(?:(?:حملة|حمله|الحملة|الحمله|اعلان|إعلان|الاعلان|الإعلان)\s*(?:رقم|#)?\s*|رقم\s*)(\d{1,2})(?!\d)/i);
+    if (explicitMatch) {
+        return {
+            index: parseInt(explicitMatch[1], 10),
+            matchedText: explicitMatch[0]
+        };
+    }
+
+    // 2. صيغة ترتيب لفظية: الأولى / التانية / أول حملة
+    for (const ord of ARABIC_ORDINALS_MAP) {
+        const m = normalizedText.match(ord.regex);
+        if (m) {
+            return { index: ord.index, matchedText: m[0] };
+        }
+    }
+    const preNounOrd = normalizedText.match(/(?:^|\s)(اول|أول|تاني|ثاني|تالت|ثالث)\s*(?:حملة|حمله|اعلان|إعلان)(?=$|\s)/i);
+    if (preNounOrd) {
+        const word = preNounOrd[1];
+        const idx = /^(?:اول|أول)$/i.test(word) ? 1 : /^(?:تاني|ثاني)$/i.test(word) ? 2 : 3;
+        return { index: idx, matchedText: preNounOrd[0] };
+    }
+
+    // 3. رقم مفرد فقط عند وجود جلسة انتظار مفتوحة (تجنب مطابقة أيام أو مبالغ مالية)
+    if (allowBareNumber) {
+        const singleConfirmMatch = normalizedText.match(/^\s*(?:(?:ايوة|أيوه|ايوه|اه|آه|نعم|تمام|ماشي|موافق|نفذ|نفذي|طبق|اعمل|اعملها|زود|زودها|ارفع|قلل|وقف|وقفها|شغل|شغلها|مد|غير|عدل|اسم|yes|ok)\s+)?(\d{1,2})(?!\d)(?!(?:\s*(?:يوم|ايام|أيام|اسبوع|أسبوع|اسبوعين|شهر|شهور|سنة|سنه|ساعة|ساعات|دقيقة|ج|جنيه|EGP)))(?:\s+(?:ايوة|أيوه|ايوه|اه|آه|نعم|تمام|ماشي|موافق))?\s*$/i);
+        if (singleConfirmMatch) {
+            const n = parseInt(singleConfirmMatch[1], 10);
+            if (n >= 1 && n <= totalCampaigns) {
+                return { index: n, matchedText: singleConfirmMatch[1] };
+            }
+        }
+    }
+
+    return null;
+}
+
+/**
+ * معالجة ردود اختيار الحملة بالترتيب ("زود حملة رقم 1 ايوة" / "وقف حملة رقم 2" / "1")
+ */
+async function handleOrdinalCampaignSelectionCommand({ sock, remoteJid, raw }) {
+    const normalizedRaw = normalizeArabicDigits(String(raw || '').trim()).replace(/[`*~_]/g, ' ');
+    if (!normalizedRaw || /\d{6,25}/.test(normalizedRaw)) {
+        return false;
+    }
+
+    const pending = getPendingAccountSession(remoteJid);
+    const lastList = getLastChatCampaigns(remoteJid);
+    const activeCampaigns = pending?.activeCampaigns || lastList?.campaigns || [];
+
+    if (activeCampaigns.length === 0) {
+        return false;
+    }
+
+    const selection = extractCampaignOrdinalSelection(normalizedRaw, activeCampaigns.length, !!pending);
+    if (!selection) {
+        return false;
+    }
+
+    if (selection.index < 1 || selection.index > activeCampaigns.length) {
+        await sendGroupReply(sock, remoteJid, {
+            text: `⚠️ الحملة رقم ${selection.index} غير موجودة يا فندم.\nالحملات النشطة المتاحة حالياً عددها *${activeCampaigns.length}* (اختر من 1 إلى ${activeCampaigns.length}).`
+        });
+        return true;
+    }
+
+    const selectedCamp = activeCampaigns[selection.index - 1];
+    const replacedWithRealId = normalizedRaw.replace(selection.matchedText, ` ${selectedCamp.id} `).trim();
+    const freshCmd = parseConversationalCampaignCommand(replacedWithRealId);
+    const hasFreshExecutableAction = !!(freshCmd && freshCmd.actions && freshCmd.actions.some(a => !a.action.startsWith('GUIDE_')));
+
+    if (hasFreshExecutableAction) {
+        if (pending) pendingAccountCommandSessions.delete(remoteJid);
+        return await executeParsedCampaignCommand({
+            sock,
+            remoteJid,
+            raw: replacedWithRealId,
+            cmd: freshCmd,
+            campaignDisplayName: selectedCamp.name
+        });
+    }
+
+    // إذا كان هناك أمر معلق بانتظار تحديد الحملة (مثل: "ميزانية الحملة [رقم الحساب] خليها 500" ثم رد "زود حملة رقم 1 ايوة")
+    if (pending && pending.originalCmd) {
+        const clonedActions = (pending.originalCmd.actions || []).map(act => ({ ...act }));
+        const remainderWithoutRef = normalizedRaw.replace(selection.matchedText, ' ').trim();
+
+        // السماح بتعديل المبلغ مباشرة أثناء الاختيار مثل "حملة رقم 1 خليها 600"
+        if (pending.originalCmd.action === 'UPDATE_BUDGET') {
+            const extraNums = remainderWithoutRef.match(/(?<![0-9.])\d+(?:\.\d+)?(?![0-9.])/g) || [];
+            const overrideBudget = extraNums.find(n => Number(n) >= 10 && Number(n) <= 500000);
+            if (overrideBudget) {
+                const budgetAct = clonedActions.find(a => a.action === 'UPDATE_BUDGET');
+                if (budgetAct) budgetAct.amount = overrideBudget;
+            }
+        }
+
+        const cmdToExecute = {
+            ...pending.originalCmd,
+            campaignId: selectedCamp.id,
+            actions: clonedActions,
+            ...(clonedActions[0] || {})
+        };
+
+        pendingAccountCommandSessions.delete(remoteJid);
+        return await executeParsedCampaignCommand({
+            sock,
+            remoteJid,
+            raw: pending.originalRawCommand,
+            cmd: cmdToExecute,
+            campaignDisplayName: selectedCamp.name
+        });
+    }
+
+    // إذا تم كتابة أمر غير مكتمل على حملة رقم X بدون أمر معلق (مثل "زود حملة رقم 1")، نعرض الإرشاد بالمعرف الفعلي
+    if (freshCmd) {
+        return await executeParsedCampaignCommand({
+            sock,
+            remoteJid,
+            raw: replacedWithRealId,
+            cmd: freshCmd,
+            campaignDisplayName: selectedCamp.name
+        });
+    }
+
+    return false;
+}
+
+/**
+ * دالة موحدة لمعالجة فشل أمر الإدارة والتحقق أولاً إن كان المعرف حساباً إعلانياً
+ */
+async function handleManageApiFailure({ sock, remoteJid, campaignId, errorMsg, failureTitle, raw, cmd, customErrorFormatter = null }) {
+    const handledAsAccount = await handleAccountIdFallbackIfApplicable({
+        sock,
+        remoteJid,
+        targetId: campaignId,
+        errorMsg,
+        raw,
+        cmd
+    });
+    if (handledAsAccount) return true;
+
+    let errorText = errorMsg || 'حدث خطأ في Meta API';
+    if (customErrorFormatter) {
+        errorText = customErrorFormatter(errorText);
+    }
+    await sendGroupReply(sock, remoteJid, {
+        text: `❌ *${failureTitle}:*\n${errorText}`
+    });
+    return true;
+}
+
+/**
+ * تنسيق سطر التعريف بالحملة في ردود التنفيذ
+ */
+function formatCampaignRefLine(campaignId, campaignDisplayName = '', label = 'المعرف') {
+    return campaignDisplayName
+        ? `📌 *الحملة:* ${campaignDisplayName} (\`${campaignId}\`)`
+        : `📌 *${label}:* \`${campaignId}\``;
+}
+
 /**
  * معالجة أوامر التحكم السريع بالحملات الإعلانية من الواتساب
  * بأسلوب الميديا باير الطبيعي (إيقاف، تشغيل، تعديل ميزانية، تمديد، ضبط السن، النوع، المناطق، الاهتمامات، تغيير الاسم، نسخ الحملة)
- * مع دعم كامل للأوامر المركبة (Compound Commands)
+ * مع دعم كامل للأوامر المركبة (Compound Commands) واختيار الحملة من رقم الحساب الإعلاني
  */
 export async function handleCampaignManagementCommand({ sock, remoteJid, raw, senderPhone }) {
+    // 1. فحص ما إذا كان المستخدم يختار حملة بالترتيب ("زود حملة رقم 1 ايوة" / "حملة رقم 1" / "1")
+    const handledOrdinal = await handleOrdinalCampaignSelectionCommand({ sock, remoteJid, raw });
+    if (handledOrdinal) {
+        return true;
+    }
+
+    // 2. تحليل الأمر المباشر بالمعرف
     const cmd = parseConversationalCampaignCommand(raw);
     if (!cmd) {
         return false;
     }
 
+    return await executeParsedCampaignCommand({ sock, remoteJid, raw, cmd });
+}
+
+/**
+ * تنفيذ أمر إدارة حملة تم تحليله مسبقاً، مع التحويل التلقائي لعرض حملات الحساب إذا كان المعرف رقم حساب إعلاني
+ */
+async function executeParsedCampaignCommand({ sock, remoteJid, raw, cmd, campaignDisplayName = '' }) {
     const { campaignId, action } = cmd;
+
+    // إذا كان المعرف معروفاً مسبقاً كرقم حساب إعلاني (أو سبقه كلمة حساب/act_)، نعرض حملاته النشطة فوراً
+    const idMeta = extractAdIdentifiers(raw);
+    const cachedAccount = getLastChatCampaigns(remoteJid);
+    const isKnownAccount = (idMeta?.type === 'account' && idMeta.id === campaignId) ||
+                           (cachedAccount?.accountId === campaignId);
+    if (isKnownAccount && action && !action.startsWith('GUIDE_')) {
+        const handledImmediately = await handleAccountIdFallbackIfApplicable({
+            sock,
+            remoteJid,
+            targetId: campaignId,
+            errorMsg: '',
+            raw,
+            cmd,
+            skipErrorCheck: true
+        });
+        if (handledImmediately) return true;
+    }
 
     // معالجة الأوامر المركبة (Compound Commands) عندما يطلب المستخدم أكثر من إجراء في نفس الرسالة
     if (cmd.actions && cmd.actions.length > 1) {
         await sendGroupReply(sock, remoteJid, { text: `⏳ جاري تنفيذ الأوامر المطلوبة للحملة \`${campaignId}\`...` });
 
         const results = [];
-        for (const act of cmd.actions) {
+        for (let i = 0; i < cmd.actions.length; i++) {
+            const act = cmd.actions[i];
+            let res = null;
             if (act.action === 'UPDATE_STATUS') {
-                const res = await callManageCampaignApi({
+                res = await callManageCampaignApi({
                     action: 'UPDATE_STATUS',
                     target_id: campaignId,
                     status: act.status
@@ -1221,6 +1631,9 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
                         ? '✅ *الحالة:* نشطة'
                         : '✅ *الحالة:* متوقفة');
                 } else {
+                    if (i === 0 && await handleAccountIdFallbackIfApplicable({ sock, remoteJid, targetId: campaignId, errorMsg: res.error, raw, cmd })) {
+                        return true;
+                    }
                     results.push(`❌ *الحالة:* تعذر تغيير الحالة (${res.error || 'خطأ في Meta API'})`);
                 }
             } else if (act.action === 'UPDATE_BUDGET') {
@@ -1233,15 +1646,18 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
                 } else {
                     payload.daily_budget = act.amount;
                 }
-                const res = await callManageCampaignApi(payload);
+                res = await callManageCampaignApi(payload);
                 if (res.success) {
                     results.push(`✅ *الميزانية:* تم ضبطها إلى ${res.budget_formatted || `${act.amount} ج.م`} (${res.budget_type || (act.isLifetime ? 'إجمالية' : 'يومية')})`);
                 } else {
+                    if (i === 0 && await handleAccountIdFallbackIfApplicable({ sock, remoteJid, targetId: campaignId, errorMsg: res.error, raw, cmd })) {
+                        return true;
+                    }
                     results.push(`❌ *الميزانية:* تعذر تعديل الميزانية (${res.error || 'خطأ في Meta API'})`);
                 }
             } else if (act.action === 'UPDATE_STOP_TIME') {
                 if (act.extendDays) {
-                    const res = await callManageCampaignApi({
+                    res = await callManageCampaignApi({
                         action: 'UPDATE_STOP_TIME',
                         target_id: campaignId,
                         extend_days: act.extendDays
@@ -1249,10 +1665,13 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
                     if (res.success) {
                         results.push(`✅ *المدة:* تم تمديد الحملة بمقدار ${act.extendDays} يوم`);
                     } else {
+                        if (i === 0 && await handleAccountIdFallbackIfApplicable({ sock, remoteJid, targetId: campaignId, errorMsg: res.error, raw, cmd })) {
+                            return true;
+                        }
                         results.push(`❌ *المدة:* تعذر تمديد الحملة (${res.error || 'خطأ في Meta API'})`);
                     }
                 } else if (act.stopTime === 'never') {
-                    const res = await callManageCampaignApi({
+                    res = await callManageCampaignApi({
                         action: 'UPDATE_STOP_TIME',
                         target_id: campaignId,
                         stop_time: 'never'
@@ -1260,10 +1679,13 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
                     if (res.success) {
                         results.push(`✅ *تاريخ الانتهاء:* الحملة الآن مستمرة بدون تاريخ انتهاء`);
                     } else {
+                        if (i === 0 && await handleAccountIdFallbackIfApplicable({ sock, remoteJid, targetId: campaignId, errorMsg: res.error, raw, cmd })) {
+                            return true;
+                        }
                         results.push(`❌ *تاريخ الانتهاء:* تعذر التحديث (${res.error || 'خطأ في Meta API'})`);
                     }
                 } else if (act.stopTime) {
-                    const res = await callManageCampaignApi({
+                    res = await callManageCampaignApi({
                         action: 'UPDATE_STOP_TIME',
                         target_id: campaignId,
                         stop_time: act.stopTime
@@ -1271,13 +1693,16 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
                     if (res.success) {
                         results.push(`✅ *تاريخ الانتهاء:* تم الضبط إلى ${act.stopTime}`);
                     } else {
+                        if (i === 0 && await handleAccountIdFallbackIfApplicable({ sock, remoteJid, targetId: campaignId, errorMsg: res.error, raw, cmd })) {
+                            return true;
+                        }
                         results.push(`❌ *تاريخ الانتهاء:* تعذر التحديث (${res.error || 'خطأ في Meta API'})`);
                     }
                 }
             } else if (act.action === 'UPDATE_TARGETING') {
                 const targeting = act.targeting;
                 if (targeting.age_min) {
-                    const res = await callManageCampaignApi({
+                    res = await callManageCampaignApi({
                         action: 'UPDATE_TARGETING',
                         target_id: campaignId,
                         targeting: {
@@ -1288,6 +1713,9 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
                     if (res.success) {
                         results.push(`✅ *السن:* تم ضبط الفئة العمرية من ${targeting.age_min} إلى ${targeting.age_max} سنة`);
                     } else {
+                        if (i === 0 && await handleAccountIdFallbackIfApplicable({ sock, remoteJid, targetId: campaignId, errorMsg: res.error, raw, cmd })) {
+                            return true;
+                        }
                         let errorText = res.error || 'خطأ في Meta API';
                         if (errorText.includes('Advantage') || errorText.includes('1359202')) {
                             errorText = 'الحملة تستخدم Advantage+ Audience وميتا تمنع تعديل السن يدوياً عبر الـ API';
@@ -1295,7 +1723,7 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
                         results.push(`❌ *السن:* ${errorText}`);
                     }
                 } else if (targeting.gender) {
-                    const res = await callManageCampaignApi({
+                    res = await callManageCampaignApi({
                         action: 'UPDATE_TARGETING',
                         target_id: campaignId,
                         targeting: { gender: targeting.gender }
@@ -1303,10 +1731,13 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
                     if (res.success) {
                         results.push(`✅ *الجنس:* تم التحديد إلى (${act.genderLabel})`);
                     } else {
+                        if (i === 0 && await handleAccountIdFallbackIfApplicable({ sock, remoteJid, targetId: campaignId, errorMsg: res.error, raw, cmd })) {
+                            return true;
+                        }
                         results.push(`❌ *الجنس:* ${res.error || 'خطأ في Meta API'}`);
                     }
                 } else if (targeting.regions) {
-                    const res = await callManageCampaignApi({
+                    res = await callManageCampaignApi({
                         action: 'UPDATE_TARGETING',
                         target_id: campaignId,
                         targeting: { regions: targeting.regions }
@@ -1314,10 +1745,13 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
                     if (res.success) {
                         results.push(`✅ *المناطق:* تم الضبط إلى (${act.regionsRaw})`);
                     } else {
+                        if (i === 0 && await handleAccountIdFallbackIfApplicable({ sock, remoteJid, targetId: campaignId, errorMsg: res.error, raw, cmd })) {
+                            return true;
+                        }
                         results.push(`❌ *المناطق:* ${res.error || 'خطأ في Meta API'}`);
                     }
                 } else if (targeting.interests) {
-                    const res = await callManageCampaignApi({
+                    res = await callManageCampaignApi({
                         action: 'UPDATE_TARGETING',
                         target_id: campaignId,
                         targeting: { interests: targeting.interests }
@@ -1325,11 +1759,14 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
                     if (res.success) {
                         results.push(`✅ *الاهتمامات:* تم الضبط إلى (${act.interestsRaw})`);
                     } else {
+                        if (i === 0 && await handleAccountIdFallbackIfApplicable({ sock, remoteJid, targetId: campaignId, errorMsg: res.error, raw, cmd })) {
+                            return true;
+                        }
                         results.push(`❌ *الاهتمامات:* ${res.error || 'خطأ في Meta API'}`);
                     }
                 }
             } else if (act.action === 'RENAME') {
-                const res = await callManageCampaignApi({
+                res = await callManageCampaignApi({
                     action: 'RENAME',
                     target_id: campaignId,
                     name: act.name
@@ -1337,6 +1774,9 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
                 if (res.success) {
                     results.push(`✅ *الاسم:* تم تغيير اسم الحملة إلى "${act.name}"`);
                 } else {
+                    if (i === 0 && await handleAccountIdFallbackIfApplicable({ sock, remoteJid, targetId: campaignId, errorMsg: res.error, raw, cmd })) {
+                        return true;
+                    }
                     results.push(`❌ *الاسم:* تعذر تغيير الاسم (${res.error || 'خطأ في Meta API'})`);
                 }
             }
@@ -1347,7 +1787,7 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
             ? `✅ *تمام يا فندم، تم تنفيذ جميع الأوامر بنجاح!*`
             : `⚠️ *تم تنفيذ بعض الأوامر مع وجود تنبيهات:*`;
 
-        let summaryMsg = `${title}\n\n📌 *المعرف:* \`${campaignId}\`\n\n`;
+        let summaryMsg = `${title}\n\n${formatCampaignRefLine(campaignId, campaignDisplayName)}\n\n`;
         summaryMsg += results.join('\n') + '\n\n';
         summaryMsg += `💡 *جاهز لأي تعديل إضافي تحتاجه يا فندم!* 🚀`;
 
@@ -1454,16 +1894,16 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
         if (res.success) {
             await sendGroupReply(sock, remoteJid, {
                 text: `✅ *تمام يا فندم، وقفتلك الحملة بنجاح!*\n\n` +
-                      `📌 *المعرف:* \`${campaignId}\`\n` +
+                      `${formatCampaignRefLine(campaignId, campaignDisplayName)}\n` +
                       `📊 *الحالة الجديدة:* متوقفة\n\n` +
                       `💡 *لو حابب تشغلها في أي وقت:* قولي "شغل الحملة ${campaignId}" 🟢`
             });
-        } else {
-            await sendGroupReply(sock, remoteJid, {
-                text: `❌ *تعذر إيقاف الحملة:*\n${res.error || 'حدث خطأ غير متوقع في Meta API'}`
-            });
+            return true;
         }
-        return true;
+        return await handleManageApiFailure({
+            sock, remoteJid, campaignId, errorMsg: res.error,
+            failureTitle: 'تعذر إيقاف الحملة', raw, cmd
+        });
     }
 
     // 2. أمر تشغيل الحملة
@@ -1477,16 +1917,16 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
         if (res.success) {
             await sendGroupReply(sock, remoteJid, {
                 text: `✅ *تمام يا فندم، شغلتلك الحملة بنجاح!*\n\n` +
-                      `📌 *المعرف:* \`${campaignId}\`\n` +
+                      `${formatCampaignRefLine(campaignId, campaignDisplayName)}\n` +
                       `📊 *الحالة الجديدة:* نشطة\n\n` +
                       `💡 *للإيقاف المؤقت:* قولي "وقف الحملة ${campaignId}" ⏸️`
             });
-        } else {
-            await sendGroupReply(sock, remoteJid, {
-                text: `❌ *تعذر تشغيل الحملة:*\n${res.error || 'حدث خطأ غير متوقع في Meta API'}`
-            });
+            return true;
         }
-        return true;
+        return await handleManageApiFailure({
+            sock, remoteJid, campaignId, errorMsg: res.error,
+            failureTitle: 'تعذر تشغيل الحملة', raw, cmd
+        });
     }
 
     // 3. أمر تعديل الميزانية
@@ -1509,16 +1949,16 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
         if (res.success) {
             await sendGroupReply(sock, remoteJid, {
                 text: `✅ *تمام يا فندم، عدلتلك ميزانية الحملة بنجاح!*\n\n` +
-                      `📌 *المعرف:* \`${campaignId}\`\n` +
+                      `${formatCampaignRefLine(campaignId, campaignDisplayName)}\n` +
                       `💰 *الميزانية الجديدة:* ${res.budget_formatted || `${budgetAmount} ج.م`}\n` +
                       `📊 *النوع:* ${res.budget_type || (isLifetime ? 'إجمالية' : 'يومية')}`
             });
-        } else {
-            await sendGroupReply(sock, remoteJid, {
-                text: `❌ *فشل تعديل الميزانية:*\n${res.error || 'حدث خطأ في Meta API'}`
-            });
+            return true;
         }
-        return true;
+        return await handleManageApiFailure({
+            sock, remoteJid, campaignId, errorMsg: res.error,
+            failureTitle: 'فشل تعديل الميزانية', raw, cmd
+        });
     }
 
     // 4. أمر تمديد الحملة أو تاريخ الانتهاء
@@ -1536,16 +1976,16 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
             if (res.success) {
                 await sendGroupReply(sock, remoteJid, {
                     text: `✅ *تمام يا فندم، مددتلك فترة الحملة بنجاح!*\n\n` +
-                          `📌 *المعرف:* \`${campaignId}\`\n` +
+                          `${formatCampaignRefLine(campaignId, campaignDisplayName)}\n` +
                           `➕ *المدة المضافة:* ${days} يوم\n` +
                           `🏁 *النتيجة:* ${res.message || 'تم تمديد موعد انتهاء الحملة بنجاح'}`
                 });
-            } else {
-                await sendGroupReply(sock, remoteJid, {
-                    text: `❌ *فشل تمديد الحملة:*\n${res.error || 'حدث خطأ في Meta API'}`
-                });
+                return true;
             }
-            return true;
+            return await handleManageApiFailure({
+                sock, remoteJid, campaignId, errorMsg: res.error,
+                failureTitle: 'فشل تمديد الحملة', raw, cmd
+            });
         }
 
         if (cmd.stopTime === 'never') {
@@ -1560,15 +2000,15 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
             if (res.success) {
                 await sendGroupReply(sock, remoteJid, {
                     text: `✅ *تمام يا فندم، الحملة الآن تعمل بشكل مستمر بدون تاريخ انتهاء!*\n\n` +
-                          `📌 *المعرف:* \`${campaignId}\`\n` +
+                          `${formatCampaignRefLine(campaignId, campaignDisplayName)}\n` +
                           `الحملة ستستمر بالعمل حتى تقوم بإيقافها في أي وقت.`
                 });
-            } else {
-                await sendGroupReply(sock, remoteJid, {
-                    text: `❌ *فشل تحديث الحملة:*\n${res.error || 'حدث خطأ في Meta API'}`
-                });
+                return true;
             }
-            return true;
+            return await handleManageApiFailure({
+                sock, remoteJid, campaignId, errorMsg: res.error,
+                failureTitle: 'فشل تحديث الحملة', raw, cmd
+            });
         }
 
         if (cmd.stopTime) {
@@ -1583,19 +2023,28 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
             if (res.success) {
                 await sendGroupReply(sock, remoteJid, {
                     text: `✅ *تمام يا فندم، تم تحديث موعد الانتهاء بنجاح!*\n\n` +
-                          `📌 *المعرف:* \`${campaignId}\`\n` +
+                          `${formatCampaignRefLine(campaignId, campaignDisplayName)}\n` +
                           `🏁 ${res.message}`
                 });
-            } else {
-                await sendGroupReply(sock, remoteJid, {
-                    text: `❌ *فشل تحديث تاريخ الانتهاء:*\n${res.error || 'حدث خطأ في Meta API'}`
-                });
+                return true;
             }
-            return true;
+            return await handleManageApiFailure({
+                sock, remoteJid, campaignId, errorMsg: res.error,
+                failureTitle: 'فشل تحديث تاريخ الانتهاء', raw, cmd
+            });
         }
     }
 
     // 5. تعديل الاستهداف
+    const advantageFormatter = (fieldLabel) => (errorText) => {
+        if (errorText.includes('Advantage') || errorText.includes('1359202')) {
+            return `⚠️ *تنبيه من ميتا (Meta):*\n` +
+                   `الحملة دي معمولة بنظام *(Advantage+ Audience)*، وسياسة ميتا بتمنع تعديل ${fieldLabel} يدوياً عبر الـ API للحملات التي تعتمد على جمهور Advantage+ الذكي.\n\n` +
+                   `💡 *الحل المقترح:* يرجى تعديلها من داخل مدير إعلانات ميتا (Ads Manager) مباشرة.`;
+        }
+        return errorText;
+    };
+
     if (action === 'UPDATE_TARGETING') {
         const targeting = cmd.targeting;
         if (targeting.age_min) {
@@ -1613,21 +2062,16 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
             if (res.success) {
                 await sendGroupReply(sock, remoteJid, {
                     text: `✅ *تمام يا فندم، تم تحديث الفئة العمرية بنجاح!*\n\n` +
-                          `📌 *المعرف:* \`${campaignId}\`\n` +
+                          `${formatCampaignRefLine(campaignId, campaignDisplayName)}\n` +
                           `👥 *السن المحدث:* من ${targeting.age_min} إلى ${targeting.age_max} سنة`
                 });
-            } else {
-                let errorText = res.error || 'حدث خطأ في Meta API';
-                if (errorText.includes('Advantage') || errorText.includes('1359202')) {
-                    errorText = `⚠️ *تنبيه من ميتا (Meta):*\n` +
-                                `الحملة دي معمولة بنظام *(Advantage+ Audience)*، وسياسة ميتا بتمنع تعديل السن أو الاستهداف يدوياً عبر الـ API للحملات التي تعتمد على جمهور Advantage+ الذكي.\n\n` +
-                                `💡 *الحل المقترح:* لتعديل السن، يمكنك تعديلها مباشرة من داخل مدير إعلانات ميتا (Ads Manager)، أو عمل حملة جديدة بدون تفعيل Advantage+ لتخصيص الاستهداف يدوي بالكامل.`;
-                }
-                await sendGroupReply(sock, remoteJid, {
-                    text: `❌ *فشل تحديث الاستهداف:*\n${errorText}`
-                });
+                return true;
             }
-            return true;
+            return await handleManageApiFailure({
+                sock, remoteJid, campaignId, errorMsg: res.error,
+                failureTitle: 'فشل تحديث الاستهداف', raw, cmd,
+                customErrorFormatter: advantageFormatter('السن أو الاستهداف')
+            });
         }
 
         if (targeting.gender) {
@@ -1644,21 +2088,16 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
             if (res.success) {
                 await sendGroupReply(sock, remoteJid, {
                     text: `✅ *تمام يا فندم، تم تحديث استهداف الجنس بنجاح!*\n\n` +
-                          `📌 *المعرف:* \`${campaignId}\`\n` +
+                          `${formatCampaignRefLine(campaignId, campaignDisplayName)}\n` +
                           `👥 *الجنس المستهدف:* ${cmd.genderLabel}`
                 });
-            } else {
-                let errorText = res.error || 'حدث خطأ في Meta API';
-                if (errorText.includes('Advantage') || errorText.includes('1359202')) {
-                    errorText = `⚠️ *تنبيه من ميتا (Meta):*\n` +
-                                `الحملة دي معمولة بنظام *(Advantage+ Audience)*، وسياسة ميتا بتمنع تعديل النوع يدوياً عبر الـ API للحملات التي تعتمد على جمهور Advantage+ الذكي.\n\n` +
-                                `💡 *الحل المقترح:* يرجى تعديلها من داخل مدير إعلانات ميتا (Ads Manager) مباشرة.`;
-                }
-                await sendGroupReply(sock, remoteJid, {
-                    text: `❌ *فشل تحديث استهداف الجنس:*\n${errorText}`
-                });
+                return true;
             }
-            return true;
+            return await handleManageApiFailure({
+                sock, remoteJid, campaignId, errorMsg: res.error,
+                failureTitle: 'فشل تحديث استهداف الجنس', raw, cmd,
+                customErrorFormatter: advantageFormatter('النوع')
+            });
         }
 
         if (targeting.regions) {
@@ -1675,21 +2114,16 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
             if (res.success) {
                 await sendGroupReply(sock, remoteJid, {
                     text: `✅ *تمام يا فندم، تم تحديث المناطق المستهدفة بنجاح!*\n\n` +
-                          `📌 *المعرف:* \`${campaignId}\`\n` +
+                          `${formatCampaignRefLine(campaignId, campaignDisplayName)}\n` +
                           `🗺️ *المناطق المحددة:* ${cmd.regionsRaw}`
                 });
-            } else {
-                let errorText = res.error || 'حدث خطأ في Meta API';
-                if (errorText.includes('Advantage') || errorText.includes('1359202')) {
-                    errorText = `⚠️ *تنبيه من ميتا (Meta):*\n` +
-                                `الحملة دي معمولة بنظام *(Advantage+ Audience)*، وسياسة ميتا بتمنع تعديل المناطق يدوياً عبر الـ API للحملات دي.\n\n` +
-                                `💡 *الحل المقترح:* يرجى تعديلها من داخل مدير إعلانات ميتا (Ads Manager) مباشرة.`;
-                }
-                await sendGroupReply(sock, remoteJid, {
-                    text: `❌ *فشل تحديث المناطق:*\n${errorText}`
-                });
+                return true;
             }
-            return true;
+            return await handleManageApiFailure({
+                sock, remoteJid, campaignId, errorMsg: res.error,
+                failureTitle: 'فشل تحديث المناطق', raw, cmd,
+                customErrorFormatter: advantageFormatter('المناطق')
+            });
         }
 
         if (targeting.interests) {
@@ -1706,21 +2140,16 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
             if (res.success) {
                 await sendGroupReply(sock, remoteJid, {
                     text: `✅ *تمام يا فندم، تم تحديث الاهتمامات بنجاح!*\n\n` +
-                          `📌 *المعرف:* \`${campaignId}\`\n` +
+                          `${formatCampaignRefLine(campaignId, campaignDisplayName)}\n` +
                           `🏷️ *الاهتمامات:* ${cmd.interestsRaw}`
                 });
-            } else {
-                let errorText = res.error || 'حدث خطأ في Meta API';
-                if (errorText.includes('Advantage') || errorText.includes('1359202')) {
-                    errorText = `⚠️ *تنبيه من ميتا (Meta):*\n` +
-                                `الحملة دي معمولة بنظام *(Advantage+ Audience)*، وسياسة ميتا بتمنع تعديل الاهتمامات يدوياً عبر الـ API للحملات دي.\n\n` +
-                                `💡 *الحل المقترح:* يرجى تعديلها من داخل مدير إعلانات ميتا (Ads Manager) مباشرة.`;
-                }
-                await sendGroupReply(sock, remoteJid, {
-                    text: `❌ *فشل تحديث الاهتمامات:*\n${errorText}`
-                });
+                return true;
             }
-            return true;
+            return await handleManageApiFailure({
+                sock, remoteJid, campaignId, errorMsg: res.error,
+                failureTitle: 'فشل تحديث الاهتمامات', raw, cmd,
+                customErrorFormatter: advantageFormatter('الاهتمامات')
+            });
         }
     }
 
@@ -1738,15 +2167,15 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
         if (res.success) {
             await sendGroupReply(sock, remoteJid, {
                 text: `✅ *تمام يا فندم، تم تغيير اسم الحملة بنجاح!*\n\n` +
-                      `📌 *المعرف:* \`${campaignId}\`\n` +
+                      `${formatCampaignRefLine(campaignId, campaignDisplayName)}\n` +
                       `📝 *الاسم الجديد:* ${newName}`
             });
-        } else {
-            await sendGroupReply(sock, remoteJid, {
-                text: `❌ *فشل تغيير اسم الحملة:*\n${res.error || 'حدث خطأ في Meta API'}`
-            });
+            return true;
         }
-        return true;
+        return await handleManageApiFailure({
+            sock, remoteJid, campaignId, errorMsg: res.error,
+            failureTitle: 'فشل تغيير اسم الحملة', raw, cmd
+        });
     }
 
     // 7. نسخ الحملة (Duplicate)
@@ -1761,23 +2190,25 @@ export async function handleCampaignManagementCommand({ sock, remoteJid, raw, se
         if (res.success) {
             await sendGroupReply(sock, remoteJid, {
                 text: `✅ *تمام يا فندم، تم نسخ الحملة بنجاح!*\n\n` +
-                      `📌 *المعرف الأصلي:* \`${campaignId}\`\n` +
+                      `${formatCampaignRefLine(campaignId, campaignDisplayName, 'المعرف الأصلي')}\n` +
                       `🆕 *معرف النسخة الجديدة:* \`${res.copied_id}\`\n` +
                       `📊 *الحالة:* متوقفة\n\n` +
                       `💡 *لتشغيل النسخة:* قولي "شغل ${res.copied_id}" 🟢`
             });
-        } else {
-            let errorText = res.error || 'حدث خطأ في Meta API';
-            if (errorText.includes('طلب النسخ كبير') || errorText.includes('1885194')) {
-                errorText = `⚠️ *تنبيه من ميتا (Meta):*\n` +
-                            `فيسبوك تمنع النسخ الفوري (Duplicate) عبر الـ API للحملات التي تحتوي على أكثر من كائنين (مجموعات وإعلانات متعددة).\n\n` +
-                            `💡 *الحل المقترح:* يرجى عمل Duplicate للحملة من داخل مدير إعلانات ميتا (Ads Manager) بضغطة زر.`;
-            }
-            await sendGroupReply(sock, remoteJid, {
-                text: `❌ *تعذر نسخ الحملة:*\n${errorText}`
-            });
+            return true;
         }
-        return true;
+        return await handleManageApiFailure({
+            sock, remoteJid, campaignId, errorMsg: res.error,
+            failureTitle: 'تعذر نسخ الحملة', raw, cmd,
+            customErrorFormatter: (errorText) => {
+                if (errorText.includes('طلب النسخ كبير') || errorText.includes('1885194')) {
+                    return `⚠️ *تنبيه من ميتا (Meta):*\n` +
+                           `فيسبوك تمنع النسخ الفوري (Duplicate) عبر الـ API للحملات التي تحتوي على أكثر من كائنين (مجموعات وإعلانات متعددة).\n\n` +
+                           `💡 *الحل المقترح:* يرجى عمل Duplicate للحملة من داخل مدير إعلانات ميتا (Ads Manager) بضغطة زر.`;
+                }
+                return errorText;
+            }
+        });
     }
 
     return false;
@@ -1819,7 +2250,7 @@ export async function handleAdsReportGroupMessage({
 
     console.log(`📊 [Ads Report Group] Authorized admin command from ${senderPhone}: "${text}"`);
 
-    const raw = text.trim();
+    const raw = normalizeArabicDigits(text.trim());
 
     // 2. فحص أوامر المساعدة أو التعليمات
     if (/^(مساعدة|التعليمات|اوامر|الأوامر|شرح|help)$/i.test(raw)) {
@@ -1877,8 +2308,12 @@ export async function handleAdsReportGroupMessage({
     }
 
     // 2.6 حماية فائقة: إذا كانت الرسالة تتضمن نية إدارة أو تعديل، لا يتم تحويلها لتقرير إعلاني إطلاقاً
-    if (/(?:تعديل|عدل|غير|تغيير|ظبط|وقف|وقفي|شغل|شغلي|ميزان|تمديد|مد|سن|عمر|نوع|جنس|مناطق|اهتمامات|دبلكيت|دوبلكيت|نسخ)/i.test(raw)) {
-        const idMatches = raw.replace(/[`*~_]/g, ' ').match(/\b\d{10,25}\b/g);
+    const hasMgmtIntentWord = hasArabicWord(
+        raw,
+        '(?:ال)?(?:تعديل|تغيير|ميزاني(?:ة|ه)|تمديد|سن|عمر|نوع|جنس|مناطق|اهتمامات|اسم|تسمي(?:ة|ه))|عدل|غير|ظبط|وقف|وقفي|وقفها|اوقف|إيقاف|ايقاف|توقيف|شغل|شغلي|شغلها|تشغيل|مدد|مد|دبلكيت|دوبلكيت|نسخ'
+    );
+    if (hasMgmtIntentWord) {
+        const idMatches = normalizeArabicDigits(raw).replace(/[`*~_]/g, ' ').match(/(?<!\d)\d{10,25}(?!\d)/g);
         if (idMatches && idMatches.length > 0) {
             await sendGroupReply(sock, remoteJid, {
                 text: `💡 *فهمت انك بتطلب تعديل على الحملة \`${idMatches[0]}\`:*\n` +
@@ -1991,5 +2426,17 @@ export async function handleAdsReportGroupMessage({
         ? formatCampaignAdsReportMessage(apiResult, campaignYesterdayResult, idInfo.id)
         : formatAdsReportMessage(apiResult, idInfo.id, datePreset, isExplicitCampaign, statusFilter);
     await sendGroupReply(sock, remoteJid, { text: reportText });
+
+    // تخزين الحملات النشطة لهذا الجروب لتمكين الأوامر السريعة مثل "شغل حملة رقم 1" أو "ميزانية حملة رقم 2"
+    if (!isExplicitCampaign && apiResult?.success) {
+        lastChatActiveCampaigns.set(remoteJid, {
+            accountId: idInfo.id,
+            accountName: apiResult.summary?.account_name || apiResult.account?.name || '',
+            campaigns: (apiResult.campaigns || []).filter(isCampaignCurrentlyRunning),
+            updatedAt: Date.now()
+        });
+        pendingAccountCommandSessions.delete(remoteJid);
+    }
+
     return true;
 }

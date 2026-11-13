@@ -54,6 +54,204 @@ export function normalizePhoneDigits(phone) {
     return digits;
 }
 
+const MAX_OBSERVER_MEDIA_BYTES = 50 * 1024 * 1024; // 50MB حد أقصى لحفظ المستندات والوسائط بأمان
+
+const MIME_EXT_MAP = {
+    'image/jpeg': '.jpg',
+    'image/jpg': '.jpg',
+    'image/png': '.png',
+    'image/webp': '.webp',
+    'image/gif': '.gif',
+    'image/heic': '.heic',
+    'image/heif': '.heif',
+    'application/pdf': '.pdf',
+    'application/msword': '.doc',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+    'application/vnd.ms-excel': '.xls',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+    'text/plain': '.txt',
+    'audio/ogg': '.ogg',
+    'audio/mpeg': '.mp3',
+    'audio/mp4': '.m4a'
+};
+
+/**
+ * فك تغليف رسائل الواتساب المتداخلة (مؤقتة، مشاهدة مرة واحدة، أو مستند/صورة مع وصف)
+ */
+function unwrapObserverMessage(rawMessage) {
+    let curr = rawMessage;
+    for (let i = 0; i < 5 && curr; i++) {
+        const next =
+            curr.ephemeralMessage?.message ||
+            curr.viewOnceMessage?.message ||
+            curr.viewOnceMessageV2?.message ||
+            curr.viewOnceMessageV2Extension?.message ||
+            curr.documentWithCaptionMessage?.message ||
+            curr.editedMessage?.message;
+        if (!next) break;
+        curr = next;
+    }
+    return curr || {};
+}
+
+function normalizeFileLength(val) {
+    if (val === null || val === undefined) return null;
+    if (typeof val === 'number') return Number.isFinite(val) ? val : null;
+    if (typeof val === 'string') return Number(val) || null;
+    if (typeof val === 'object' && typeof val.toNumber === 'function') {
+        return val.toNumber();
+    }
+    if (typeof val === 'object' && 'low' in val) {
+        return Number(val.low) || null;
+    }
+    return null;
+}
+
+function resolveMediaExtension(mimeType, fallbackName = '') {
+    const cleanMime = String(mimeType || '').split(';')[0].trim().toLowerCase();
+    if (MIME_EXT_MAP[cleanMime]) return MIME_EXT_MAP[cleanMime];
+    const ext = path.extname(String(fallbackName || '').split('?')[0]).toLowerCase();
+    if (ext && /^\.[a-z0-9]{1,8}$/.test(ext)) return ext;
+    return '';
+}
+
+function sanitizeMediaBaseName(name) {
+    const raw = path.basename(String(name || ''), path.extname(String(name || '')));
+    const cleaned = raw
+        .replace(/[\\/:*?"<>|\x00-\x1F\r\n]+/g, '_')
+        .replace(/\s+/g, '_')
+        .replace(/^_+|_+$/g, '');
+    return cleaned.slice(0, 80);
+}
+
+/**
+ * حفظ أي بافر ميديا (صورة / PDF / مستند / صوت) محلياً وإرجاع المسار والبيانات
+ */
+function saveObserverMediaBuffer(uId, buffer, { subdir = 'observer_media', prefix = 'media', originalName = '', mimeType = '', messageId = '' } = {}) {
+    const mediaDir = path.join(process.cwd(), 'public', 'uploads', subdir, String(uId));
+    if (!fs.existsSync(mediaDir)) fs.mkdirSync(mediaDir, { recursive: true });
+
+    const ext = resolveMediaExtension(mimeType, originalName) || (prefix === 'img' ? '.jpg' : prefix === 'voice' ? '.ogg' : '');
+    const uniqueTag = String(messageId || Math.random().toString(36).slice(2, 8))
+        .replace(/[^a-zA-Z0-9_-]/g, '')
+        .slice(-6) || Math.random().toString(36).slice(2, 8);
+    const safeBase = sanitizeMediaBaseName(originalName);
+    const fileName = safeBase
+        ? `${prefix}_${Date.now()}_${uniqueTag}_${safeBase}${ext}`
+        : `${prefix}_${Date.now()}_${uniqueTag}${ext}`;
+
+    const fullPath = path.join(mediaDir, fileName);
+    fs.writeFileSync(fullPath, buffer);
+    return {
+        mediaUrl: `/uploads/${subdir}/${uId}/${fileName}`,
+        mediaFileName: fileName,
+        mediaSize: buffer.length
+    };
+}
+
+/**
+ * تحميل ميديا الواتساب مع دعم إعادة الطلب وإذا كانت الرسالة مغلفة
+ */
+async function downloadWhatsAppMediaBuffer(msg, actualMsg, sock) {
+    try {
+        const buf = await downloadMediaMessage(msg, 'buffer', {}, { logger, reuploadRequest: sock.updateMediaMessage });
+        if (buf && buf.length > 0) return buf;
+    } catch (firstErr) {
+        if (actualMsg && actualMsg !== msg.message) {
+            try {
+                const unwrapped = { ...msg, message: actualMsg };
+                const buf = await downloadMediaMessage(unwrapped, 'buffer', {}, { logger, reuploadRequest: sock.updateMediaMessage });
+                if (buf && buf.length > 0) return buf;
+            } catch (_) {}
+        }
+        throw firstErr;
+    }
+    return null;
+}
+
+/**
+ * التقاط وتحميل روابط PDF أو الصور المؤقتة المرسلة داخل النصوص (مثل روابط cdn.fbsbx.com من الماسنجر) قبل انتهاء صلاحيتها
+ */
+async function downloadExternalMediaFromText(uId, text, messageId) {
+    if (!text || typeof text !== 'string') return null;
+    const urlMatches = text.match(/https?:\/\/[^\s"'<>]+/gi);
+    if (!urlMatches || urlMatches.length === 0) return null;
+
+    for (const rawUrl of urlMatches) {
+        const cleanUrl = rawUrl.replace(/[),.،؛]+$/, '');
+        let parsed;
+        try {
+            parsed = new URL(cleanUrl);
+        } catch (_) {
+            continue;
+        }
+
+        const host = parsed.hostname.toLowerCase();
+        const urlPath = parsed.pathname.toLowerCase();
+        const isFbCdn = host.includes('cdn.fbsbx.com') || host.includes('lookaside.fbsbx.com') || (host.includes('fbcdn.net') && /\.(pdf|jpe?g|png|webp)$/i.test(urlPath));
+        const isDirectFile = /\.(pdf|jpe?g|png|webp)$/i.test(urlPath);
+        if (!isFbCdn && !isDirectFile) continue;
+
+        try {
+            const res = await fetch(cleanUrl, {
+                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+                redirect: 'follow',
+                signal: AbortSignal.timeout(20000)
+            });
+            if (!res.ok) continue;
+
+            const contentLength = Number(res.headers.get('content-length') || 0);
+            if (contentLength > MAX_OBSERVER_MEDIA_BYTES) continue;
+
+            const ctype = String(res.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+            const isPdf = ctype === 'application/pdf' || urlPath.endsWith('.pdf');
+            const isImage = ctype.startsWith('image/') || /\.(jpe?g|png|webp|gif)$/i.test(urlPath);
+            if (ctype.includes('text/html') || (!isPdf && !isImage)) continue;
+
+            const arrayBuf = await res.arrayBuffer();
+            const buffer = Buffer.from(arrayBuf);
+            if (!buffer.length || buffer.length > MAX_OBSERVER_MEDIA_BYTES) continue;
+
+            // التحقق من ترويسة PDF إذا كان الملف PDF
+            const headerAscii = buffer.subarray(0, 5).toString('ascii');
+            if (isPdf && !ctype.startsWith('image/') && headerAscii !== '%PDF-' && ctype !== 'application/pdf') {
+                continue;
+            }
+
+            let decodedName = '';
+            try {
+                decodedName = decodeURIComponent(path.basename(parsed.pathname || ''));
+            } catch (_) {
+                decodedName = path.basename(parsed.pathname || '');
+            }
+            const mimeType = (ctype && ctype !== 'application/octet-stream')
+                ? ctype
+                : (isPdf ? 'application/pdf' : 'image/jpeg');
+            const prefix = isPdf ? 'doc' : 'img';
+            const saved = saveObserverMediaBuffer(uId, buffer, {
+                subdir: 'observer_media',
+                prefix,
+                originalName: decodedName,
+                mimeType,
+                messageId
+            });
+
+            return {
+                mediaUrl: saved.mediaUrl,
+                mediaFileName: (decodedName || saved.mediaFileName).slice(0, 250),
+                mediaMimeType: mimeType.slice(0, 100),
+                mediaSize: saved.mediaSize,
+                isPdf,
+                isImage,
+                sourceUrl: cleanUrl
+            };
+        } catch (extErr) {
+            console.error('⚠️ [Observer] External media fetch failed:', extErr.message);
+        }
+    }
+    return null;
+}
+
 /**
  * جلب حالة جلسة المراقب الحالية
  */
@@ -311,11 +509,7 @@ export async function startObserverSession(userId = 3, phoneNumber = null, io = 
                 if (!messageId) continue;
 
                 // فحص نوع الرسالة والوسائط
-                const actualMsg = msg.message?.ephemeralMessage?.message || 
-                    msg.message?.viewOnceMessage?.message || 
-                    msg.message?.viewOnceMessageV2?.message ||
-                    msg.message?.documentWithCaptionMessage?.message ||
-                    msg.message || {};
+                const actualMsg = unwrapObserverMessage(msg.message);
 
                 // التأكد من وجود محتوى حقيقي (نص، صوت، صورة، فيديو، ملف، لوكيشن، كونتكت)
                 // استبعاد الرسائل الفارغة أو التي تحوي تفاعلات/بروتوكول فقط بدون أي محتوى
@@ -389,12 +583,28 @@ export async function startObserverSession(userId = 3, phoneNumber = null, io = 
                 let mediaUrl = null;
                 let transcription = null;
 
-                if (actualMsg.conversation) {
+                if (actualMsg.conversation || actualMsg.extendedTextMessage) {
                     messageType = 'text';
-                    content = actualMsg.conversation;
-                } else if (actualMsg.extendedTextMessage) {
-                    messageType = 'text';
-                    content = actualMsg.extendedTextMessage.text || '';
+                    content = actualMsg.conversation || actualMsg.extendedTextMessage?.text || '';
+
+                    // لو الرسالة النصية تحتوي على رابط PDF أو صورة (مثل روابط Messenger CDN المؤقتة) نحمله فوراً قبل انتهاء صلاحيته
+                    const extMedia = await downloadExternalMediaFromText(uId, content, messageId);
+                    if (extMedia) {
+                        mediaUrl = extMedia.mediaUrl;
+                        mediaFileName = extMedia.mediaFileName;
+                        mediaMimeType = extMedia.mediaMimeType;
+                        mediaSize = extMedia.mediaSize;
+                        const trimmed = content.trim();
+                        if (trimmed === extMedia.sourceUrl) {
+                            if (extMedia.isPdf) {
+                                messageType = 'document';
+                                content = `📄 مستند: ${mediaFileName}\n${trimmed}`;
+                            } else if (extMedia.isImage) {
+                                messageType = 'image';
+                                content = `📷 صورة\n${trimmed}`;
+                            }
+                        }
+                    }
                 } else if (actualMsg.audioMessage) {
                     messageType = 'audio';
                     mediaDuration = actualMsg.audioMessage.seconds || null;
@@ -422,21 +632,23 @@ export async function startObserverSession(userId = 3, phoneNumber = null, io = 
                     }
                 } else if (actualMsg.imageMessage) {
                     messageType = 'image';
-                    mediaMimeType = actualMsg.imageMessage.mimetype || 'image/jpeg';
-                    mediaSize = actualMsg.imageMessage.fileLength || null;
+                    mediaMimeType = String(actualMsg.imageMessage.mimetype || 'image/jpeg').slice(0, 100);
+                    mediaSize = normalizeFileLength(actualMsg.imageMessage.fileLength);
                     content = actualMsg.imageMessage.caption ? `📷 صورة: ${actualMsg.imageMessage.caption}` : '📷 صورة';
 
                     // حفظ الصورة محلياً
                     try {
-                        const mediaDir = path.join(process.cwd(), 'public', 'uploads', 'observer_media', String(uId));
-                        if (!fs.existsSync(mediaDir)) fs.mkdirSync(mediaDir, { recursive: true });
-                        const imgBuffer = await downloadMediaMessage(msg, 'buffer', {}, { logger, reuploadRequest: sock.updateMediaMessage });
+                        const imgBuffer = await downloadWhatsAppMediaBuffer(msg, actualMsg, sock);
                         if (imgBuffer) {
-                            const fileName = `img_${Date.now()}.jpg`;
-                            const fullPath = path.join(mediaDir, fileName);
-                            fs.writeFileSync(fullPath, imgBuffer);
-                            mediaUrl = `/uploads/observer_media/${uId}/${fileName}`;
-                            mediaFileName = fileName;
+                            const saved = saveObserverMediaBuffer(uId, imgBuffer, {
+                                subdir: 'observer_media',
+                                prefix: 'img',
+                                mimeType: mediaMimeType,
+                                messageId
+                            });
+                            mediaUrl = saved.mediaUrl;
+                            mediaFileName = saved.mediaFileName.slice(0, 250);
+                            mediaSize = saved.mediaSize;
                         }
                     } catch (imgErr) {
                         console.error('❌ [Observer] Image download error:', imgErr.message);
@@ -445,17 +657,40 @@ export async function startObserverSession(userId = 3, phoneNumber = null, io = 
                     // شرط المستخدم الصارم: الفيديوهات لا يتم تحميلها إطلاقاً بل تسجيل اسمها والميتاداتا فقط
                     messageType = 'video';
                     mediaDuration = actualMsg.videoMessage.seconds || null;
-                    mediaSize = actualMsg.videoMessage.fileLength || null;
-                    mediaMimeType = actualMsg.videoMessage.mimetype || 'video/mp4';
-                    mediaFileName = actualMsg.videoMessage.fileName || `WhatsApp_Video_${Date.now()}.mp4`;
+                    mediaSize = normalizeFileLength(actualMsg.videoMessage.fileLength);
+                    mediaMimeType = String(actualMsg.videoMessage.mimetype || 'video/mp4').slice(0, 100);
+                    mediaFileName = String(actualMsg.videoMessage.fileName || `WhatsApp_Video_${Date.now()}.mp4`).slice(0, 250);
                     content = actualMsg.videoMessage.caption ? `🎥 فيديو: ${actualMsg.videoMessage.caption}` : `🎥 ملف فيديو: ${mediaFileName}`;
                     mediaUrl = null; // لم يتم تنزيل الفيديو لتوفير المساحة والسرعة
                 } else if (actualMsg.documentMessage) {
                     messageType = 'document';
-                    mediaFileName = actualMsg.documentMessage.fileName || actualMsg.documentMessage.title || 'وثيقة';
-                    mediaMimeType = actualMsg.documentMessage.mimetype || 'application/octet-stream';
-                    mediaSize = actualMsg.documentMessage.fileLength || null;
+                    const rawDocName = actualMsg.documentMessage.fileName || actualMsg.documentMessage.title || 'document';
+                    mediaFileName = String(rawDocName).slice(0, 250);
+                    mediaMimeType = String(actualMsg.documentMessage.mimetype || 'application/octet-stream').slice(0, 100);
+                    mediaSize = normalizeFileLength(actualMsg.documentMessage.fileLength);
                     content = actualMsg.documentMessage.caption ? `📄 مستند: ${mediaFileName} (${actualMsg.documentMessage.caption})` : `📄 مستند: ${mediaFileName}`;
+
+                    // حفظ ملفات الـ PDF والصور المرسلة كمستند وكافة المستندات محلياً وتسجيل مسارها في قاعدة البيانات
+                    try {
+                        if (!mediaSize || mediaSize <= MAX_OBSERVER_MEDIA_BYTES) {
+                            const docBuffer = await downloadWhatsAppMediaBuffer(msg, actualMsg, sock);
+                            if (docBuffer && docBuffer.length <= MAX_OBSERVER_MEDIA_BYTES) {
+                                const saved = saveObserverMediaBuffer(uId, docBuffer, {
+                                    subdir: 'observer_media',
+                                    prefix: 'doc',
+                                    originalName: mediaFileName,
+                                    mimeType: mediaMimeType,
+                                    messageId
+                                });
+                                mediaUrl = saved.mediaUrl;
+                                mediaSize = saved.mediaSize;
+                            }
+                        } else {
+                            console.warn(`⚠️ [Observer] Document too large to archive (${mediaSize} bytes): ${mediaFileName}`);
+                        }
+                    } catch (docErr) {
+                        console.error('❌ [Observer] Document download error:', docErr.message);
+                    }
                 } else if (actualMsg.stickerMessage) {
                     messageType = 'sticker';
                     content = '🏷️ ستيكر';
@@ -866,7 +1101,8 @@ export async function getObserverMessages(userId = 3, { page = 1, limit = 50, ch
             { transcription: { [Op.like]: `%${search}%` } },
             { senderName: { [Op.like]: `%${search}%` } },
             { matchedEmployeeName: { [Op.like]: `%${search}%` } },
-            { chatName: { [Op.like]: `%${search}%` } }
+            { chatName: { [Op.like]: `%${search}%` } },
+            { mediaFileName: { [Op.like]: `%${search}%` } }
         ];
     }
 

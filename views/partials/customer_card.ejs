@@ -55,6 +55,17 @@
                     ${cust.notes ? (cust.notes.length > 40 ? cust.notes.substring(0, 40) + '...' : cust.notes) : '<em class="text-muted">انقر لإضافة ملاحظة...</em>'}
                 </div>
             </div>
+            ${(() => {
+                const fb = (cust.notes || '').match(/https?:\/\/(?:www\.)?(?:facebook\.com|fb\.com|m\.facebook\.com)\/[^\s<]+/);
+                if (fb) {
+                    return `<div class="mt-1.5"><a href="${fb[0]}" target="_blank" rel="noopener noreferrer" class="btn btn-xs btn-outline-primary rounded-pill px-2.5 py-1 d-inline-flex align-items-center gap-1 fs-8 text-decoration-none shadow-sm"><i class="bi bi-facebook"></i> صفحة الفيسبوك ↗</a></div>`;
+                }
+                const generic = (cust.notes || '').match(/https?:\/\/[^\s<]+/);
+                if (generic) {
+                    return `<div class="mt-1.5"><a href="${generic[0]}" target="_blank" rel="noopener noreferrer" class="btn btn-xs btn-outline-secondary rounded-pill px-2.5 py-1 d-inline-flex align-items-center gap-1 fs-8 text-decoration-none shadow-sm"><i class="bi bi-box-arrow-up-right"></i> فتح الرابط ↗</a></div>`;
+                }
+                return '';
+            })()}
         </div>
     </div>
 </div>

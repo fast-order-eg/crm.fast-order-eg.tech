@@ -52,7 +52,7 @@ export function isUserInCompetitorSession(phone) {
 export function isCompetitorCommand(text) {
     if (!text || typeof text !== 'string') return false;
     const trimmed = text.trim();
-    return /^(\/|\s)*(منافسين|المنافسين|spy|سوق|عين_السوق|عين\s*السوق|كلمات|الكلمات|keywords|نوتش|تقرير|ads|حملات|المزيد|more|خروج|close|حفظ|استخراج|crm|سجل|تسجيل)($|\s)/i.test(trimmed);
+    return /^(\/|\s)*(منافسين|المنافسين|spy|سوق|عين_السوق|عين\s*السوق|سحب|اسحب|عايز\s*اسحب|ارقام|أرقام|كلمات|الكلمات|keywords|نوتش|تقرير|ads|حملات|المزيد|more|خروج|close|حفظ|استخراج|crm|سجل|تسجيل)($|\s)/i.test(trimmed);
 }
 
 /**
@@ -88,7 +88,7 @@ function startContinuousComposing(sock, remoteJid) {
  * - unavailable presence after completion
  * - SQL and Socket.io logging
  */
-async function replyToStaff(sock, remoteJid, text, userId, io) {
+async function replyToStaff(sock, remoteJid, text, userId, io, quick = false) {
     if (!sock || !remoteJid || !text) return;
 
     const textLen = (text || '').length;
@@ -100,8 +100,10 @@ async function replyToStaff(sock, remoteJid, text, userId, io) {
         }
     } catch (_) {}
 
-    // 2. Simulate realistic typing duration proportional to message length (2.5s to 6.5s)
-    const typingDuration = Math.min(6500, Math.max(2500, Math.floor(textLen * 12) + Math.floor(Math.random() * 1200) + 800));
+    // 2. Simulate realistic typing duration proportional to message length
+    const typingDuration = quick
+        ? Math.min(2200, Math.max(900, Math.floor(textLen * 4) + 400))
+        : Math.min(6500, Math.max(2500, Math.floor(textLen * 12) + Math.floor(Math.random() * 1200) + 800));
 
     let presenceInterval = null;
     try {
@@ -627,7 +629,7 @@ function extractValidPhones(text, phoneNumbersList = []) {
 /**
  * Call External API 2: Competitor Live Ads (Facebook Ad Library with Pagination)
  */
-export async function fetchCompetitorAds(keyword, page = 1, limit = 5, country = 'EG', startIndex = 0) {
+export async function fetchCompetitorAds(keyword, page = 1, limit = 10, country = 'EG', startIndex = 0) {
     try {
         const res = await fetch(`${COMPETITOR_API_BASE}/competitor-ads`, {
             method: 'POST',
@@ -1060,6 +1062,341 @@ export async function saveCompetitorLeadsToCrm({ sock, remoteJid, phoneNumber, u
 }
 
 /**
+ * Helper: Check if phone number already exists in CRM database (Customer table)
+ * Checks all common Egyptian formats: 010..., 10..., 2010..., +2010... across the entire database
+ */
+async function isPhoneAlreadyInDatabase(phone) {
+    if (!phone) return true;
+    const cleanP = normalizePhone(phone);
+    if (!cleanP) return true;
+    const noZero = cleanP.startsWith('0') ? cleanP.slice(1) : cleanP;
+    const withZero = cleanP.startsWith('0') ? cleanP : '0' + cleanP;
+    const with20 = '20' + noZero;
+    const withPlus20 = '+20' + noZero;
+
+    try {
+        const existing = await Customer.findOne({
+            where: {
+                [Op.or]: [
+                    { phoneNumber: cleanP },
+                    { phoneNumber: noZero },
+                    { phoneNumber: withZero },
+                    { phoneNumber: with20 },
+                    { phoneNumber: withPlus20 },
+                    { remoteJid: normalizePhoneToJid(cleanP) }
+                ]
+            },
+            attributes: ['id', 'phoneNumber']
+        });
+        return !!existing;
+    } catch (e) {
+        console.error('⚠️ [isPhoneAlreadyInDatabase] Error:', e.message);
+        return false;
+    }
+}
+
+/**
+ * Fast Scrape / Lead Hunter: /سحب [عدد] [المجال]
+ * Automatically suggests keywords for the niche, scans competitor ads in batches,
+ * skips duplicates silently against DB, saves new leads with 'new' status,
+ * sends progressive status messages to WhatsApp, and finishes with a detailed summary.
+ */
+export async function handleFastScrapeCommand({ sock, remoteJid, phoneNumber, text, userId = 3, io, staffAuth }) {
+    const trimmed = (text || '').trim();
+
+    // Regex to match: /سحب [عدد] [المجال] or سحب [عدد] [المجال] or /سحب داتا [المجال]
+    const match = trimmed.match(/^[\/\s]*(?:سحب|اسحب|عايز\s*اسحب|محتاج\s*اسحب|هات|جيب)\s*(?:(\d{1,2})\s*)?(?:ارقام|أرقام|داتا|عملاء|عميل|رقم)?\s*(?:في\s*مجال|مجال|عن)?\s*(.*)$/i);
+    let rawCount = match && match[1] ? parseInt(match[1], 10) : 10;
+    let niche = match && match[2] ? match[2].trim() : '';
+
+    if (niche) {
+        niche = niche.replace(/^(داتا|الداتا|ارقام|أرقام|الأرقام|الارقام|بيانات|البيانات)\s*/i, '').trim();
+        niche = niche.replace(/^(في\s*مجال|مجال|نشاط|شغال\s*في|ببيع|عن|في|لـ)\s+/i, '').trim();
+    }
+
+    if (!niche) {
+        await replyToStaff(
+            sock,
+            remoteJid,
+            '⚠️ يرجى تحديد المجال المطلوب بعد الأمر.\n\n' +
+            '💡 *أمثلة للاستخدام:*\n' +
+            '• `/سحب 10 ملابس`\n' +
+            '• `/سحب 5 أحذية`\n' +
+            '• `/سحب عطور` *(الافتراضي 10 أرقام)*\n\n' +
+            '📌 *ملاحظة:* الحد الأقصى في المرة الواحدة هو 10 أرقام.',
+            userId,
+            io
+        );
+        return { handled: true };
+    }
+
+    // Limit to max 10 as strictly requested
+    const targetCount = Math.min(10, Math.max(1, rawCount || 10));
+
+    // Initial acknowledgment message
+    let startNotice = (rawCount > 10)
+        ? `ℹ️ الحد الأقصى للسحب في المرة الواحدة هو 10 أرقام.\n⏳ جاري الآن صيد *10* أرقام جديدة لمجال *"${niche}"* عبر عين السوق...`
+        : `⏳ جاري البدء في صيد *${targetCount}* أرقام جديدة لمجال *"${niche}"* عبر عين السوق...`;
+
+    await replyToStaff(sock, remoteJid, startNotice, userId, io, true);
+    const stopComposing = startContinuousComposing(sock, remoteJid);
+
+    try {
+        // 1. Identify the sales user for attribution
+        let assignedToUserId = null;
+        let salesName = (staffAuth && staffAuth.name) ? staffAuth.name : 'مسؤول مبيعات';
+        const cleanSenderPhone = normalizePhone(phoneNumber);
+        const cleanNoZero = cleanSenderPhone.startsWith('0') ? cleanSenderPhone.substring(1) : cleanSenderPhone;
+
+        try {
+            const user = await User.findOne({
+                where: {
+                    [Op.or]: [
+                        { phone: cleanSenderPhone },
+                        { phone: '2' + cleanSenderPhone },
+                        { phone: '20' + cleanNoZero },
+                        { phone: cleanNoZero },
+                        { phone: '0' + cleanNoZero },
+                        { notificationPhone: cleanSenderPhone },
+                        { notificationPhone: '20' + cleanNoZero }
+                    ]
+                }
+            });
+
+            if (user) {
+                assignedToUserId = user.id;
+                salesName = user.fullName || user.username || `موظف #${user.id}`;
+            } else if (cleanSenderPhone === '01092308465' || cleanSenderPhone.endsWith('1092308465')) {
+                const radyUser = await User.findOne({
+                    where: {
+                        [Op.or]: [
+                            { username: 'rady' },
+                            { role: 'super_admin' },
+                            { id: userId }
+                        ]
+                    }
+                });
+                if (radyUser) {
+                    assignedToUserId = radyUser.id;
+                    salesName = radyUser.fullName || radyUser.username || 'أ. راضي';
+                } else {
+                    salesName = 'أ. راضي (إدارة)';
+                }
+            }
+        } catch (uErr) {
+            console.error('❌ [handleFastScrapeCommand] Error finding sales user:', uErr.message);
+        }
+
+        // 2. Fetch keyword angles for the niche via Vertex AI
+        let keywordsList = [];
+        try {
+            const kwResult = await fetchSuggestedKeywords(niche, 'EG', 1, 0);
+            if (kwResult && kwResult.success && Array.isArray(kwResult.keywords)) {
+                keywordsList = kwResult.keywords;
+            }
+        } catch (kwErr) {
+            console.warn('⚠️ [handleFastScrapeCommand] Keywords suggestion error:', kwErr.message);
+        }
+
+        // Build list of search queries: niche first, then the suggested keywords (up to 6 queries)
+        const searchQueries = [niche];
+        for (const kw of keywordsList) {
+            if (kw && !searchQueries.includes(kw)) {
+                searchQueries.push(kw);
+            }
+            if (searchQueries.length >= 6) break;
+        }
+
+        const savedCustomers = [];
+        const seenPhonesInRun = new Set();
+        const targetUserId = userId || 3;
+
+        // 3. Search competitor ads across queries and pages until target is reached
+        queryLoop:
+        for (const query of searchQueries) {
+            for (let page = 1; page <= 3; page++) {
+                if (savedCustomers.length >= targetCount) break queryLoop;
+
+                let adsResult = null;
+                try {
+                    adsResult = await fetchCompetitorAds(query, page, 10, 'EG', 0);
+                } catch (fetchErr) {
+                    console.error(`⚠️ [handleFastScrapeCommand] Ad fetch error for query "${query}" page ${page}:`, fetchErr.message);
+                    continue;
+                }
+
+                if (!adsResult || !adsResult.success || !Array.isArray(adsResult.ads) || adsResult.ads.length === 0) {
+                    break; // No more ads for this query, move to next
+                }
+
+                let newInThisBatch = 0;
+
+                for (const ad of adsResult.ads) {
+                    if (savedCustomers.length >= targetCount) break queryLoop;
+
+                    const validPhones = extractValidPhones(ad.primary_text, ad.phone_numbers);
+                    if (!validPhones || validPhones.length === 0) continue;
+
+                    const primaryPhone = validPhones[0];
+                    const secondPhone = validPhones.length > 1 ? validPhones[1] : null;
+
+                    // Choose non-duplicate target phone
+                    let targetPhone = null;
+                    let altPhone = null;
+
+                    if (!seenPhonesInRun.has(primaryPhone) && !(await isPhoneAlreadyInDatabase(primaryPhone))) {
+                        targetPhone = primaryPhone;
+                        altPhone = secondPhone;
+                    } else if (secondPhone && !seenPhonesInRun.has(secondPhone) && !(await isPhoneAlreadyInDatabase(secondPhone))) {
+                        targetPhone = secondPhone;
+                        altPhone = primaryPhone;
+                    }
+
+                    if (!targetPhone) {
+                        // Silently skip duplicate, keep searching for other ads
+                        continue;
+                    }
+
+                    seenPhonesInRun.add(targetPhone);
+
+                    const pageName = (ad.page_name || 'صفحة معلن').trim();
+                    const intlPhone = targetPhone.startsWith('0') ? `20${targetPhone.slice(1)}` : targetPhone;
+
+                    // Prepare organized notes with clean links
+                    const noteLines = [
+                        'عميل جديد من عين السوق',
+                        `المجال: ${niche}`,
+                        `كلمة البحث: ${query}`
+                    ];
+                    if (altPhone) noteLines.push(`رقم إضافي: ${altPhone}`);
+                    if (ad.page_profile_url) noteLines.push(`صفحة الفيسبوك: ${ad.page_profile_url}`);
+                    if (ad.cta_label) noteLines.push(`الهدف: ${ad.cta_label}`);
+                    const fullNotes = noteLines.join('\n');
+
+                    try {
+                        const newCust = await Customer.create({
+                            UserId: targetUserId,
+                            customerName: pageName,
+                            phoneNumber: targetPhone,
+                            remoteJid: normalizePhoneToJid(targetPhone),
+                            status: 'new', // حالة عميل جديد كما طلب المستخدم
+                            source: 'عين السوق',
+                            leadTemperature: 'warm',
+                            assignedToUserId: assignedToUserId,
+                            notes: fullNotes,
+                            firstContactAt: new Date()
+                        });
+
+                        savedCustomers.push({
+                            id: newCust.id,
+                            name: pageName,
+                            phone: targetPhone,
+                            secondPhone: altPhone,
+                            intlPhone,
+                            pageUrl: ad.page_profile_url || '',
+                            query
+                        });
+
+                        newInThisBatch++;
+
+                        if (io && targetUserId) {
+                            io.to(`user_${targetUserId}`).emit('customer_created', newCust);
+                        }
+                    } catch (custCreateErr) {
+                        console.error(`❌ [handleFastScrapeCommand] Error saving customer ${targetPhone}:`, custCreateErr.message);
+                    }
+                }
+
+                // Progressive update to sales agent if new numbers were saved and target not reached
+                if (newInThisBatch > 0 && savedCustomers.length < targetCount) {
+                    const remaining = targetCount - savedCustomers.length;
+                    const progressMsg = `📥 تم تسجيل *(${savedCustomers.length})* أرقام جديدة في الـ CRM ومتبقي *(${remaining})* أرقام، جاري استكمال السحب الآن... ⏳`;
+                    await replyToStaff(sock, remoteJid, progressMsg, userId, io, true);
+                    await new Promise(r => setTimeout(r, 1200));
+                }
+
+                if (!adsResult.has_more) {
+                    break;
+                }
+            }
+        }
+
+        stopComposing();
+
+        if (savedCustomers.length === 0) {
+            await replyToStaff(
+                sock,
+                remoteJid,
+                `⚠️ تعذر العثور على أرقام هواتف جديدة غير مسجلة لمجال *"${niche}"* حالياً.\n💡 جرب استخدام اسم مجال أكثر تفصيلاً (مثال: \`/سحب 10 عبايات خليجي\` أو \`/سحب 10 شنط حريمي\`).`,
+                userId,
+                io
+            );
+            return { handled: true };
+        }
+
+        // 4. Final summary message to the sales agent
+        let finalMsg = `✅ *تم بنجاح اكتمال سحب وتسجيل (${savedCustomers.length}) عميل جديد في الـ CRM!* 📥\n` +
+            `══════════════════════\n` +
+            `👤 *مسؤول المبيعات:* ${salesName}\n` +
+            `📂 *حالة العملاء:* عميل جديد (new)\n` +
+            `🎯 *المجال المطلوب:* ${niche}\n` +
+            `══════════════════════\n` +
+            savedCustomers.map((lead, i) => {
+                let it = `${getNumberBadge(i + 1)} *${lead.name}*` +
+                         `\n• 📞 رقم التواصل: \`${lead.phone}\``;
+                if (lead.secondPhone) it += `\n• 📱 هاتف إضافي: \`${lead.secondPhone}\``;
+                it += `\n• 💬 مراسلة واتساب: https://wa.me/${lead.intlPhone}`;
+                if (lead.pageUrl) it += `\n• 🌐 صفحة الفيسبوك: ${lead.pageUrl}`;
+                return it;
+            }).join('\n\n') +
+            `\n══════════════════════\n` +
+            `🎉 *العملاء تم إدراجهم في الداتا ومخصصين لك كعملاء جدد، تقدر تبدأ التواصل معاهم الآن.*`;
+
+        await replyToStaff(sock, remoteJid, finalMsg, userId, io);
+
+        // 5. Group notification to Bird CRM Group
+        const groupNotice = 
+            `📥 *سحب سريع لعملاء جدد من عين السوق (المنافسين)* 🦅\n` +
+            `══════════════════════\n` +
+            `👤 *الموظف المسؤول:* ${salesName}\n` +
+            `🎯 *المجال:* "${niche}"\n` +
+            `📊 *إجمالي المستخرج والمحفوظ:* ${savedCustomers.length} عميل جديد بالكامل\n` +
+            `📂 *حالة العملاء:* عميل جديد (new)\n` +
+            `══════════════════════\n` +
+            savedCustomers.map((lead, i) => {
+                let it = `${getNumberBadge(i + 1)} *${lead.name}*` +
+                         `\n• 📞 الهاتف: \`${lead.phone}\``;
+                if (lead.secondPhone) it += `\n• 📱 هاتف إضافي: \`${lead.secondPhone}\``;
+                if (lead.pageUrl) it += `\n• 🌐 الصفحة: ${lead.pageUrl}`;
+                it += `\n• 💬 واتساب: https://wa.me/${lead.intlPhone}`;
+                return it;
+            }).join('\n\n') +
+            `\n══════════════════════\n` +
+            `🦅 *نظام عين السوق - إدارة المبيعات CRM*`;
+
+        try {
+            const groupJid = '120363428750785329@g.us';
+            if (typeof sock.sendPresenceUpdate === 'function') {
+                sock.sendPresenceUpdate('available', groupJid).catch(() => {});
+                sock.sendPresenceUpdate('composing', groupJid).catch(() => {});
+            }
+            await sock.sendMessage(groupJid, { text: groupNotice });
+            console.log(`✅ [Competitor Fast Scrape] Sent lead notice directly to Bird CRM group (${groupJid})`);
+        } catch (gErr) {
+            console.warn(`⚠️ [Competitor Fast Scrape] Direct send to group failed, using dispatcher:`, gErr.message);
+            await sendSystemNotification({ userId: targetUserId, message: groupNotice, type: 'competitor_leads' }).catch(() => {});
+        }
+
+        return { handled: true };
+    } catch (err) {
+        stopComposing();
+        console.error('❌ [handleFastScrapeCommand] Fatal error:', err);
+        await replyToStaff(sock, remoteJid, `⚠️ حدث خطأ أثناء تنفيذ أمر السحب: ${err.message}`, userId, io);
+        return { handled: true };
+    }
+}
+
+/**
  * Handle incoming staff message for Competitor Spy
  */
 export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, text, userId = 3, io }) {
@@ -1091,6 +1428,21 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
         competitorSessions.set(cleanPhone, session);
     }
     session.lastActive = Date.now();
+
+    // ================================================================
+    // Fast Scrape / Lead Hunter Command: /سحب [عدد] [المجال]
+    // ================================================================
+    if (/^[\/\s]*(سحب|اسحب|عايز\s*اسحب|محتاج\s*اسحب)($|\s)/i.test(trimmed)) {
+        return await handleFastScrapeCommand({
+            sock,
+            remoteJid,
+            phoneNumber,
+            text: trimmed,
+            userId,
+            io,
+            staffAuth: auth
+        });
+    }
 
     // ================================================================
     // Command: /خروج or خروج or /close (Exit Competitor Mode)
@@ -1248,7 +1600,7 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
         const stopComposing = startContinuousComposing(sock, remoteJid);
         let result;
         try {
-            result = await fetchCompetitorAds(keyword, 1, 5, 'EG', 0);
+            result = await fetchCompetitorAds(keyword, 1, 10, 'EG', 0);
         } finally {
             stopComposing();
         }
@@ -1306,14 +1658,14 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
         }
 
         session.currentPage += 1;
-        const startIndex = session.adsTotalCount || ((session.currentPage - 1) * 5);
+        const startIndex = session.adsTotalCount || ((session.currentPage - 1) * 10);
 
         await replyToStaff(sock, remoteJid, `⏳ جاري سحب الدفعة رقم (${session.currentPage}) لإعلانات *"${session.lastKeyword}"*...`, userId, io);
 
         const stopComposing = startContinuousComposing(sock, remoteJid);
         let result;
         try {
-            result = await fetchCompetitorAds(session.lastKeyword, session.currentPage, 5, 'EG', startIndex);
+            result = await fetchCompetitorAds(session.lastKeyword, session.currentPage, 10, 'EG', startIndex);
         } finally {
             stopComposing();
         }
@@ -1397,14 +1749,14 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
             // 2. لو ضغط على رقم "المزيد" المكتوب في نهاية إعلانات المنافسين
             if (session.lastType === 'ads' && session.adsMoreIndex && num === session.adsMoreIndex) {
                 session.currentPage += 1;
-                const startIndex = session.adsTotalCount || ((session.currentPage - 1) * 5);
+                const startIndex = session.adsTotalCount || ((session.currentPage - 1) * 10);
 
                 await replyToStaff(sock, remoteJid, `⏳ جاري سحب الدفعة رقم (${session.currentPage}) لإعلانات *"${session.lastKeyword}"*...`, userId, io);
 
                 const stopComposing = startContinuousComposing(sock, remoteJid);
                 let result;
                 try {
-                    result = await fetchCompetitorAds(session.lastKeyword, session.currentPage, 5, 'EG', startIndex);
+                    result = await fetchCompetitorAds(session.lastKeyword, session.currentPage, 10, 'EG', startIndex);
                 } finally {
                     stopComposing();
                 }
@@ -1441,7 +1793,7 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
                 const stopComposing = startContinuousComposing(sock, remoteJid);
                 let result;
                 try {
-                    result = await fetchCompetitorAds(selectedKeyword, 1, 5, 'EG', 0);
+                    result = await fetchCompetitorAds(selectedKeyword, 1, 10, 'EG', 0);
                 } finally {
                     stopComposing();
                 }
@@ -1486,7 +1838,7 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
         const stopComposing = startContinuousComposing(sock, remoteJid);
         let result;
         try {
-            result = await fetchCompetitorAds(searchKeyword, 1, 5, 'EG', 0);
+            result = await fetchCompetitorAds(searchKeyword, 1, 10, 'EG', 0);
         } finally {
             stopComposing();
         }

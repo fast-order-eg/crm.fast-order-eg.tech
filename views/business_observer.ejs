@@ -1160,6 +1160,11 @@ function formatEnDateTime(dt) {
             let mediaSnippet = '';
             if (msg.messageType === 'audio' && msg.mediaUrl) {
                 mediaSnippet = `<div class="mt-2"><audio controls src="${msg.mediaUrl}" style="height: 36px;"></audio></div>`;
+            } else if (msg.mediaUrl && (msg.messageType === 'image' || (msg.mediaMimeType && msg.mediaMimeType.startsWith('image/')))) {
+                mediaSnippet = `<div class="mt-2"><a href="${msg.mediaUrl}" target="_blank" rel="noopener"><img src="${msg.mediaUrl}" alt="${msg.mediaFileName || 'صورة'}" style="max-width: 240px; max-height: 220px; border-radius: 8px; border: 1px solid #dee2e6; object-fit: cover;"></a></div>`;
+            } else if (msg.mediaUrl) {
+                const fileSizeKb = msg.mediaSize ? ` (${(Number(msg.mediaSize) / 1024).toFixed(0)} KB)` : '';
+                mediaSnippet = `<div class="mt-2"><a href="${msg.mediaUrl}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-info rounded-pill"><i class="bi bi-file-earmark-arrow-down me-1"></i> فتح / تحميل الملف: ${msg.mediaFileName || 'مستند'}${fileSizeKb}</a></div>`;
             }
             if (msg.transcription) {
                 mediaSnippet += `<div class="transcription-box mt-2"><strong>🎙️ التفريغ الصوتي بالذكاء الاصطناعي:</strong> "${msg.transcription}"</div>`;

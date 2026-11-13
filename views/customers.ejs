@@ -336,6 +336,14 @@
                             <label for="editNotesContent" class="form-label fw-bold small text-secondary mb-2">الملاحظات (يمكن التعديل والحفظ مباشرة):</label>
                             <textarea id="editNotesContent" name="notes" class="form-control rounded-3 font-monospace" rows="8" placeholder="أدخل الملاحظات هنا..." style="font-size: 13px; line-height: 1.6;"></textarea>
                             
+                            <!-- 🔗 Clickable Hyperlinks detected in Notes -->
+                            <div id="editNotesLinksContainer" class="p-2.5 rounded-3 border bg-light mt-2.5 d-none">
+                                <div class="small fw-bold text-secondary mb-1.5 d-flex align-items-center">
+                                    <i class="bi bi-link-45deg text-primary me-1 fs-5"></i> روابط داخل الملاحظات (اضغط للفتح مباشرة):
+                                </div>
+                                <div id="editNotesLinksList" class="d-flex flex-wrap gap-2"></div>
+                            </div>
+
                             <!-- 🕒 Last Modified Timestamp Display -->
                             <div class="d-flex justify-content-between align-items-center mt-2 px-1 text-muted" style="font-size: 11.5px;">
                                 <div>
@@ -516,6 +524,15 @@
                         <div class="mb-3">
                             <label class="form-label small fw-bold text-secondary mb-1">الملاحظات</label>
                             <textarea id="detailsNotes" class="form-control form-control-sm font-monospace" rows="4" placeholder="اكتب ملاحظات المبيعات هنا..." style="font-size: 13px; line-height: 1.5;"></textarea>
+                            
+                            <!-- 🔗 Clickable Hyperlinks in Details Modal -->
+                            <div id="detailsNotesLinksContainer" class="p-2.5 rounded-3 border bg-light mt-2 d-none">
+                                <div class="small fw-bold text-secondary mb-1 d-flex align-items-center">
+                                    <i class="bi bi-link-45deg text-primary me-1 fs-5"></i> روابط داخل الملاحظات (اضغط للفتح مباشرة):
+                                </div>
+                                <div id="detailsNotesLinksList" class="d-flex flex-wrap gap-2"></div>
+                            </div>
+
                             <div class="d-flex justify-content-between align-items-center mt-2">
                                 <span class="text-muted" style="font-size: 11px;">
                                     <i class="bi bi-clock-history me-1"></i> آخر تعديل: <span id="detailsNotesLastModifiedText" class="fw-semibold text-dark">-</span>
@@ -978,7 +995,17 @@
                                 <a href="https://wa.me/${(cust.phoneNumber || '').replace('@', '')}" target="_blank" class="btn btn-sm btn-outline-success px-2 py-1 rounded" title="محادثة واتساب">
                                     <i class="bi bi-whatsapp"></i>
                                 </a>
-
+                                ${(() => {
+                                    const fbMatch = (cust.notes || '').match(/https?:\/\/(?:www\.)?(?:facebook\.com|fb\.com|m\.facebook\.com)\/[^\s<]+/);
+                                    if (fbMatch) {
+                                        return `<a href="${fbMatch[0]}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary px-2 py-1 rounded" title="فتح صفحة الفيسبوك"><i class="bi bi-facebook"></i></a>`;
+                                    }
+                                    const genericMatch = (cust.notes || '').match(/https?:\/\/[^\s<]+/);
+                                    if (genericMatch) {
+                                        return `<a href="${genericMatch[0]}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-secondary px-2 py-1 rounded" title="فتح الرابط المرفق"><i class="bi bi-box-arrow-up-right"></i></a>`;
+                                    }
+                                    return '';
+                                })()}
                                 <button class="btn btn-sm btn-outline-info px-2 py-1 rounded" onclick="showCustomerDetails(${cust.id}, ${serialNum})" title="عرض التفاصيل">
                                     <i class="bi bi-person-lines-fill"></i>
                                 </button>
@@ -1338,11 +1365,62 @@
             return `${day}/${month}/${year} ${strHours}:${minutes} ${ampm}`;
         }
 
+        // --- 🔗 Render Detected Links as Interactive Hyperlinks ---
+        function renderDetectedLinks(text, containerId, listId) {
+            const container = document.getElementById(containerId);
+            const list = document.getElementById(listId);
+            if (!container || !list) return;
+
+            if (!text) {
+                container.classList.add('d-none');
+                list.innerHTML = '';
+                return;
+            }
+
+            const urlRegex = /(https?:\/\/[^\s<]+)/g;
+            const matches = text.match(urlRegex) || [];
+            const uniqueUrls = Array.from(new Set(matches));
+
+            if (uniqueUrls.length === 0) {
+                container.classList.add('d-none');
+                list.innerHTML = '';
+                return;
+            }
+
+            container.classList.remove('d-none');
+            list.innerHTML = uniqueUrls.map(url => {
+                let label = 'فتح الرابط';
+                let icon = 'bi-box-arrow-up-right';
+                let btnClass = 'btn-outline-secondary';
+
+                if (url.includes('facebook.com') || url.includes('fb.com')) {
+                    label = 'صفحة الفيسبوك';
+                    icon = 'bi-facebook text-primary';
+                    btnClass = 'btn-outline-primary';
+                } else if (url.includes('wa.me') || url.includes('whatsapp.com')) {
+                    label = 'محادثة واتساب';
+                    icon = 'bi-whatsapp text-success';
+                    btnClass = 'btn-outline-success';
+                } else if (url.includes('m.me')) {
+                    label = 'محادثة ماسنجر';
+                    icon = 'bi-messenger text-info';
+                    btnClass = 'btn-outline-info';
+                }
+
+                return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="btn btn-sm ${btnClass} rounded-pill px-3 py-1 d-inline-flex align-items-center gap-1.5 fs-8 text-decoration-none shadow-sm fw-semibold">
+                    <i class="bi ${icon}"></i>
+                    <span>${label}</span>
+                    <i class="bi bi-arrow-up-right small"></i>
+                </a>`;
+            }).join(' ');
+        }
+
         function openEditNoteModal(customerId) {
             const cust = (window.currentLoadedCustomers || []).find(c => c.id === customerId);
             const notes = cust ? (cust.notes || '') : '';
             document.getElementById('editNotesCustomerId').value = customerId;
             document.getElementById('editNotesContent').value = notes;
+            renderDetectedLinks(notes, 'editNotesLinksContainer', 'editNotesLinksList');
             const modifiedEl = document.getElementById('custPageNotesLastModifiedText');
             if (modifiedEl) modifiedEl.textContent = formatLastModifiedDisplay(cust ? cust.notesUpdatedAt : null);
             const modal = new bootstrap.Modal(document.getElementById('editNotesModal'));
@@ -1457,6 +1535,7 @@ function showCustomerDetails(customerId, serialNum) {
                         
                         // Notes
                         document.getElementById('detailsNotes').value = cust.notes || '';
+                        renderDetectedLinks(cust.notes || '', 'detailsNotesLinksContainer', 'detailsNotesLinksList');
                         const detNotesModified = document.getElementById('detailsNotesLastModifiedText');
                         if (detNotesModified) detNotesModified.textContent = formatLastModifiedDisplay(cust.notesUpdatedAt);
                         
@@ -1775,6 +1854,19 @@ function showCustomerDetails(customerId, serialNum) {
         }
 
         document.addEventListener('DOMContentLoaded', () => {
+            const editNotesInput = document.getElementById('editNotesContent');
+            if (editNotesInput) {
+                editNotesInput.addEventListener('input', function() {
+                    renderDetectedLinks(this.value, 'editNotesLinksContainer', 'editNotesLinksList');
+                });
+            }
+            const detailsNotesInput = document.getElementById('detailsNotes');
+            if (detailsNotesInput) {
+                detailsNotesInput.addEventListener('input', function() {
+                    renderDetectedLinks(this.value, 'detailsNotesLinksContainer', 'detailsNotesLinksList');
+                });
+            }
+
             const urlParams = new URLSearchParams(window.location.search);
             const openNoteId = urlParams.get('openNote');
             if (openNoteId) {
