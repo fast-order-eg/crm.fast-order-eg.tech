@@ -3544,12 +3544,21 @@ router.post('/customers/add', async (req, res) => {
             }
         }
         
+        let initialNotes = notes ? notes.trim() : null;
+        if (status === 'not_interested') {
+            if (!initialNotes) {
+                initialNotes = 'غير مهتم';
+            } else if (!initialNotes.includes('غير مهتم') && !initialNotes.includes('مش مهتم')) {
+                initialNotes = 'غير مهتم - ' + initialNotes;
+            }
+        }
+
         const customer = await Customer.create({
             customerName: customerName.trim(),
             phoneNumber: cleanPhone,
             remoteJid,
             status: status || 'new',
-            notes: notes ? notes.trim() : null,
+            notes: initialNotes,
             UserId: ownerId,
             assignedToUserId,
             assignedAt,
@@ -3731,6 +3740,12 @@ router.post('/customers/update-status', async (req, res) => {
         customer.status = status;
         if (status === 'successful') {
             customer.completedAt = new Date();
+        }
+        if (status === 'not_interested') {
+            const currentNotes = (customer.notes || '').trim();
+            if (!currentNotes.includes('غير مهتم') && !currentNotes.includes('مش مهتم')) {
+                customer.notes = currentNotes ? ('غير مهتم - ' + currentNotes) : 'غير مهتم';
+            }
         }
         if (status === 'first_follow_up') {
             const firstFollowupDelay = await getSetting('first_followup_delay', customer.UserId);

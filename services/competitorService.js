@@ -212,6 +212,64 @@ async function getCompetitorConfigSettings(userId = 3) {
 }
 
 /**
+ * Find sales/admin user accurately by phone number.
+ * Normalizes all phone strings and strips non-digits to prevent invisible character mismatch.
+ * Matches primary user phone first before checking notificationPhone.
+ */
+export async function findSalesUserByPhone(phoneNumber, defaultUserId = 3) {
+    const cleanPhone = normalizePhone(phoneNumber);
+    if (!cleanPhone) return null;
+
+    try {
+        const staffUsers = await User.findAll({
+            where: {
+                role: ['super_admin', 'admin', 'sales']
+            }
+        });
+
+        // 1. Direct match on normalized primary phone (highest priority)
+        let matchedUser = staffUsers.find(u => {
+            const uPhone = normalizePhone(u.phone);
+            return uPhone && (uPhone === cleanPhone || (cleanPhone.length >= 10 && uPhone.endsWith(cleanPhone.slice(-10))));
+        });
+
+        // 2. Match on username if username is a phone number
+        if (!matchedUser) {
+            matchedUser = staffUsers.find(u => {
+                const uUser = normalizePhone(u.username);
+                return uUser && (uUser === cleanPhone || (cleanPhone.length >= 10 && uUser.endsWith(cleanPhone.slice(-10))));
+            });
+        }
+
+        // 3. Fallback to notificationPhone (only if not claimed by another user's primary phone)
+        if (!matchedUser) {
+            matchedUser = staffUsers.find(u => {
+                const uNotif = normalizePhone(u.notificationPhone);
+                return uNotif && (uNotif === cleanPhone || (cleanPhone.length >= 10 && uNotif.endsWith(cleanPhone.slice(-10))));
+            });
+        }
+
+        // 4. Special match for Eng. Rady
+        if (!matchedUser && (cleanPhone === '01092308465' || cleanPhone.endsWith('1092308465'))) {
+            matchedUser = staffUsers.find(u => u.username === 'rady' || u.role === 'super_admin' || u.id === defaultUserId);
+        }
+
+        if (matchedUser) {
+            return {
+                user: matchedUser,
+                userId: matchedUser.id,
+                salesName: matchedUser.fullName || matchedUser.username || `موظف #${matchedUser.id}`,
+                role: matchedUser.role
+            };
+        }
+    } catch (err) {
+        console.error('❌ [findSalesUserByPhone] Error:', err.message);
+    }
+
+    return null;
+}
+
+/**
  * Check if the sender is an authorized staff member for Competitor Spy.
  * Whitelists Rady (01092308465), custom numbers, and active users unless excluded.
  */
@@ -221,7 +279,13 @@ export async function isCompetitorStaffAuthorized(phoneNumber, userId = 3) {
 
     // 1. Explicit Whitelist: Rady (01092308465)
     if (cleanPhone === '01092308465' || cleanPhone.endsWith('1092308465')) {
-        return { isAuthorized: true, name: 'أ. راضي', role: 'admin' };
+        const radyUser = await findSalesUserByPhone(cleanPhone, userId);
+        return {
+            isAuthorized: true,
+            name: radyUser?.salesName || 'أ. راضي',
+            role: 'admin',
+            userId: radyUser?.userId || userId
+        };
     }
 
     // 2. Check Excluded Phones
@@ -230,44 +294,27 @@ export async function isCompetitorStaffAuthorized(phoneNumber, userId = 3) {
         return false;
     }
 
-    // 3. Check Custom Added Staff
+    // 3. Check Database for staff/admin user first (gives exact userId)
+    const staffMatch = await findSalesUserByPhone(cleanPhone, userId);
+    if (staffMatch) {
+        return {
+            isAuthorized: true,
+            name: staffMatch.salesName,
+            role: staffMatch.role,
+            userId: staffMatch.userId
+        };
+    }
+
+    // 4. Check Custom Added Staff
     const customMatch = customList.find(c => normalizePhone(c.phone) === cleanPhone);
     if (customMatch) {
         return {
             isAuthorized: true,
             name: customMatch.name || 'موظف مخصص',
             role: customMatch.role || 'sales',
-            roleLabel: customMatch.roleLabel || 'مسؤول مبيعات'
+            roleLabel: customMatch.roleLabel || 'مسؤول مبيعات',
+            userId: null
         };
-    }
-
-    // 4. Check Database for staff/admin user
-    try {
-        const { Op } = await import('sequelize');
-        const cleanNoZero = cleanPhone.startsWith('0') ? cleanPhone.substring(1) : cleanPhone;
-        const user = await User.findOne({
-            where: {
-                role: ['super_admin', 'admin', 'sales'],
-                [Op.or]: [
-                    { phone: cleanPhone },
-                    { phone: '2' + cleanPhone },
-                    { phone: '20' + cleanNoZero },
-                    { phone: cleanNoZero },
-                    { phone: '0' + cleanNoZero }
-                ]
-            }
-        });
-
-        if (user) {
-            return {
-                isAuthorized: true,
-                name: user.fullName || user.username,
-                role: user.role,
-                userId: user.id
-            };
-        }
-    } catch (e) {
-        console.error('Error checking competitor staff authorization:', e.message);
     }
 
     return false;
@@ -854,47 +901,13 @@ export async function saveCompetitorLeadsToCrm({ sock, remoteJid, phoneNumber, u
         let assignedToUserId = null;
         let salesName = 'بدون تعيين (غير محدد)';
 
-        const cleanPhone = normalizePhone(phoneNumber);
-        const cleanNoZero = cleanPhone.startsWith('0') ? cleanPhone.substring(1) : cleanPhone;
-
-        try {
-            const user = await User.findOne({
-                where: {
-                    [Op.or]: [
-                        { phone: cleanPhone },
-                        { phone: '2' + cleanPhone },
-                        { phone: '20' + cleanNoZero },
-                        { phone: cleanNoZero },
-                        { phone: '0' + cleanNoZero },
-                        { notificationPhone: cleanPhone },
-                        { notificationPhone: '20' + cleanNoZero }
-                    ]
-                }
-            });
-
-            if (user) {
-                assignedToUserId = user.id;
-                salesName = user.fullName || user.username || `موظف #${user.id}`;
-            } else if (cleanPhone === '01092308465' || cleanPhone.endsWith('1092308465')) {
-                // الحساب الإداري لأ. راضي
-                const radyUser = await User.findOne({
-                    where: {
-                        [Op.or]: [
-                            { username: 'rady' },
-                            { role: 'super_admin' },
-                            { id: userId }
-                        ]
-                    }
-                });
-                if (radyUser) {
-                    assignedToUserId = radyUser.id;
-                    salesName = radyUser.fullName || radyUser.username || 'أ. راضي';
-                } else {
-                    salesName = 'أ. راضي (إدارة)';
-                }
-            }
-        } catch (uErr) {
-            console.error('❌ [saveCompetitorLeadsToCrm] Error finding sales user:', uErr.message);
+        const salesUser = await findSalesUserByPhone(phoneNumber, userId);
+        if (salesUser) {
+            assignedToUserId = salesUser.userId;
+            salesName = salesUser.salesName;
+        } else if (cleanPhone === '01092308465' || cleanPhone.endsWith('1092308465')) {
+            salesName = 'أ. راضي (إدارة)';
+            assignedToUserId = userId;
         }
 
         // 3. حفظ كل عميل في قاعدة البيانات في جدول customers
@@ -1296,48 +1309,19 @@ export async function handleFastScrapeCommand({ sock, remoteJid, phoneNumber, te
 
     try {
         // 1. Identify the sales user for attribution
-        let assignedToUserId = null;
+        let assignedToUserId = (staffAuth && staffAuth.userId) ? staffAuth.userId : null;
         let salesName = (staffAuth && staffAuth.name) ? staffAuth.name : 'مسؤول مبيعات';
         const cleanSenderPhone = normalizePhone(phoneNumber);
-        const cleanNoZero = cleanSenderPhone.startsWith('0') ? cleanSenderPhone.substring(1) : cleanSenderPhone;
 
-        try {
-            const user = await User.findOne({
-                where: {
-                    [Op.or]: [
-                        { phone: cleanSenderPhone },
-                        { phone: '2' + cleanSenderPhone },
-                        { phone: '20' + cleanNoZero },
-                        { phone: cleanNoZero },
-                        { phone: '0' + cleanNoZero },
-                        { notificationPhone: cleanSenderPhone },
-                        { notificationPhone: '20' + cleanNoZero }
-                    ]
-                }
-            });
-
-            if (user) {
-                assignedToUserId = user.id;
-                salesName = user.fullName || user.username || `موظف #${user.id}`;
+        if (!assignedToUserId) {
+            const salesUser = await findSalesUserByPhone(phoneNumber, userId);
+            if (salesUser) {
+                assignedToUserId = salesUser.userId;
+                salesName = salesUser.salesName;
             } else if (cleanSenderPhone === '01092308465' || cleanSenderPhone.endsWith('1092308465')) {
-                const radyUser = await User.findOne({
-                    where: {
-                        [Op.or]: [
-                            { username: 'rady' },
-                            { role: 'super_admin' },
-                            { id: userId }
-                        ]
-                    }
-                });
-                if (radyUser) {
-                    assignedToUserId = radyUser.id;
-                    salesName = radyUser.fullName || radyUser.username || 'أ. راضي';
-                } else {
-                    salesName = 'أ. راضي (إدارة)';
-                }
+                salesName = 'أ. راضي (إدارة)';
+                assignedToUserId = userId;
             }
-        } catch (uErr) {
-            console.error('❌ [handleFastScrapeCommand] Error finding sales user:', uErr.message);
         }
 
         // 2. Identify industry profile and fetch suggested keywords via Vertex AI

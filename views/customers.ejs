@@ -1132,7 +1132,7 @@
                     });
 
                     // Refresh table if status involves automated scheduling
-                    if (newStatus === 'first_follow_up' || newStatus === 'final_follow_up') {
+                    if (newStatus === 'first_follow_up' || newStatus === 'final_follow_up' || newStatus === 'not_interested') {
                         loadData(currentPage);
                     }
                 } else {
