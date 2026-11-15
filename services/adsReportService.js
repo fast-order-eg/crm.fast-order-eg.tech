@@ -427,6 +427,16 @@ export function isCampaignCurrentlyRunning(camp) {
         return false;
     }
 
+    // استبعاد الحملات الفارغة التي ليس بها إعلانات أو لم تُفعل إطلاقاً
+    const hasNoAds = (Array.isArray(camp.adsets) && camp.adsets.length === 0) &&
+                     (!camp.ads || camp.ads.length === 0) &&
+                     (!camp.primary_ad) &&
+                     Number(camp.spend || 0) === 0;
+    const isUnscheduledEpoch = camp.start_time && camp.start_time.startsWith('1970') && Number(camp.spend || 0) === 0;
+    if (hasNoAds || isUnscheduledEpoch) {
+        return false;
+    }
+
     // إذا كانت الحملة مكتملة أو انتهت فترتها الزمنية
     if (camp.is_completed) return false;
     if (camp.stop_time) {
