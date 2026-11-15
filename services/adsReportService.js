@@ -336,8 +336,15 @@ export function classifyObjective(objective = '', ctaType = '', camp = null) {
 /**
  * استخراج تاريخ وساعة الانتهاء وحساب المدة المتبقية بتوقيت القاهرة كلٌ في سطر منفصل
  */
-export function getStopTimeDetails(stopTimeStr) {
+export function getStopTimeDetails(stopTimeStr, camp = null) {
     if (!stopTimeStr) {
+        const isLifetime = camp && (camp.budget_type === 'LIFETIME' || camp.lifetime_budget);
+        if (isLifetime) {
+            return {
+                endDate: 'غير محدد (تحتاج ضبط موعد الانتهاء في فيسبوك ⚠️)',
+                remainingText: null
+            };
+        }
         return {
             endDate: 'مستمر (بدون تاريخ انتهاء ♾️)',
             remainingText: null
@@ -634,11 +641,15 @@ export function formatCampaignAdsReportMessage(todayData, yesterdayData, request
         }
 
         // 1. البيانات العامة للحملة (تظهر مرة واحدة فقط)
-        const cStatus = camp.status_label || (camp.status === 'ACTIVE' ? '🟢 نشطة' : '⏸️ متوقفة');
+        let cStatus = camp.status_label || (camp.status === 'ACTIVE' ? '🟢 نشطة' : '⏸️ متوقفة');
+        const hasNoAds = (Array.isArray(camp.adsets) && camp.adsets.length === 0) && (!camp.ads || camp.ads.length === 0) && (!camp.primary_ad) && Number(camp.spend || 0) === 0;
+        if (hasNoAds) {
+            cStatus = '⚠️ فارغة (بدون إعلانات / لم تُفعل)';
+        }
         const ctaType = camp.ads?.[0]?.creative?.cta_type || camp.primary_ad?.cta_type || '';
         const cObj = classifyObjective(camp.objective, ctaType, camp);
         const budgetStr = formatCampaignBudget(camp);
-        const stopInfo = getStopTimeDetails(camp.stop_time);
+        const stopInfo = getStopTimeDetails(camp.stop_time, camp);
         const linksText = formatCampaignPostLinks(camp);
 
         const numPrefix = allCampaignIds.length > 1 ? `${idx + 1}️⃣ ` : '📌 ';
@@ -823,7 +834,11 @@ export function formatAdsReportMessage(data, requestedId = '', datePreset = 'tod
         }
 
         // 1. قراءة الحالة من campaign.status_label المباشرة من الـ API
-        const cStatus = camp.status_label || (camp.status === 'ACTIVE' ? '🟢 نشطة' : '⏸️ متوقفة');
+        let cStatus = camp.status_label || (camp.status === 'ACTIVE' ? '🟢 نشطة' : '⏸️ متوقفة');
+        const hasNoAds = (Array.isArray(camp.adsets) && camp.adsets.length === 0) && (!camp.ads || camp.ads.length === 0) && (!camp.primary_ad) && Number(camp.spend || 0) === 0;
+        if (hasNoAds) {
+            cStatus = '⚠️ فارغة (بدون إعلانات / لم تُفعل)';
+        }
         const ctaType = camp.ads?.[0]?.creative?.cta_type || camp.primary_ad?.cta_type || '';
         const cObj = classifyObjective(camp.objective, ctaType, camp);
         const cSpend = Math.round(Number(camp.spend || 0)).toLocaleString('en-US');
@@ -833,7 +848,7 @@ export function formatAdsReportMessage(data, requestedId = '', datePreset = 'tod
         const cRoas = camp.roas ? Number(camp.roas).toFixed(1) : null;
         const cCtr = Number(camp.ctr || 0).toFixed(2);
         const cReach = camp.reach ? Number(camp.reach).toLocaleString('en-US') : null;
-        const stopInfo = getStopTimeDetails(camp.stop_time);
+        const stopInfo = getStopTimeDetails(camp.stop_time, camp);
         const budgetStr = formatCampaignBudget(camp);
 
         const numPrefix = campaigns.length > 1 ? `${idx + 1}️⃣ ` : '📌 ';
