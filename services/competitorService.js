@@ -52,7 +52,7 @@ export function isUserInCompetitorSession(phone) {
 export function isCompetitorCommand(text) {
     if (!text || typeof text !== 'string') return false;
     const trimmed = text.trim();
-    return /^(\/|\s)*(منافسين|المنافسين|spy|سوق|عين_السوق|عين\s*السوق|سحب|اسحب|عايز\s*اسحب|ارقام|أرقام|كلمات|الكلمات|keywords|نوتش|تقرير|ads|حملات|المزيد|more|خروج|close|حفظ|استخراج|crm|سجل|تسجيل)($|\s)/i.test(trimmed);
+    return /^(\/|\s)*(منافسين|المنافسين|spy|سوق|عين_السوق|عين\s*السوق|سحب|اسحب|عايز\s*اسحب|ارقام|أرقام|كلمات|الكلمات|keywords|نوتش|تقرير|ads|حملات|المزيد|more|خروج|close|حفظ|استخراج|crm|سجل|تسجيل|تعليمات|التعليمات)($|\s)/i.test(trimmed);
 }
 
 /**
@@ -1624,6 +1624,16 @@ export async function handleCompetitorMessage({ sock, remoteJid, phoneNumber, te
             userId, 
             io
         );
+        return { handled: true };
+    }
+
+    // ================================================================
+    // Command: تعليمات or التعليمات or /تعليمات
+    // ================================================================
+    if (/^[\/\s]*(?:ال)?تعليمات(?:[\s_]+(?:ال)?(?:اعلانات|إعلانات|تقارير|حملات|حساب|اوامر|أوامر))?$|^(?:ال)?(?:اوامر|أوامر|مساعدة|المساعدة|شرح|help|guide)$|(?:عايز|عاوز|محتاج|ايه|إيه|أريد|وريني|هات)\s+(?:ال)?تعليمات/i.test(trimmed)) {
+        const { buildAdsInstructionsMessage } = await import('./adsReportService.js');
+        const helpMsg = buildAdsInstructionsMessage();
+        await replyToStaff(sock, remoteJid, helpMsg, userId, io);
         return { handled: true };
     }
 
