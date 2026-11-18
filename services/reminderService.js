@@ -917,10 +917,19 @@ export async function handleReminderGroupMessage({
     }
 }
 
+let isCheckingReminders = false;
+const activelyProcessingReminders = new Set();
+
 /**
  * فحص وإرسال التذكيرات المستحقة (تستدعى دورياً عبر Cron كل دقيقة)
  */
 export async function checkDueReminders(io) {
+    if (isCheckingReminders) {
+        console.log('⏳ [Reminder Cron] Previous checkDueReminders is still running. Skipping to prevent duplicate dispatch.');
+        return;
+    }
+    isCheckingReminders = true;
+
     try {
         const now = new Date();
         const dueReminders = await GroupReminder.findAll({
@@ -937,6 +946,27 @@ export async function checkDueReminders(io) {
         console.log(`⏰ [Reminder Cron] Found ${dueReminders.length} due reminder(s) to dispatch.`);
 
         for (const reminder of dueReminders) {
+            if (activelyProcessingReminders.has(reminder.id)) {
+                console.log(`⚠️ [Reminder Cron] Reminder #${reminder.id} is already being processed. Skipping.`);
+                continue;
+            }
+
+            // فحص إضافي لمنع الإرسال المكرر: لو تذكير متكرر وتم إرساله خلال آخر دقيقتين يتم تخطيه
+            if (reminder.lastSentAt) {
+                const diffMs = Date.now() - new Date(reminder.lastSentAt).getTime();
+                if (diffMs < 2 * 60 * 1000) {
+                    console.log(`⚠️ [Reminder Cron] Reminder #${reminder.id} was already sent ${Math.round(diffMs / 1000)}s ago. Skipping duplicate.`);
+                    continue;
+                }
+            }
+
+            // لو تذكير غير متكرر وتغيرت حالته بالفعل
+            if (!reminder.isRecurring && (reminder.status !== 'pending' || reminder.sentAt)) {
+                continue;
+            }
+
+            activelyProcessingReminders.add(reminder.id);
+
             try {
                 // البحث عن جلسة Baileys نشطة
                 let sock = sessions.get(parseInt(reminder.UserId, 10)) || sessions.get(String(reminder.UserId)) || sessions.get(3);
@@ -1038,9 +1068,13 @@ export async function checkDueReminders(io) {
                 await new Promise(r => setTimeout(r, 2500 + Math.random() * 1500));
             } catch (itemErr) {
                 console.error(`❌ [Reminder Cron] Error sending reminder #${reminder.id}:`, itemErr);
+            } finally {
+                activelyProcessingReminders.delete(reminder.id);
             }
         }
     } catch (err) {
         console.error('❌ [Reminder Cron] Global checkDueReminders error:', err);
+    } finally {
+        isCheckingReminders = false;
     }
 }

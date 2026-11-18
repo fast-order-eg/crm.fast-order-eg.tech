@@ -329,35 +329,46 @@ const PORT = process.env.PORT || 3005;
 
 // --- Scheduled Cron Jobs ---
 // Run bot cron jobs
+let isBotCronRunning = false;
 cron.schedule('* * * * *', async () => {
-    try {
-        await checkScheduledFollowUps(io);
-    } catch (e) {
-        console.error('[Cron Error] checkScheduledFollowUps:', e.message);
+    if (isBotCronRunning) {
+        console.log('⏳ [Cron] Previous minute cron is still running. Skipping tick to prevent overlap.');
+        return;
     }
-
+    isBotCronRunning = true;
     try {
-        await checkPendingFollowUps(io);
-    } catch (e) {
-        console.error('[Cron Error] checkPendingFollowUps:', e.message);
-    }
+        // فحص التذكيرات أولاً لضمان إرسالها فوراً في ميعاد الدقيقة دون تأخير
+        try {
+            await checkDueReminders(io);
+        } catch (e) {
+            console.error('[Cron Error] checkDueReminders:', e.message);
+        }
 
-    try {
-        await checkNoActionCustomers(io);
-    } catch (e) {
-        console.error('[Cron Error] checkNoActionCustomers:', e.message);
-    }
+        try {
+            await checkScheduledFollowUps(io);
+        } catch (e) {
+            console.error('[Cron Error] checkScheduledFollowUps:', e.message);
+        }
 
-    try {
-        await checkScheduledCampaigns(io);
-    } catch (e) {
-        console.error('[Cron Error] checkScheduledCampaigns:', e.message);
-    }
+        try {
+            await checkPendingFollowUps(io);
+        } catch (e) {
+            console.error('[Cron Error] checkPendingFollowUps:', e.message);
+        }
 
-    try {
-        await checkDueReminders(io);
-    } catch (e) {
-        console.error('[Cron Error] checkDueReminders:', e.message);
+        try {
+            await checkNoActionCustomers(io);
+        } catch (e) {
+            console.error('[Cron Error] checkNoActionCustomers:', e.message);
+        }
+
+        try {
+            await checkScheduledCampaigns(io);
+        } catch (e) {
+            console.error('[Cron Error] checkScheduledCampaigns:', e.message);
+        }
+    } finally {
+        isBotCronRunning = false;
     }
 });
 
