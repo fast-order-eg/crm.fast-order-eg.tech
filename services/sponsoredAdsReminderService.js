@@ -38,14 +38,7 @@ export function parseSponsoredAd(text) {
         duration = 30;
     }
 
-    // 2. استخراج الميزانية / التكلفة
-    let budget = null;
-    const budgetMatch = clean.match(/(?:ب?تكلف[ةه]|التكلف[ةه]|ميزاني[ةه])\s*(\d+)\s*ج?/i);
-    if (budgetMatch) {
-        budget = parseInt(budgetMatch[1], 10);
-    }
-
-    // 3. استخراج اسم العميل والتفاصيل / الملاحظات
+    // 2. استخراج اسم العميل والتفاصيل / الملاحظات (بدون ميزانية أو أرقام حسابات)
     let clientPart = clean
         .replace(/^(تم\s*)?(انشاء|إنشاء|تجديد)?\s*(إعلان|اعلان)\s*/i, '')
         .split(/(?:ب?تكلف[ةه]|التكلف[ةه]|ميزاني[ةه]|لمد[ةه]|\n)/i)[0]
@@ -63,7 +56,6 @@ export function parseSponsoredAd(text) {
         isAd: true,
         client: clientPart || 'عميل غير محدد',
         duration: duration,
-        budget: budget,
         isOngoing: isOngoing && !duration
     };
 }
@@ -123,6 +115,8 @@ export function calculateExpiryAndRemindDate(durationDays, now = new Date()) {
 
 /**
  * معالجة الرسائل الواردة في جروب (اعلانات ممولة)
+ * صامت تماماً في جروب إعلانات ممولة (بدون أي ردود أو تفاعلات إيموجي)
+ * يدعم التعديل التلقائي إذا قام الميديا باير بتعديل رسالته
  */
 export async function handleSponsoredAdsMessage({
     sock,
@@ -133,32 +127,27 @@ export async function handleSponsoredAdsMessage({
     msg,
     groupMetadata,
     userId = 3,
-    io
+    io,
+    isEdit = false,
+    targetMessageId = null
 }) {
     if (!text || msg.key?.fromMe) return false;
 
     const parsed = parseSponsoredAd(text);
     if (!parsed || !parsed.isAd) return false;
 
-    console.log(`📢 [Sponsored Ads] Detected ad announcement:`, parsed);
+    console.log(`📢 [Sponsored Ads] Detected ad announcement (isEdit=${isEdit}):`, parsed);
 
     try {
         // إذا كان الإعلان مستمراً بدون تاريخ محدد
         if (parsed.isOngoing) {
             const ongoingMsg = `ℹ️ *تم تسجيل إعلان مستمر بميزانية يومية:*\n\n` +
                 `👤 *العميل:* ${parsed.client}\n` +
-                `${parsed.budget ? `💰 *الميزانية اليومية:* ${parsed.budget} ج\n` : ''}` +
                 `🔄 *الحالة:* إعلان مستمر يومياً (لا يوجد تاريخ انتهاء محدد).`;
 
             await sock.sendMessage(REMINDER_GROUP_JID, { text: ongoingMsg }).catch(err => {
                 console.error('Error sending ongoing notice to reminders:', err.message);
             });
-
-            if (typeof sock.sendMessage === 'function') {
-                await sock.sendMessage(remoteJid, {
-                    react: { text: '👍', key: msg.key }
-                }).catch(() => {});
-            }
             return true;
         }
 
@@ -169,16 +158,64 @@ export async function handleSponsoredAdsMessage({
 
         // حساب تاريخ الانتهاء وموعد التذكير
         const { expiryDayName, expiryDateStr, remindAtUTC } = calculateExpiryAndRemindDate(parsed.duration);
-
-        // 1. تسجيل التذكير المستقل في جدول group_reminders ليتم إطلاقه الساعة 10 ص يوم الانتهاء
         const reminderText = `🔔 انتهاء إعلان العميل (${parsed.client}) النهاردة.\n(يرجى التجديد مع العميل والتأكيد بـ ✅)`;
 
+        const lookupId = targetMessageId || msg.key?.id;
+
+        // 1. فحص ما إذا كان هذا تعديلاً على رسالة مسجلة مسبقاً
+        let existingReminder = null;
+        if (lookupId) {
+            existingReminder = await GroupReminder.findOne({
+                where: {
+                    targetEmployeeJid: lookupId,
+                    status: 'pending'
+                }
+            });
+        }
+
+        // فحص احتياطي بالاسم إذا كان هناك تذكير قيد الانتظار لنفس العميل أُنشئ خلال آخر 24 ساعة
+        if (!existingReminder && parsed.client && parsed.client !== 'عميل غير محدد') {
+            existingReminder = await GroupReminder.findOne({
+                where: {
+                    reminderText: { [Op.like]: `%${parsed.client}%` },
+                    status: 'pending',
+                    createdAt: { [Op.gte]: new Date(Date.now() - 24 * 3600 * 1000) }
+                },
+                order: [['id', 'DESC']]
+            });
+        }
+
+        if (existingReminder) {
+            // تحديث التذكير القائم بالموعد والنص الجديد
+            existingReminder.remindAt = remindAtUTC;
+            existingReminder.reminderText = reminderText;
+            if (lookupId) existingReminder.targetEmployeeJid = lookupId;
+            await existingReminder.save();
+
+            console.log(`✏️ [Sponsored Ads] Updated existing reminder #${existingReminder.id} for client: ${parsed.client}`);
+
+            // إرسال إشعار التعديل فقط في جروب (تذكيرات)
+            const updateMsg = `✏️ *تحديث تذكير إعلان (تم تعديل الرسالة):*\n\n` +
+                `👤 *العميل:* ${parsed.client}\n` +
+                `⏱️ *المدة الجديدة:* ${parsed.duration} أيام\n` +
+                `📅 *تاريخ الانتهاء الجديد:* ${expiryDayName} (${expiryDateStr})\n` +
+                `🔔 *موعد التذكير الجديد:* صباح يوم الانتهاء الساعة 10:00 ص.`;
+
+            await sock.sendMessage(REMINDER_GROUP_JID, { text: updateMsg }).catch(err => {
+                console.error('❌ Error sending update to reminders group:', err.message);
+            });
+
+            return true;
+        }
+
+        // 2. تسجيل تذكير جديد في جدول group_reminders
         const newReminder = await GroupReminder.create({
             groupJid: REMINDER_GROUP_JID,
             groupSubject: 'تذكيرات',
             creatorPhone: senderPhone || 'ميديا باير',
             reminderText: reminderText,
             targetEmployeeName: 'خدمة العملاء / الميديا باير',
+            targetEmployeeJid: lookupId || null, // حفظ معرف رسالة الواتساب للربط مع أي تعديل لاحق
             remindAt: remindAtUTC,
             status: 'pending',
             UserId: userId
@@ -186,10 +223,10 @@ export async function handleSponsoredAdsMessage({
 
         console.log(`✅ [Sponsored Ads] Created reminder #${newReminder.id} for ${expiryDateStr} at 10:00 AM Cairo`);
 
-        // 2. إرسال تأكيد فوري وموجز في جروب (تذكيرات)
+        // 3. إرسال تأكيد فوري وموجز في جروب (تذكيرات) فقط (بدون ميزانية أو رقم حساب)
         const confirmMsg = `✅ *تم تسجيل إعلان جديد وجدولة التذكير:*\n\n` +
             `👤 *العميل:* ${parsed.client}\n` +
-            `⏱️ *المدة:* ${parsed.duration} أيام${parsed.budget ? `\n💰 *الميزانية:* ${parsed.budget} ج` : ''}\n` +
+            `⏱️ *المدة:* ${parsed.duration} أيام\n` +
             `📅 *تاريخ الانتهاء:* ${expiryDayName} (${expiryDateStr})\n` +
             `🔔 *موعد التذكير:* صباح يوم الانتهاء الساعة 10:00 ص.\n\n` +
             `💡 _سيتم إرسال تذكير منفصل للعميل صباح يوم الانتهاء لوضع إيموجي ✅ عند المتابعة والتجديد._`;
@@ -198,13 +235,7 @@ export async function handleSponsoredAdsMessage({
             console.error('❌ Error sending confirmation to reminders group:', err.message);
         });
 
-        // 3. وضع تفاعل إيموجي ✅ على الرسالة في جروب اعلانات ممولة لتأكيد التسجيل
-        if (typeof sock.sendMessage === 'function') {
-            await sock.sendMessage(remoteJid, {
-                react: { text: '✅', key: msg.key }
-            }).catch(() => {});
-        }
-
+        // ملاحظة: لا يتم إرسال أي رسائل أو تفاعلات إيموجي في جروب إعلانات ممولة (صامت 100%)
         return true;
     } catch (err) {
         console.error('❌ [Sponsored Ads] Error processing ad reminder:', err);

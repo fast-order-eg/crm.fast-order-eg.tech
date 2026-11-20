@@ -2003,8 +2003,22 @@ export const startSession = async (userId, io, phoneNumber = null) => {
         if (remoteJid === 'status@broadcast') return;
         if (msg.key.remoteJid === 'status@broadcast') return;
 
-        // فك تغليف الرسالة في حال كانت الرسائل ذاتية الاختفاء (ephemeral) أو عرض لمرة واحدة
+        // فك تغليف الرسالة في حال كانت الرسائل ذاتية الاختفاء (ephemeral) أو عرض لمرة واحدة أو رسائل تعديل
         let actualMsg = msg.message;
+        let isEditMessage = false;
+        let editedTargetMessageId = null;
+
+        while (actualMsg?.ephemeralMessage?.message || actualMsg?.viewOnceMessage?.message || actualMsg?.viewOnceMessageV2?.message || actualMsg?.documentWithCaptionMessage?.message || actualMsg?.editedMessage?.message) {
+            actualMsg = actualMsg.ephemeralMessage?.message || actualMsg.viewOnceMessage?.message || actualMsg.viewOnceMessageV2?.message || actualMsg.documentWithCaptionMessage?.message || actualMsg.editedMessage?.message;
+        }
+
+        // فحص بروتوكول التعديل الخاص بـ WhatsApp (ProtocolMessage Type 14 / editedMessage)
+        if (actualMsg?.protocolMessage?.type === 14 || actualMsg?.protocolMessage?.editedMessage) {
+            isEditMessage = true;
+            editedTargetMessageId = actualMsg.protocolMessage.key?.id;
+            actualMsg = actualMsg.protocolMessage.editedMessage || actualMsg;
+        }
+
         while (actualMsg?.ephemeralMessage?.message || actualMsg?.viewOnceMessage?.message || actualMsg?.viewOnceMessageV2?.message || actualMsg?.documentWithCaptionMessage?.message) {
             actualMsg = actualMsg.ephemeralMessage?.message || actualMsg.viewOnceMessage?.message || actualMsg.viewOnceMessageV2?.message || actualMsg.documentWithCaptionMessage?.message;
         }
@@ -2429,7 +2443,7 @@ export const startSession = async (userId, io, phoneNumber = null) => {
                 }
 
                 if (isSponsoredAdsGroup) {
-                    console.log(`📢 [Sponsored Ads Group] Message received: "${text}" from ${groupSenderPhone || rawParticipant} in group "${rawSubject || remoteJid}"`);
+                    console.log(`📢 [Sponsored Ads Group] Message received: "${text}" from ${groupSenderPhone || rawParticipant} in group "${rawSubject || remoteJid}" (isEdit=${isEditMessage})`);
                     const handled = await handleSponsoredAdsMessage({
                         sock,
                         remoteJid,
@@ -2439,7 +2453,9 @@ export const startSession = async (userId, io, phoneNumber = null) => {
                         msg,
                         groupMetadata,
                         userId,
-                        io
+                        io,
+                        isEdit: isEditMessage,
+                        targetMessageId: editedTargetMessageId || msg.key?.id
                     });
                     if (handled) return;
                 }
