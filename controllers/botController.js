@@ -32,6 +32,7 @@ import { handleReminderGroupMessage } from '../services/reminderService.js';
 import { handleAdsReportGroupMessage, handleCampaignManagementCommand, isCampaignManagementCommand } from '../services/adsReportService.js';
 import { handleCampaignTargetingMessage, isCampaignTargetingCommand, isPlainTargetingCommand, isTargetingStaffAuthorized } from '../services/campaignTargetingService.js';
 import { handleAiAdsAssistantMessage, isAiAdsGroupMatch } from '../services/aiAdsAssistantService.js';
+import { handleSponsoredAdsMessage } from '../services/sponsoredAdsReminderService.js';
 
 const handoffMessages = [
     "أهلاً بحضرتك يا فندم! تم تسجيل طلبك وهتتواصل معاك مسؤولة المبيعات أستاذة علا فوراً ✨\n\nتقدر كمان تتصل بيها أو تراسلها واتساب مباشرة:\n📞 هاتف / واتساب: 01070366534\n💬 https://wa.me/201070366534",
@@ -2273,6 +2274,18 @@ export const startSession = async (userId, io, phoneNumber = null) => {
                     || rawSubject.includes("تحكم")
                     || subjectLower.includes("control"));
 
+                // Check for "اعلانات ممولة" Group (Sponsored Ads Group)
+                const configuredSponsoredAdsGroupJid = (await getSystemSetting('sponsored_ads_group_jid', userId).catch(() => null))
+                    || (await getSystemSetting('sponsored_ads_group_jid', 1).catch(() => null))
+                    || (await getSystemSetting('sponsored_ads_group_jid', 3).catch(() => null))
+                    || '201092308465-1601429398@g.us';
+
+                const isSponsoredAdsGroup = !isAiAdsGroup && (
+                    (configuredSponsoredAdsGroupJid && remoteJid === configuredSponsoredAdsGroupJid)
+                    || (rawSubject.includes("اعلان") && rawSubject.includes("ممول"))
+                    || subjectLower.includes("اعلانات ممولة")
+                );
+
                 // استخراج رقم هاتف مرسل رسالة الجروب بدقة متناهية مع دعم كامل للـ Devices و LID و groupMetadata
                 let groupSenderPhone = null;
                 const rawParticipant = msg.key?.participant || msg.participant || '';
@@ -2402,6 +2415,22 @@ export const startSession = async (userId, io, phoneNumber = null) => {
                 if (isCampaignControlGroup) {
                     console.log(`🎯 [Campaign Control Group] Message received: "${text}" from ${groupSenderPhone || rawParticipant} in group "${rawSubject || remoteJid}"`);
                     const handled = await handleAdsReportGroupMessage({
+                        sock,
+                        remoteJid,
+                        senderPhone: groupSenderPhone,
+                        participantJid: rawParticipant || remoteJid,
+                        text,
+                        msg,
+                        groupMetadata,
+                        userId,
+                        io
+                    });
+                    if (handled) return;
+                }
+
+                if (isSponsoredAdsGroup) {
+                    console.log(`📢 [Sponsored Ads Group] Message received: "${text}" from ${groupSenderPhone || rawParticipant} in group "${rawSubject || remoteJid}"`);
+                    const handled = await handleSponsoredAdsMessage({
                         sock,
                         remoteJid,
                         senderPhone: groupSenderPhone,
