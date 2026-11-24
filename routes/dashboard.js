@@ -24,6 +24,7 @@ import { logChange } from '../services/changeLogService.js';
 import { createNotification, markAsRead, markAllAsRead, getUnreadCount, getNotifications } from '../services/notificationService.js';
 import Notification from '../models/Notification.js';
 import { getSetting, setSetting, defaultSettingsMeta } from '../services/settingsService.js';
+import { getBlockedNumbersSet, isMatchInBlockedSet } from '../services/blocklistService.js';
 import FinancialTransaction from '../models/FinancialTransaction.js';
 import Commission from '../models/Commission.js';
 import CommissionService from '../models/CommissionService.js';
@@ -1032,9 +1033,11 @@ router.get('/livechat', async (req, res) => {
         }
 
         // Filter out duplicate LID conversations when primary @s.whatsapp.net conversation exists
+        const blockedSet = await getBlockedNumbersSet(targetUserId);
         const seenKeys = new Set();
         const conversations = [];
         for (const conv of rawConversations) {
+            if (isMatchInBlockedSet(blockedSet, conv.phoneNumber, conv.remoteJid)) continue;
             const key = conv.phoneNumber || (conv.customerName && conv.customerName !== 'عميل واتساب' ? conv.customerName : conv.remoteJid);
             if (conv.remoteJid && conv.remoteJid.endsWith('@lid')) {
                 const primaryExists = rawConversations.some(c => c.id !== conv.id && (c.phoneNumber === conv.phoneNumber || c.customerName === conv.customerName) && c.remoteJid && c.remoteJid.endsWith('@s.whatsapp.net'));
@@ -1214,9 +1217,11 @@ router.get('/livechat/api/conversations', async (req, res) => {
         }
 
         // Filter out duplicate LID conversations when primary @s.whatsapp.net conversation exists
+        const blockedSet = await getBlockedNumbersSet(targetUserId);
         const seenKeys = new Set();
         const conversations = [];
         for (const conv of rawConversations) {
+            if (isMatchInBlockedSet(blockedSet, conv.phoneNumber, conv.remoteJid)) continue;
             const key = conv.phoneNumber || (conv.customerName && conv.customerName !== 'عميل واتساب' ? conv.customerName : conv.remoteJid);
             if (conv.remoteJid && conv.remoteJid.endsWith('@lid')) {
                 const primaryExists = rawConversations.some(c => c.id !== conv.id && (c.phoneNumber === conv.phoneNumber || c.customerName === conv.customerName) && c.remoteJid && c.remoteJid.endsWith('@s.whatsapp.net'));

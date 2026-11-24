@@ -7,6 +7,36 @@ import Conversation from '../models/Conversation.js';
 import Message from '../models/Message.js';
 import User from '../models/User.js';
 import { handleFunnelStep, sendInteractiveButtons, handleButtonResponse, handleIncomingUnifiedMessage } from './botController.js';
+import { isNumberBlocked, normalizePhoneKey } from '../services/blocklistService.js';
+
+/**
+ * Block a WhatsApp user natively via Meta Cloud API (v22.0)
+ */
+export async function blockMetaUser(phoneOrId) {
+    try {
+        const phoneId = process.env.META_PHONE_NUMBER_ID || '1187785914426370';
+        const accessToken = process.env.META_ACCESS_TOKEN;
+        const cleanUser = normalizePhoneKey(phoneOrId);
+        if (!cleanUser || !accessToken) return { success: false, error: 'Missing user or access token' };
+
+        const url = `https://graph.facebook.com/v22.0/${phoneId}/block_users`;
+        const response = await axios.post(url, {
+            messaging_product: 'whatsapp',
+            block_users: [{ user: cleanUser }]
+        }, {
+            headers: {
+                Authorization: `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+            },
+            timeout: 15000
+        });
+        console.log(`🚫 [META_BLOCK_SUCCESS] Blocked ${cleanUser} on Meta Cloud API`);
+        return { success: true, data: response.data };
+    } catch (err) {
+        console.error('❌ [META_BLOCK_ERROR]:', err.response?.data || err.message);
+        return { success: false, error: err.response?.data || err.message };
+    }
+}
 
 /**
  * Download media from Meta Graph API and save locally to public/uploads/whatsapp/
@@ -293,6 +323,16 @@ export const handleWebhook = async (req, res) => {
             const targetId = isPhone ? digitsOnly : rawFrom;
             const remoteJid = isPhone ? `${digitsOnly}@s.whatsapp.net` : (rawFrom.includes('@') ? rawFrom : `${rawFrom}@s.whatsapp.net`);
 
+            // Primary Admin User ID for Meta API (User rady = ID 3)
+            const activeAdmin = await User.findOne({ where: { username: 'rady' } });
+            const userId = activeAdmin ? activeAdmin.id : 3;
+
+            // 🚫 Blocklist Guard: Immediately ignore blocked numbers before downloading media or touching DB
+            if (await isNumberBlocked(userId, rawFrom, digitsOnly, remoteJid)) {
+                console.log(`🚫 [META_BLOCKLIST] Blocked sender ${rawFrom} (${remoteJid}). Message ignored completely.`);
+                return;
+            }
+
             // 🛡️ Guard: If message is sent to Meta Cloud API by authorized staff (like Rady 01092308465)
             // attempting to run product addition commands, block it immediately so Meta Business balance is 100% protected!
             const cleanSenderPhone = digitsOnly.startsWith('20') && digitsOnly.length === 12 
@@ -309,9 +349,6 @@ export const handleWebhook = async (req, res) => {
             // If phone is available use it; otherwise use username (e.g. @3mrMekky) if available, else BSUID
             const displayPhone = isPhone ? targetId : (username || targetId);
             const senderName = contact?.profile?.name || (isPhone ? `عميل ${digitsOnly}` : (username || (bsuid ? `مستخدم ${bsuid}` : `عميل ${rawFrom}`)));
-            // Primary Admin User ID for Meta API (User rady = ID 3)
-            const activeAdmin = await User.findOne({ where: { username: 'rady' } });
-            const userId = activeAdmin ? activeAdmin.id : 3;
 
             let textContent = '';
             let mediaUrl = null;

@@ -390,6 +390,12 @@ export const defaultSettingsMeta = {
         label: 'مدة انتهاء جلسة الذاكرة التلقائية (بالدقائق)',
         defaultValue: 360
     },
+    blocked_whatsapp_numbers: {
+        type: 'json',
+        category: 'general',
+        label: 'الأرقام المحظورة من الواتساب والشات المباشر',
+        defaultValue: []
+    },
     ai_ads_system_prompt: {
         type: 'text',
         category: 'ai_ads',

@@ -45,6 +45,7 @@ import { GoogleAuth } from 'google-auth-library';
 import { vertexQueue } from '../services/queueService.js';
 import { funnelDefaults } from '../config/funnelDefaults.js';
 import { getSetting as getSystemSetting } from '../services/settingsService.js';
+import { isNumberBlocked } from '../services/blocklistService.js';
 import { getEgyptTimeInfo } from '../services/assignmentService.js';
 
 export async function checkUserWorkingHours(userId) {
@@ -1948,6 +1949,14 @@ export const startSession = async (userId, io, phoneNumber = null) => {
         const rawJid = msg.key.remoteJid;
         if (rawJid && (rawJid.includes('@newsletter') || rawJid === 'status@broadcast')) return;
 
+        // 🚫 Blocklist Guard: Ignore blocked numbers immediately before read receipts or media download
+        if (!msg.key.fromMe && rawJid && !rawJid.endsWith('@g.us')) {
+            if (await isNumberBlocked(userId, rawJid, msg.key.remoteJidAlt, msg.key.senderPn)) {
+                console.log(`🚫 [BAILEYS_BLOCKLIST] Blocked sender ${rawJid}. Message ignored completely.`);
+                return;
+            }
+        }
+
         // 0. Auto-Handoff on Manual Reply
         if (msg.key.fromMe) {
             const remoteJid = msg.key.remoteJid;
@@ -1988,6 +1997,13 @@ export const startSession = async (userId, io, phoneNumber = null) => {
         // Resolve the best remoteJid (prefer phone-based @s.whatsapp.net over @lid)
         const remoteJid = resolveRemoteJid(msg.key);
         const phoneNumber = extractPhoneNumber(msg.key, msg);
+
+        if (remoteJid && !remoteJid.endsWith('@g.us')) {
+            if (await isNumberBlocked(userId, remoteJid, phoneNumber)) {
+                console.log(`🚫 [BAILEYS_BLOCKLIST] Blocked sender ${remoteJid} (${phoneNumber || 'N/A'}). Message ignored completely.`);
+                return;
+            }
+        }
         
         // Debug: Log LID-related fields to understand what Baileys v6 sends
         if (msg.key.remoteJid && msg.key.remoteJid.endsWith('@lid')) {
@@ -2723,6 +2739,12 @@ async function _handleIncomingUnifiedMessageCore({
 }) {
     try {
         if (!remoteJid || remoteJid.endsWith('@g.us')) return;
+
+        // 🚫 Blocklist Guard
+        if (await isNumberBlocked(userId, remoteJid, phoneNumber)) {
+            console.log(`🚫 [UNIFIED_BLOCKLIST] Blocked sender ${remoteJid} (${phoneNumber || 'N/A'}). Skipped processing.`);
+            return;
+        }
 
         // 🛡️ Deduplication Guard: Ignore duplicate processing of the exact same message
         const incomingMsgId = rawMsg?.key?.id || rawMsg?.id;
