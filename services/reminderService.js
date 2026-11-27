@@ -987,11 +987,13 @@ export async function checkDueReminders(io) {
                 const mentions = [];
                 let employeeSnippet = '👥 *المسؤول:* الجميع';
 
-                if (reminder.targetEmployeeJid) {
+                if (reminder.targetEmployeeJid && reminder.targetEmployeeJid.includes('@')) {
                     mentions.push(reminder.targetEmployeeJid);
-                    const cleanPhone = reminder.targetEmployeeJid.replace('@s.whatsapp.net', '');
+                    const cleanPhone = reminder.targetEmployeeJid.replace(/@.*$/, '');
                     const namePart = reminder.targetEmployeeName ? ` (${reminder.targetEmployeeName})` : '';
                     employeeSnippet = `👤 *المسؤول:* @${cleanPhone}${namePart}`;
+                } else if (reminder.targetEmployeeName) {
+                    employeeSnippet = `👥 *المسؤول:* ${reminder.targetEmployeeName}`;
                 }
 
                 let recurringFooter = '';

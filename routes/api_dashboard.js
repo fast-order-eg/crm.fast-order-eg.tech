@@ -1,6 +1,6 @@
 
 import express from 'express';
-import { startSession, stopSession, logoutSession, getStatus, getGroups } from '../controllers/botController.js';
+import { startSession, stopSession, logoutSession, getStatus, getGroups, sessions } from '../controllers/botController.js';
 
 const router = express.Router();
 
@@ -85,6 +85,32 @@ router.post('/logout', async (req, res) => {
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Failed to logout bot' });
+    }
+});
+
+router.post('/send-group-message', async (req, res) => {
+    try {
+        const { userId = 3, groupJid, text } = req.body || {};
+        if (!groupJid || !text) {
+            return res.status(400).json({ success: false, error: 'groupJid and text are required' });
+        }
+        let sock = sessions.get(parseInt(userId, 10)) || sessions.get(String(userId)) || sessions.get(3);
+        if (!sock || !sock.user) {
+            for (const [, sVal] of sessions.entries()) {
+                if (sVal && sVal.user) {
+                    sock = sVal;
+                    break;
+                }
+            }
+        }
+        if (!sock || !sock.user) {
+            return res.status(503).json({ success: false, error: 'No active WhatsApp session' });
+        }
+        const sent = await sock.sendMessage(groupJid, { text });
+        return res.json({ success: true, messageId: sent?.key?.id || null });
+    } catch (err) {
+        console.error('Error sending group message via API:', err);
+        return res.status(500).json({ success: false, error: err.message });
     }
 });
 

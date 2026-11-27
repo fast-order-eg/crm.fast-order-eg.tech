@@ -61,10 +61,10 @@ export function parseSponsoredAd(text) {
 }
 
 /**
- * حساب تاريخ الانتهاء وموعد التذكير بتوقيت مصر مع تطبيق قاعدة شفت ما بعد منتصف الليل
+ * تحويل تاريخ ووقت محلي بتوقيت القاهرة (YYYY-MM-DD HH:mm:ss) إلى كائن Date بتوقيت UTC بدقة (يدعم الصيفي والشتوي تلقائياً)
  */
-export function calculateExpiryAndRemindDate(durationDays, now = new Date()) {
-    // جلب التوقيت الحالي في جمهورية مصر العربية
+function cairoLocalToUtc(year, month1Based, day, hour = 10, minute = 0, second = 0) {
+    const roughUtc = new Date(Date.UTC(year, month1Based - 1, day, hour, minute, second));
     const formatter = new Intl.DateTimeFormat('en-US', {
         timeZone: 'Africa/Cairo',
         year: 'numeric',
@@ -72,7 +72,41 @@ export function calculateExpiryAndRemindDate(durationDays, now = new Date()) {
         day: 'numeric',
         hour: 'numeric',
         minute: 'numeric',
-        hour12: false
+        second: 'numeric',
+        hourCycle: 'h23'
+    });
+    const formattedParts = formatter.formatToParts(roughUtc);
+    const getVal = (type) => parseInt(formattedParts.find(x => x.type === type)?.value || '0', 10);
+    const cairoAsUtc = Date.UTC(
+        getVal('year'),
+        getVal('month') - 1,
+        getVal('day'),
+        getVal('hour') % 24,
+        getVal('minute'),
+        getVal('second')
+    );
+    const offsetMs = cairoAsUtc - roughUtc.getTime();
+    return new Date(roughUtc.getTime() - offsetMs);
+}
+
+/**
+ * حساب تاريخ الانتهاء وموعد التذكير بتوقيت مصر:
+ * - الإعلانات من 5:00 ص حتى 11:59 م: يُحسب الانتهاء بعد (المدة الكاملة بالأيام) الساعة 10:00 ص بداية الشفت.
+ *   مثال: إعلان الجمعة 10:30 ص أو 1 ظ أو 11 م لمدة 3 أيام => التذكير الإثنين الساعة 10:00 ص.
+ * - قاعدة الشفت الليلي (من 12:00 منتصف الليل حتى 4:59 فجراً): يُحسب الإعلان تابعاً لشفت اليوم السابق،
+ *   فيكون التذكير صباح اليوم الأخير الساعة 10:00 ص قبل انتهاء الإعلان في الليل/الفجر.
+ *   مثال: إعلان فجر السبت 2:00 ص أو 4:00 ص لمدة 3 أيام (ينتهي فجر الثلاثاء) => التذكير الإثنين الساعة 10:00 ص.
+ */
+export function calculateExpiryAndRemindDate(durationDays, now = new Date()) {
+    // جلب التوقيت الحالي في جمهورية مصر العربية بصيغة 0-23 الدقيقة
+    const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Africa/Cairo',
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: 'numeric',
+        hourCycle: 'h23'
     });
     const parts = formatter.formatToParts(now);
     const p = {};
@@ -81,9 +115,9 @@ export function calculateExpiryAndRemindDate(durationDays, now = new Date()) {
     let startYear = p.year;
     let startMonth = p.month - 1; // 0-indexed
     let startDay = p.day;
-    let currentHour = p.hour;
+    let currentHour = p.hour % 24;
 
-    // قاعدة الشفت الليلي: إذا سُجل الإعلان بين 12 منتصف الليل و 4:59 فجراً، يعتبر تابعاً لشفت اليوم السابق
+    // قاعدة الشفت الليلي: إذا سُجل الإعلان بين 12:00 منتصف الليل و 4:59 فجراً، يعتبر تابعاً لشفت اليوم السابق
     if (currentHour >= 0 && currentHour < 5) {
         const temp = new Date(Date.UTC(startYear, startMonth, startDay - 1));
         startYear = temp.getUTCFullYear();
@@ -91,17 +125,19 @@ export function calculateExpiryAndRemindDate(durationDays, now = new Date()) {
         startDay = temp.getUTCDate();
     }
 
-    // تاريخ الانتهاء = يوم البداية + (المدة - 1) أيام
-    const daysToAdd = Math.max(0, durationDays - 1);
+    // تاريخ الانتهاء الفعلي = يوم البداية (بعد مراعاة الشفت الليلي) + المدة الكاملة بالأيام
+    const daysToAdd = Math.max(1, durationDays);
     const expiry = new Date(Date.UTC(startYear, startMonth, startDay + daysToAdd));
 
-    const pad = n => String(n).padStart(2, '0');
-    const expiryDateStr = `${expiry.getUTCFullYear()}-${pad(expiry.getUTCMonth() + 1)}-${pad(expiry.getUTCDate())}`;
+    const expiryYear = expiry.getUTCFullYear();
+    const expiryMonth = expiry.getUTCMonth() + 1;
+    const expiryDay = expiry.getUTCDate();
 
-    // موعد التذكير = الساعة 10:00 صباحاً بتوقيت مصر في نفس يوم الانتهاء
-    // توقيت مصر UTC+2، بالتالي 10:00 صباحاً مصر = 08:00 صباحاً UTC
-    const remindAtCairoISO = `${expiryDateStr}T10:00:00+02:00`;
-    const remindAtUTC = new Date(remindAtCairoISO);
+    const pad = n => String(n).padStart(2, '0');
+    const expiryDateStr = `${expiryYear}-${pad(expiryMonth)}-${pad(expiryDay)}`;
+
+    // موعد التذكير = الساعة 10:00 صباحاً بتوقيت مصر (بداية الشفت) في يوم الانتهاء
+    const remindAtUTC = cairoLocalToUtc(expiryYear, expiryMonth, expiryDay, 10, 0, 0);
 
     const daysAr = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
     const expiryDayName = daysAr[expiry.getUTCDay()];
@@ -173,8 +209,8 @@ export async function handleSponsoredAdsMessage({
             });
         }
 
-        // فحص احتياطي بالاسم إذا كان هناك تذكير قيد الانتظار لنفس العميل أُنشئ خلال آخر 24 ساعة
-        if (!existingReminder && parsed.client && parsed.client !== 'عميل غير محدد') {
+        // فحص احتياطي بالاسم فقط في حالة التعديل (isEdit) إذا لم يطابق معرف الرسالة
+        if (isEdit && !existingReminder && parsed.client && parsed.client !== 'عميل غير محدد') {
             existingReminder = await GroupReminder.findOne({
                 where: {
                     reminderText: { [Op.like]: `%${parsed.client}%` },
